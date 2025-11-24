@@ -31,6 +31,10 @@ export interface Participant {
   website?: string;
   validator_consensus_key?: string;
   consensus_key_mismatch?: boolean;
+  weight_to_confirm?: number | null;
+  confirmation_weight?: number | null;
+  confirmation_poc_ratio?: number | null;
+  participant_status?: string | null;
 }
 
 export interface InferenceResponse {

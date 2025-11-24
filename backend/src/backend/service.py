@@ -26,6 +26,19 @@ from backend.models import (
 logger = logging.getLogger(__name__)
 
 
+# ml_nodes_data structure: [{ml_nodes: [node, ...]}, {ml_nodes: [...]}]
+# Sum poc_weight for nodes where timeslot_allocation[1] == False
+def _calculate_weight_to_confirm(ml_nodes_data: List[Dict]) -> int:
+    weight = 0
+    for ml_node_group in ml_nodes_data:
+        nested_nodes = ml_node_group.get("ml_nodes", [])
+        for node in nested_nodes:
+            timeslot_allocation = node.get("timeslot_allocation", [])
+            if len(timeslot_allocation) > 1 and timeslot_allocation[1] == False:
+                weight += node.get("poc_weight", 0)
+    return weight
+
+
 def _extract_ml_nodes_map(ml_nodes_data: List[Dict]) -> Dict[str, int]:
     result = {}
     for wrapper in ml_nodes_data:
@@ -243,6 +256,7 @@ class InferenceService:
             
             active_participants_list = epoch_data["active_participants"]["participants"]
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, height, active_participants_list)
+            participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, height, active_participants_list)
             
             latest_info = await self.client.get_latest_epoch()
             latest_epoch_index = latest_info["latest_epoch"]["index"]
@@ -340,6 +354,7 @@ class InferenceService:
             epoch_data = await self.client.get_epoch_participants(epoch_id)
             active_participants_list = epoch_data["active_participants"]["participants"]
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, target_height, active_participants_list)
+            participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, target_height, active_participants_list)
             
             total_rewards_gnk = await self.cache_db.get_epoch_total_rewards(epoch_id)
             if total_rewards_gnk is None or total_rewards_gnk == 0:
@@ -429,6 +444,7 @@ class InferenceService:
                 await self.cache_db.mark_epoch_finished(epoch_id, target_height)
             
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, target_height, epoch_data["active_participants"]["participants"])
+            participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, target_height, epoch_data["active_participants"]["participants"])
             
             total_rewards_gnk = await self.cache_db.get_epoch_total_rewards(epoch_id)
             if total_rewards_gnk is None:
@@ -659,6 +675,10 @@ class InferenceService:
                     if p.index == participant_id:
                         participant = p
                         break
+                
+                if participant and participant.confirmation_poc_ratio is None and participant.weight_to_confirm is not None and participant.weight_to_confirm > 0:
+                    logger.info(f"Participant {participant_id} missing confirmation data, refreshing")
+                    participant = None
             
             if not participant:
                 if is_current:
@@ -1092,6 +1112,103 @@ class InferenceService:
             
         except Exception as e:
             logger.error(f"Error polling epoch total rewards: {e}")
+    
+    async def fetch_and_cache_confirmation_data(
+        self,
+        epoch_id: int,
+        height: int,
+        active_participants: List[Dict[str, Any]]
+    ):
+        try:
+            epoch_group_data = await self.client.get_epoch_group_data(epoch_id, height)
+            validation_weights = epoch_group_data.get("epoch_group_data", {}).get("validation_weights", [])
+            
+            validation_weights_map = {
+                vw["member_address"]: vw for vw in validation_weights
+            }
+            
+            participant_statuses = {}
+            for participant in active_participants:
+                participant_id = participant["index"]
+                try:
+                    participant_data = await self.client.get_participant_confirmation_data(
+                        participant_id, height
+                    )
+                    participant_info = participant_data.get("participant", {})
+                    participant_statuses[participant_id] = participant_info.get("status", "")
+                except Exception as e:
+                    logger.debug(f"Failed to fetch status for {participant_id}: {e}")
+                    participant_statuses[participant_id] = ""
+            
+            confirmation_data = []
+            
+            for participant in active_participants:
+                participant_id = participant["index"]
+                
+                try:
+                    ml_nodes = participant.get("ml_nodes", [])
+                    weight_to_confirm = _calculate_weight_to_confirm(ml_nodes)
+                    
+                    validation_info = validation_weights_map.get(participant_id, {})
+                    confirmation_weight_raw = validation_info.get("confirmation_weight")
+                    confirmation_weight = None
+                    if confirmation_weight_raw is not None:
+                        try:
+                            confirmation_weight = int(confirmation_weight_raw)
+                        except (ValueError, TypeError):
+                            logger.warning(f"Invalid confirmation_weight for {participant_id}: {confirmation_weight_raw}")
+                    
+                    participant_status = participant_statuses.get(participant_id, "")
+                    
+                    confirmation_poc_ratio = None
+                    if confirmation_weight is not None and weight_to_confirm > 0:
+                        confirmation_poc_ratio = round(confirmation_weight / weight_to_confirm, 4)
+                    
+                    confirmation_data.append({
+                        "participant_index": participant_id,
+                        "weight_to_confirm": weight_to_confirm,
+                        "confirmation_weight": confirmation_weight,
+                        "confirmation_poc_ratio": confirmation_poc_ratio,
+                        "participant_status": participant_status
+                    })
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to process confirmation data for {participant_id}: {e}")
+                    continue
+            
+            await self.cache_db.save_confirmation_data_batch(epoch_id, confirmation_data)
+            logger.info(f"Cached confirmation data for {len(confirmation_data)} participants in epoch {epoch_id}")
+            
+        except Exception as e:
+            logger.error(f"Error fetching and caching confirmation data: {e}")
+    
+    async def merge_confirmation_data(
+        self,
+        epoch_id: int,
+        participants: List[ParticipantStats],
+        height: int,
+        active_participants: List[Dict[str, Any]]
+    ) -> List[ParticipantStats]:
+        try:
+            confirmation_list = await self.cache_db.get_confirmation_data(epoch_id)
+            confirmation_map = {}
+            
+            if confirmation_list:
+                confirmation_map = {c["participant_index"]: c for c in confirmation_list}
+            
+            for participant in participants:
+                conf_info = confirmation_map.get(participant.index)
+                if conf_info:
+                    participant.weight_to_confirm = conf_info["weight_to_confirm"]
+                    participant.confirmation_weight = conf_info["confirmation_weight"]
+                    participant.confirmation_poc_ratio = conf_info["confirmation_poc_ratio"]
+                    participant.participant_status = conf_info["participant_status"]
+            
+            return participants
+            
+        except Exception as e:
+            logger.error(f"Failed to merge confirmation data: {e}")
+            return participants
     
     async def get_timeline(self):
         current_time = time.time()

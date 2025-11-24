@@ -203,6 +203,24 @@ class CacheDB:
                 )
             """)
             
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS confirmation_data (
+                    epoch_id INTEGER NOT NULL,
+                    participant_index TEXT NOT NULL,
+                    weight_to_confirm INTEGER,
+                    confirmation_weight INTEGER,
+                    confirmation_poc_ratio REAL,
+                    participant_status TEXT,
+                    recorded_at TEXT NOT NULL,
+                    PRIMARY KEY (epoch_id, participant_index)
+                )
+            """)
+            
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_confirmation_participant 
+                ON confirmation_data(participant_index)
+            """)
+            
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
     
@@ -976,4 +994,44 @@ class CacheDB:
                     "timeline": json.loads(row["timeline_json"]),
                     "cached_at": row["cached_at"]
                 }
+    
+    async def save_confirmation_data_batch(self, epoch_id: int, data_list: List[Dict[str, Any]]):
+        async with aiosqlite.connect(self.db_path) as db:
+            now = datetime.utcnow().isoformat()
+            
+            for data in data_list:
+                await db.execute("""
+                    INSERT OR REPLACE INTO confirmation_data 
+                    (epoch_id, participant_index, weight_to_confirm, confirmation_weight, 
+                     confirmation_poc_ratio, participant_status, recorded_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    epoch_id,
+                    data["participant_index"],
+                    data["weight_to_confirm"],
+                    data["confirmation_weight"],
+                    data["confirmation_poc_ratio"],
+                    data["participant_status"],
+                    now
+                ))
+            
+            await db.commit()
+            logger.info(f"Saved confirmation data for {len(data_list)} participants in epoch {epoch_id}")
+    
+    async def get_confirmation_data(self, epoch_id: int) -> Optional[List[Dict[str, Any]]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            async with db.execute("""
+                SELECT participant_index, weight_to_confirm, confirmation_weight,
+                       confirmation_poc_ratio, participant_status
+                FROM confirmation_data
+                WHERE epoch_id = ?
+            """, (epoch_id,)) as cursor:
+                rows = await cursor.fetchall()
+                
+                if not rows:
+                    return None
+                
+                return [dict(row) for row in rows]
 

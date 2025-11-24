@@ -214,48 +214,95 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
               )}
             </div>
 
-            <div className="flex gap-8">
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Weight</label>
-                <div className="mt-1 text-sm font-semibold text-gray-900">{participant.weight.toLocaleString()}</div>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Jail Status</label>
-                <div className="mt-1">
-                  {participant.is_jailed === true ? (
-                    <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-300 rounded">
-                      JAILED
-                    </span>
-                  ) : participant.is_jailed === false ? (
-                    <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
-                      ACTIVE
-                    </span>
-                  ) : (
-                    <span className="text-gray-400 text-xs">Unknown</span>
-                  )}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="grid grid-cols-3 gap-6">
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight</label>
+                  <div className="text-lg font-semibold text-gray-900">{participant.weight.toLocaleString()}</div>
                 </div>
-              </div>
 
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Health Status</label>
-                <div className="mt-1 flex items-center gap-2">
-                  {participant.node_healthy === true ? (
-                    <>
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm text-gray-900">Healthy</span>
-                    </>
-                  ) : participant.node_healthy === false ? (
-                    <>
-                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                      <span className="text-sm text-gray-900">Unhealthy</span>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-                      <span className="text-sm text-gray-400">Unknown</span>
-                    </>
-                  )}
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight to Confirm</label>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {participant.weight_to_confirm !== null && participant.weight_to_confirm !== undefined
+                      ? participant.weight_to_confirm.toLocaleString()
+                      : '-'}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Confirmation Ratio</label>
+                  <div className={`text-lg font-semibold ${
+                    participant.confirmation_poc_ratio !== null && 
+                    participant.confirmation_poc_ratio !== undefined &&
+                    participant.confirmation_poc_ratio < 0.5 
+                      ? 'text-red-600' 
+                      : 'text-gray-900'
+                  }`}>
+                    {participant.confirmation_poc_ratio !== null && participant.confirmation_poc_ratio !== undefined
+                      ? `${(participant.confirmation_poc_ratio * 100).toFixed(2)}%`
+                      : '-'}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Node Health</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    {participant.node_healthy === true ? (
+                      <>
+                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                        <span className="text-base font-medium text-gray-900">Healthy</span>
+                      </>
+                    ) : participant.node_healthy === false ? (
+                      <>
+                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <span className="text-base font-medium text-gray-900">Unhealthy</span>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
+                        <span className="text-base font-medium text-gray-400">Unknown</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Validator Jail</label>
+                  <div className="mt-1">
+                    {participant.is_jailed === true ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-300 rounded">
+                        JAILED
+                      </span>
+                    ) : participant.is_jailed === false ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
+                        NOT JAILED
+                      </span>
+                    ) : participant.participant_status === "INACTIVE" ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 rounded">
+                        NOT VALIDATOR
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Unknown</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Host Status</label>
+                  <div className="mt-1">
+                    {participant.participant_status === 'INACTIVE' ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-300 rounded">
+                        INACTIVE
+                      </span>
+                    ) : participant.participant_status === 'ACTIVE' ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
+                        ACTIVE
+                      </span>
+                    ) : (
+                      <span className="text-gray-400 text-sm">Unknown</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -27,6 +27,7 @@ POLL_EPOCH_TOTAL_REWARDS_INTERVAL = int(os.getenv("POLL_EPOCH_TOTAL_REWARDS_INTE
 POLL_PARTICIPANT_INFERENCES_INTERVAL = int(os.getenv("POLL_PARTICIPANT_INFERENCES_INTERVAL", "1200"))
 POLL_MODELS_API_INTERVAL = int(os.getenv("POLL_MODELS_API_INTERVAL", "300"))
 POLL_TIMELINE_INTERVAL = int(os.getenv("POLL_TIMELINE_INTERVAL", "30"))
+POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL", "120"))
 
 background_task = None
 jail_polling_task = None
@@ -38,6 +39,7 @@ epoch_total_rewards_polling_task = None
 participant_inferences_polling_task = None
 models_api_polling_task = None
 timeline_polling_task = None
+confirmation_polling_task = None
 inference_service_instance = None
 
 
@@ -181,9 +183,30 @@ async def poll_timeline():
         await asyncio.sleep(POLL_TIMELINE_INTERVAL)
 
 
+async def poll_confirmation_data():
+    await asyncio.sleep(5)
+    
+    while True:
+        try:
+            if inference_service_instance:
+                epoch_data = await inference_service_instance.client.get_current_epoch_participants()
+                epoch_id = epoch_data["active_participants"]["epoch_group_id"]
+                height = await inference_service_instance.client.get_latest_height()
+                active_participants = epoch_data["active_participants"]["participants"]
+                
+                await inference_service_instance.fetch_and_cache_confirmation_data(
+                    epoch_id, height, active_participants
+                )
+                logger.info("Background polling: fetched confirmation data")
+        except Exception as e:
+            logger.error(f"Confirmation data polling error: {e}")
+        
+        await asyncio.sleep(POLL_CONFIRMATION_DATA_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global background_task, jail_polling_task, health_polling_task, rewards_polling_task, warm_keys_polling_task, hardware_nodes_polling_task, epoch_total_rewards_polling_task, participant_inferences_polling_task, models_api_polling_task, timeline_polling_task, inference_service_instance
+    global background_task, jail_polling_task, health_polling_task, rewards_polling_task, warm_keys_polling_task, hardware_nodes_polling_task, epoch_total_rewards_polling_task, participant_inferences_polling_task, models_api_polling_task, timeline_polling_task, confirmation_polling_task, inference_service_instance
     
     inference_urls = os.getenv("INFERENCE_URLS", "http://node2.gonka.ai:8000").split(",")
     inference_urls = [url.strip() for url in inference_urls]
@@ -193,7 +216,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initializing with URLs: {inference_urls}")
     logger.info(f"Database path: {db_path}")
     logger.info(f"Polling intervals (s): epoch={POLL_CURRENT_EPOCH_INTERVAL}, jail={POLL_JAIL_STATUS_INTERVAL}, health={POLL_NODE_HEALTH_INTERVAL}, rewards={POLL_REWARDS_INTERVAL}")
-    logger.info(f"Polling intervals (s): warm_keys={POLL_WARM_KEYS_INTERVAL}, hardware_nodes={POLL_HARDWARE_NODES_INTERVAL}, total_rewards={POLL_EPOCH_TOTAL_REWARDS_INTERVAL}, inferences={POLL_PARTICIPANT_INFERENCES_INTERVAL}, models_api={POLL_MODELS_API_INTERVAL}, timeline={POLL_TIMELINE_INTERVAL}")
+    logger.info(f"Polling intervals (s): warm_keys={POLL_WARM_KEYS_INTERVAL}, hardware_nodes={POLL_HARDWARE_NODES_INTERVAL}, total_rewards={POLL_EPOCH_TOTAL_REWARDS_INTERVAL}, inferences={POLL_PARTICIPANT_INFERENCES_INTERVAL}, models_api={POLL_MODELS_API_INTERVAL}, timeline={POLL_TIMELINE_INTERVAL}, confirmation_data={POLL_CONFIRMATION_DATA_INTERVAL}")
     logger.info(f"Polling batch sizes: warm_keys={POLL_WARM_KEYS_BATCH_SIZE}, hardware_nodes={POLL_HARDWARE_NODES_BATCH_SIZE}")
     
     cache_db = CacheDB(db_path)
@@ -214,6 +237,7 @@ async def lifespan(app: FastAPI):
     participant_inferences_polling_task = asyncio.create_task(poll_participant_inferences())
     models_api_polling_task = asyncio.create_task(poll_models_api())
     timeline_polling_task = asyncio.create_task(poll_timeline())
+    confirmation_polling_task = asyncio.create_task(poll_confirmation_data())
     logger.info("Background polling tasks started")
     
     yield
@@ -287,6 +311,13 @@ async def lifespan(app: FastAPI):
             await timeline_polling_task
         except asyncio.CancelledError:
             logger.info("Timeline polling task cancelled")
+    
+    if confirmation_polling_task:
+        confirmation_polling_task.cancel()
+        try:
+            await confirmation_polling_task
+        except asyncio.CancelledError:
+            logger.info("Confirmation polling task cancelled")
 
 
 app = FastAPI(lifespan=lifespan)
