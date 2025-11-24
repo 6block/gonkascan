@@ -147,10 +147,17 @@ return missedTestFails || invalidTestFails || lowConfirmation
 For small samples (< 10), allows higher miss rates due to statistical significance requirements. Approaches 10% threshold for larger samples (> 990).
 
 **Validator Status Logic**:
-- If `participant_status === "INACTIVE"` and `is_jailed` is unknown: Display "Not validator" (participant is not a validator)
-- If `is_jailed === true`: Display red indicator (jailed)
-- If `is_jailed === false`: Display green indicator (active)
-- Otherwise: Display gray indicator (unknown)
+
+Table view (compact):
+- Red dot: `is_jailed === true` (Jailed)
+- Green dot: `is_jailed === false` (Active)
+- Grey dot: Unknown or not a validator (tooltip shows appropriate text)
+
+Modal view (detailed):
+- Red badge: `is_jailed === true` - "JAILED"
+- Green badge: `is_jailed === false` - "NOT JAILED"
+- Grey badge: `participant_status === "INACTIVE"` - "NOT VALIDATOR"
+- Grey text: All other cases - "Unknown"
 
 ## Configuration
 

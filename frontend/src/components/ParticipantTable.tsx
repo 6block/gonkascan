@@ -198,10 +198,8 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
                       <div className="w-3 h-3 bg-red-600 rounded-full" title="Jailed"></div>
                     ) : participant.is_jailed === false ? (
                       <div className="w-3 h-3 bg-green-600 rounded-full" title="Active"></div>
-                    ) : participant.participant_status === "INACTIVE" ? (
-                      <span className="text-xs text-gray-500" title="Not a validator">Not validator</span>
                     ) : (
-                      <div className="w-3 h-3 bg-gray-300 rounded-full" title="Unknown"></div>
+                      <div className="w-3 h-3 bg-gray-300 rounded-full" title={participant.participant_status === "INACTIVE" ? "Not a validator" : "Unknown"}></div>
                     )}
                   </div>
                 </td>
