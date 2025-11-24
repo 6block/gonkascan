@@ -285,7 +285,7 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">PoC Status</label>
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Host Status</label>
                   <div className="mt-1">
                     {participant.participant_status === 'INACTIVE' ? (
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-300 rounded">
