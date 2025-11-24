@@ -278,6 +278,10 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
                         NOT JAILED
                       </span>
+                    ) : participant.participant_status === "INACTIVE" ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 rounded">
+                        NOT VALIDATOR
+                      </span>
                     ) : (
                       <span className="text-gray-400 text-sm">Unknown</span>
                     )}

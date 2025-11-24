@@ -106,8 +106,8 @@ if confirmation_weight is not None and weight_to_confirm > 0:
 
 **Files Modified**:
 - `frontend/src/types/inference.ts` - Added 4 fields to Participant interface
-- `frontend/src/components/ParticipantModal.tsx` - Added UI display
-- `frontend/src/components/ParticipantTable.tsx` - Added highlighting logic
+- `frontend/src/components/ParticipantModal.tsx` - Added UI display, validator status logic
+- `frontend/src/components/ParticipantTable.tsx` - Added statistical test highlighting logic
 
 **Highlighting Logic**:
 
@@ -145,6 +145,12 @@ return missedTestFails || invalidTestFails || lowConfirmation
 ```
 
 For small samples (< 10), allows higher miss rates due to statistical significance requirements. Approaches 10% threshold for larger samples (> 990).
+
+**Validator Status Logic**:
+- If `participant_status === "INACTIVE"` and `is_jailed` is unknown: Display "Not validator" (participant is not a validator)
+- If `is_jailed === true`: Display red indicator (jailed)
+- If `is_jailed === false`: Display green indicator (active)
+- Otherwise: Display gray indicator (unknown)
 
 ## Configuration
 
