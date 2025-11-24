@@ -10,11 +10,53 @@ interface ParticipantTableProps {
   onParticipantSelect: (participantId: string | null) => void
 }
 
+const criticalThresholds = [
+  { total: 5, critical: 3 },
+  { total: 10, critical: 4 },
+  { total: 20, critical: 5 },
+  { total: 50, critical: 10 },
+  { total: 100, critical: 16 },
+  { total: 200, critical: 28 },
+  { total: 500, critical: 62 },
+  { total: 990, critical: 116 }
+]
+
+function missedStatTest(nMissed: number, nTotal: number): boolean {
+  if (nTotal === 0) return true
+  if (nMissed < 0 || nTotal < 0 || nMissed > nTotal) return true
+  
+  if (nTotal > 990) {
+    return nMissed * 10 <= nTotal
+  }
+  
+  for (let i = criticalThresholds.length - 1; i >= 0; i--) {
+    if (nTotal >= criticalThresholds[i].total) {
+      return nMissed <= criticalThresholds[i].critical
+    }
+  }
+  
+  return true
+}
+
 export function ParticipantTable({ participants, epochId, isCurrentEpoch, currentEpochId, selectedParticipantId, onParticipantSelect }: ParticipantTableProps) {
   const sortedParticipants = [...participants].sort((a, b) => b.weight - a.weight)
 
   const shouldHighlightRed = (participant: Participant) => {
-    return participant.missed_rate > 0.10 || participant.invalidation_rate > 0.10
+    const lowConfirmation = participant.confirmation_poc_ratio !== null && 
+                            participant.confirmation_poc_ratio !== undefined &&
+                            participant.confirmation_poc_ratio < 0.5
+    
+    const totalInferenced = parseInt(participant.current_epoch_stats.inference_count) + 
+                           parseInt(participant.current_epoch_stats.missed_requests)
+    const missedCount = parseInt(participant.current_epoch_stats.missed_requests)
+    const invalidCount = parseInt(participant.current_epoch_stats.invalidated_inferences)
+    const validatedCount = parseInt(participant.current_epoch_stats.validated_inferences)
+    const totalValidations = validatedCount + invalidCount
+    
+    const missedTestFails = !missedStatTest(missedCount, totalInferenced)
+    const invalidTestFails = !missedStatTest(invalidCount, totalValidations)
+    
+    return missedTestFails || invalidTestFails || lowConfirmation
   }
 
   const handleRowClick = (participant: Participant) => {
@@ -74,17 +116,19 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
             const totalInferenced = parseInt(participant.current_epoch_stats.inference_count) + 
                                    parseInt(participant.current_epoch_stats.missed_requests)
             
+            const isHighlighted = shouldHighlightRed(participant)
+            
             return (
               <tr
                 key={participant.index}
                 onClick={() => handleRowClick(participant)}
                 className={`cursor-pointer ${
-                  shouldHighlightRed(participant) 
-                    ? 'bg-red-50 border-l-4 border-l-red-600' 
-                    : 'hover:bg-gray-50'
+                  isHighlighted ? 'bg-red-50' : 'hover:bg-gray-50'
                 }`}
               >
-                <td className="px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
+                <td className={`px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap ${
+                  isHighlighted ? 'border-l-4 border-l-red-600' : ''
+                }`}>
                   {participant.index}
                 </td>
                 <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">
@@ -128,12 +172,23 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                  <span className={`font-semibold ${participant.missed_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
+                  <span className={`font-semibold ${
+                    !missedStatTest(
+                      parseInt(participant.current_epoch_stats.missed_requests),
+                      totalInferenced
+                    ) ? 'text-red-600' : 'text-gray-900'
+                  }`}>
                     {(participant.missed_rate * 100).toFixed(2)}%
                   </span>
                 </td>
                 <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                  <span className={`font-semibold ${participant.invalidation_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
+                  <span className={`font-semibold ${
+                    !missedStatTest(
+                      parseInt(participant.current_epoch_stats.invalidated_inferences),
+                      parseInt(participant.current_epoch_stats.validated_inferences) + 
+                      parseInt(participant.current_epoch_stats.invalidated_inferences)
+                    ) ? 'text-red-600' : 'text-gray-900'
+                  }`}>
                     {(participant.invalidation_rate * 100).toFixed(2)}%
                   </span>
                 </td>

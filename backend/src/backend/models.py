@@ -38,6 +38,10 @@ class ParticipantStats(BaseModel):
     consensus_key_mismatch: Optional[bool] = None
     seed_signature: Optional[str] = None
     ml_nodes_map: Optional[Dict[str, int]] = None
+    weight_to_confirm: Optional[int] = None
+    confirmation_weight: Optional[int] = None
+    confirmation_poc_ratio: Optional[float] = None
+    participant_status: Optional[str] = None
     
     @computed_field
     @property

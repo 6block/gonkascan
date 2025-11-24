@@ -427,4 +427,26 @@ class GonkaClient:
         
         logger.info(f"Fetched {page_count} pages, {total_fetched} total inferences, {total_filtered} filtered, {len(inferences)} kept")
         return inferences
+    
+    async def get_participant_confirmation_data(
+        self,
+        participant_id: str,
+        height: Optional[int] = None
+    ) -> Dict[str, Any]:
+        path = f"/chain-api/productscience/inference/inference/participant/{participant_id}"
+        headers = {}
+        if height is not None:
+            headers["X-Cosmos-Block-Height"] = str(height)
+        return await self._make_request(path, headers=headers if headers else None)
+    
+    async def get_epoch_group_data(
+        self,
+        epoch_id: int,
+        height: Optional[int] = None
+    ) -> Dict[str, Any]:
+        path = f"/chain-api/productscience/inference/inference/epoch_group_data/{epoch_id}"
+        headers = {}
+        if height is not None:
+            headers["X-Cosmos-Block-Height"] = str(height)
+        return await self._make_request(path, headers=headers if headers else None)
 
