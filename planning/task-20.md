@@ -118,23 +118,49 @@ const criticalThresholds = [
   { total: 5, critical: 3 },
   { total: 10, critical: 4 },
   { total: 20, critical: 5 },
+  { total: 30, critical: 7 },
   { total: 50, critical: 10 },
+  { total: 80, critical: 14 },
   { total: 100, critical: 16 },
+  { total: 150, critical: 22 },
   { total: 200, critical: 28 },
+  { total: 250, critical: 34 },
+  { total: 300, critical: 40 },
+  { total: 400, critical: 51 },
   { total: 500, critical: 62 },
+  { total: 600, critical: 73 },
+  { total: 700, critical: 84 },
+  { total: 800, critical: 95 },
+  { total: 900, critical: 106 },
   { total: 990, critical: 116 }
 ]
 
 function missedStatTest(nMissed: number, nTotal: number): boolean {
   if (nTotal === 0) return true
-  if (nTotal > 990) return nMissed * 10 <= nTotal
+  if (nMissed < 0 || nTotal < 0 || nMissed > nTotal) return true
   
-  for (let i = thresholds.length - 1; i >= 0; i--) {
-    if (nTotal >= thresholds[i].total) {
-      return nMissed <= thresholds[i].critical
+  if (nTotal > 990) {
+    return nMissed * 10 <= nTotal
+  }
+  
+  if (nTotal < criticalThresholds[0].total) {
+    return true
+  }
+  
+  // Linear interpolation between adjacent thresholds
+  for (let i = 0; i < criticalThresholds.length - 1; i++) {
+    const lower = criticalThresholds[i]
+    const upper = criticalThresholds[i + 1]
+    
+    if (nTotal >= lower.total && nTotal <= upper.total) {
+      const ratio = (nTotal - lower.total) / (upper.total - lower.total)
+      const interpolatedCritical = lower.critical + ratio * (upper.critical - lower.critical)
+      return nMissed <= interpolatedCritical
     }
   }
-  return true
+  
+  const lastThreshold = criticalThresholds[criticalThresholds.length - 1]
+  return nMissed <= lastThreshold.critical
 }
 
 const missedTestFails = !missedStatTest(missedCount, totalInferenced)
@@ -144,20 +170,34 @@ const lowConfirmation = confirmation_poc_ratio < 0.5
 return missedTestFails || invalidTestFails || lowConfirmation
 ```
 
-For small samples (< 10), allows higher miss rates due to statistical significance requirements. Approaches 10% threshold for larger samples (> 990).
+**Interpolation Approach**:
+- Uses 18 key threshold points from Gonka chain's full statistical table
+- Linear interpolation between adjacent points for values in between
+- For small samples (< 10): More lenient due to statistical significance requirements
+- For large samples (> 990): Uses simple 10% rule (nMissed * 10 <= nTotal)
+- Provides smooth, accurate approximation of the full 100+ value lookup table
 
-**Validator Status Logic**:
+**Example**: For 195 total with 17 misses (8.72%):
+- Interpolates between [150, 22] and [200, 28]
+- Ratio = (195-150)/(200-150) = 0.9
+- Critical = 22 + 0.9 * (28-22) = 27.4
+- 17 ≤ 27.4 → PASS ✓
+
+**Validator Status Logic** (priority order):
 
 Table view (compact):
-- Red dot: `is_jailed === true` (Jailed)
-- Green dot: `is_jailed === false` (Active)
-- Grey dot: Unknown or not a validator (tooltip shows appropriate text)
+1. Grey dot: `participant_status === "INACTIVE"` - "Not a validator"
+2. Red dot: `is_jailed === true` - "Jailed"
+3. Green dot: `is_jailed === false` - "Active"
+4. Grey dot: All other cases - "Unknown"
 
 Modal view (detailed):
-- Red badge: `is_jailed === true` - "JAILED"
-- Green badge: `is_jailed === false` - "NOT JAILED"
-- Grey badge: `participant_status === "INACTIVE"` - "NOT VALIDATOR"
-- Grey text: All other cases - "Unknown"
+1. Grey badge: `participant_status === "INACTIVE"` - "NOT VALIDATOR"
+2. Red badge: `is_jailed === true` - "JAILED"
+3. Green badge: `is_jailed === false` - "NOT JAILED"
+4. Grey text: All other cases - "Unknown"
+
+Note: Checking participant_status first ensures INACTIVE participants always show "NOT VALIDATOR" even if is_jailed is false.
 
 ## Configuration
 

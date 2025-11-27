@@ -270,17 +270,17 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Validator Jail</label>
                   <div className="mt-1">
-                    {participant.is_jailed === true ? (
+                    {participant.participant_status === "INACTIVE" ? (
+                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 rounded">
+                        NOT VALIDATOR
+                      </span>
+                    ) : participant.is_jailed === true ? (
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-300 rounded">
                         JAILED
                       </span>
                     ) : participant.is_jailed === false ? (
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
                         NOT JAILED
-                      </span>
-                    ) : participant.participant_status === "INACTIVE" ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 rounded">
-                        NOT VALIDATOR
                       </span>
                     ) : (
                       <span className="text-gray-400 text-sm">Unknown</span>

@@ -14,10 +14,20 @@ const criticalThresholds = [
   { total: 5, critical: 3 },
   { total: 10, critical: 4 },
   { total: 20, critical: 5 },
+  { total: 30, critical: 7 },
   { total: 50, critical: 10 },
+  { total: 80, critical: 14 },
   { total: 100, critical: 16 },
+  { total: 150, critical: 22 },
   { total: 200, critical: 28 },
+  { total: 250, critical: 34 },
+  { total: 300, critical: 40 },
+  { total: 400, critical: 51 },
   { total: 500, critical: 62 },
+  { total: 600, critical: 73 },
+  { total: 700, critical: 84 },
+  { total: 800, critical: 95 },
+  { total: 900, critical: 106 },
   { total: 990, critical: 116 }
 ]
 
@@ -29,13 +39,23 @@ function missedStatTest(nMissed: number, nTotal: number): boolean {
     return nMissed * 10 <= nTotal
   }
   
-  for (let i = criticalThresholds.length - 1; i >= 0; i--) {
-    if (nTotal >= criticalThresholds[i].total) {
-      return nMissed <= criticalThresholds[i].critical
+  if (nTotal < criticalThresholds[0].total) {
+    return true
+  }
+  
+  for (let i = 0; i < criticalThresholds.length - 1; i++) {
+    const lower = criticalThresholds[i]
+    const upper = criticalThresholds[i + 1]
+    
+    if (nTotal >= lower.total && nTotal <= upper.total) {
+      const ratio = (nTotal - lower.total) / (upper.total - lower.total)
+      const interpolatedCritical = lower.critical + ratio * (upper.critical - lower.critical)
+      return nMissed <= interpolatedCritical
     }
   }
   
-  return true
+  const lastThreshold = criticalThresholds[criticalThresholds.length - 1]
+  return nMissed <= lastThreshold.critical
 }
 
 export function ParticipantTable({ participants, epochId, isCurrentEpoch, currentEpochId, selectedParticipantId, onParticipantSelect }: ParticipantTableProps) {
@@ -194,12 +214,14 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
                 </td>
                 <td className="px-2 py-3 text-center whitespace-nowrap">
                   <div className="flex justify-center">
-                    {participant.is_jailed === true ? (
+                    {participant.participant_status === "INACTIVE" ? (
+                      <div className="w-3 h-3 bg-gray-300 rounded-full" title="Not a validator"></div>
+                    ) : participant.is_jailed === true ? (
                       <div className="w-3 h-3 bg-red-600 rounded-full" title="Jailed"></div>
                     ) : participant.is_jailed === false ? (
                       <div className="w-3 h-3 bg-green-600 rounded-full" title="Active"></div>
                     ) : (
-                      <div className="w-3 h-3 bg-gray-300 rounded-full" title={participant.participant_status === "INACTIVE" ? "Not a validator" : "Unknown"}></div>
+                      <div className="w-3 h-3 bg-gray-300 rounded-full" title="Unknown"></div>
                     )}
                   </div>
                 </td>
