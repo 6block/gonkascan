@@ -1,6 +1,16 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, Any
-from backend.models import InferenceResponse, ParticipantDetailsResponse, TimelineResponse, ModelsResponse, ParticipantInferencesResponse
+from backend.models import ( 
+    InferenceResponse, 
+    ParticipantDetailsResponse, 
+    TimelineResponse, 
+    ModelsResponse, 
+    ParticipantInferencesResponse, 
+    TransactionResponse, 
+    ParticipantMapResponse,
+    ParticipantAssetsResponse,
+    AddressTransactionsResponse
+)
 
 router = APIRouter(prefix="/v1")
 
@@ -46,6 +56,25 @@ async def get_epoch_inference_stats(epoch_id: int, height: Optional[int] = None)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch epoch {epoch_id} stats: {str(e)}")
 
+@router.get("/participants/map", response_model=ParticipantMapResponse)
+async def get_participants_map():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        return await inference_service.get_participants_map()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch participants map: {str(e)}")
+
+@router.get("/participants/assets/{participant_id}", response_model=ParticipantAssetsResponse)
+async def get_participants_assets(participant_id: str,):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        return await inference_service.get_participants_assets(participant_id=participant_id,)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch participants assets: {str(e)}")
 
 @router.get("/participants/{participant_id}", response_model=ParticipantDetailsResponse)
 async def get_participant_details(
@@ -151,4 +180,25 @@ async def get_participant_inferences(
             status_code=500,
             detail=f"Failed to fetch inferences: {str(e)}"
         )
+
+@router.get("/transactions", response_model=TransactionResponse)
+async def get_transactions():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_transactions()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
+
+@router.get("/transactions/{address}", response_model=AddressTransactionsResponse)
+async def get_transactions(address: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_transaction_by_address(address)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
+
 

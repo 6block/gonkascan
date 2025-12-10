@@ -220,6 +220,35 @@ class CacheDB:
                 CREATE INDEX IF NOT EXISTS idx_confirmation_participant 
                 ON confirmation_data(participant_index)
             """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    height INTEGER NOT NULL,
+                    tx_hash TEXT NOT NULL,
+                    messages TEXT NOT NULL,
+                    timestamp TEXT NOT NULL,
+                    PRIMARY KEY (tx_hash)
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transactions_height
+                ON transactions(height)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS participant_node_geo (
+                    participant_index TEXT PRIMARY KEY,
+                    inference_url TEXT NOT NULL,
+                    ip TEXT NOT NULL,
+                    country TEXT,
+                    region TEXT,
+                    city TEXT,
+                    latitude REAL,
+                    longitude REAL,
+                    last_updated TEXT NOT NULL
+                );
+            """)
             
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
@@ -1035,3 +1064,96 @@ class CacheDB:
                 
                 return [dict(row) for row in rows]
 
+    async def save_transactions_batch(self, tx_list: List[Dict[str, Any]]):
+        async with aiosqlite.connect(self.db_path) as db:
+            for tx in tx_list:
+                await db.execute("""
+                    INSERT OR REPLACE INTO transactions
+                    (height, tx_hash, messages, timestamp)
+                    VALUES (?, ?, ?, ?)
+                """, (
+                    tx["height"],
+                    tx["tx_hash"],
+                    json.dumps(tx["messages"]),
+                    tx["timestamp"]
+                ))
+        
+            await db.commit()
+            logger.info(f"Saved transactions data for {len(tx_list)}")
+
+    async def get_latest_tx_height(self) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""SELECT MAX(height) AS max_height FROM transactions;""") as cursor:
+                row = await cursor.fetchone()
+                if row is None or row["max_height"] is None:
+                    return 0
+                return int(row["max_height"])
+
+    async def get_latest_transactions(self, limit: int = 50) -> Optional[List[Dict[str, Any]]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            async with db.execute("""
+                SELECT height, tx_hash, messages, timestamp
+                FROM transactions
+                ORDER BY height DESC
+                LIMIT ?
+            """, (limit,)) as cursor:
+                rows = await cursor.fetchall()
+                if not rows:
+                    return None
+                return [dict(row) for row in rows]
+
+    async def upsert_participant_node_geo(self,
+        participant_index: str,
+        inference_url: str,
+        ip: str,
+        geo: Dict[str, Any]
+    ):
+        last_updated = datetime.utcnow().isoformat()
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            await db.execute("""
+                INSERT INTO participant_node_geo (
+                    participant_index, inference_url, ip, country, region, city,
+                    latitude, longitude, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(participant_index) DO UPDATE SET
+                    inference_url = excluded.inference_url, 
+                    ip = excluded.ip,
+                    country = excluded.country, 
+                    region = excluded.region,
+                    city = excluded.city,
+                    latitude = excluded.latitude,
+                    longitude = excluded.longitude,
+                    last_updated = excluded.last_updated
+            """, (
+                participant_index, inference_url, ip, geo.get("country"), geo.get("region"), 
+                geo.get("city"), geo.get("latitude"), geo.get("longitude"), last_updated
+            ))
+            await db.commit()
+
+    async def get_all_participant_node_geo(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM participant_node_geo") as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+    
+    async def delete_participant_node_geo_except(self, participant_indexs: list[str]):
+        if not participant_indexs:
+            return
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            placeholders = ",".join("?" for _ in participant_indexs)
+            await db.execute(f"""
+                DELETE FROM participant_node_geo
+                WHERE participant_index NOT IN ({placeholders})
+            """, participant_indexs)
+            await db.commit()
+
+    

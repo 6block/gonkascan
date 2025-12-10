@@ -1,8 +1,18 @@
 import asyncio
 import logging
 import time
+import json
+import base64
+import hashlib
+import httpx
+from urllib.parse import urlparse
+import socket
+import ipaddress
+import geoip2.database
+from geoip2.errors import AddressNotFoundError
 from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from cosmospy_protobuf.cosmos.tx.v1beta1.tx_pb2 import TxRaw, TxBody
 from backend.client import GonkaClient
 from backend.database import CacheDB
 from backend.models import (
@@ -20,7 +30,13 @@ from backend.models import (
     TimelineResponse,
     ModelInfo,
     ModelStats,
-    ModelsResponse
+    ModelsResponse,
+    Transaction,
+    TransactionResponse,
+    ParticipantMapItem,
+    ParticipantMapResponse,
+    ParticipantAssetsResponse,
+    AddressTransactionsResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -1809,3 +1825,242 @@ class InferenceService:
         except Exception as e:
             logger.error(f"Error polling models API cache: {e}")
 
+    async def fetch_and_cache_transactions(self):
+        max_blocks = 10
+        latest_db_height = await self.cache_db.get_latest_tx_height()
+        current_height = await self.client.get_latest_height()
+
+        if latest_db_height == 0:
+            start_height = current_height
+        else:
+            start_height = latest_db_height + 1
+
+        if start_height > current_height:
+            return
+        end_height = min(current_height, start_height + max_blocks - 1)
+        logger.info(f"Syncing blocks from {start_height} to {end_height} (chain_height={current_height})")
+        transaction_batch = []
+
+        for height in range(start_height, end_height):
+            block_data = await self.client.get_block(height)
+            block_txs = block_data["result"]["block"]["data"].get("txs", [])
+            block_timestamp = block_data["result"]["block"]["header"]["time"]
+            for tx in block_txs:
+                tx_bytes = base64.b64decode(tx)
+                tx_hash = hashlib.sha256(tx_bytes).hexdigest().upper()
+                tx_raw = TxRaw()
+                tx_raw.ParseFromString(tx_bytes)
+                tx_body = TxBody()
+                tx_body.ParseFromString(tx_raw.body_bytes)
+                tx_messages = []
+                for msg in tx_body.messages:
+                    msg_type = msg.type_url.split(".")[-1]
+                    msg = msg_type.replace("Msg", "")
+                    if msg not in tx_messages:
+                        tx_messages.append(msg)
+                transaction_batch.append({
+                    "height": height,
+                    "tx_hash": tx_hash,
+                    "messages": tx_messages,
+                    "timestamp": block_timestamp,
+                })
+        
+        logger.info(f"Fetched {len(transaction_batch)} transactions for height {start_height} to {end_height}")
+        if transaction_batch:
+            await self.cache_db.save_transactions_batch(transaction_batch)
+
+    async def get_transactions(self, limit: int = 100) -> TransactionResponse:
+        try:
+            latest_info = await self.client.get_latest_epoch()
+            epoch_id = latest_info["latest_epoch"]["index"]
+            latest_height = await self.client.get_latest_height()
+            transactions = []
+            transaction_rows = await self.cache_db.get_latest_transactions(limit=limit)
+            for tx in transaction_rows:
+                transactions.append(
+                    Transaction(
+                        height=tx["height"],
+                        tx_hash=tx["tx_hash"],
+                        messages=json.loads(tx["messages"]),
+                        timestamp=tx["timestamp"]
+                    )
+                )
+            
+            return TransactionResponse(
+                epoch_id=epoch_id,
+                height=latest_height,
+                transactions=transactions
+            )
+
+        except Exception as e:
+            raise Exception(f"Failed to fetch transactions: {e}")
+    
+    def _fetch_geo(self, ip:str) -> Optional[Dict[str, Any]]:
+        reader = geoip2.database.Reader('/data/GeoLite2-City.mmdb')
+        try:
+            r = reader.city(ip)
+            region = r.subdivisions.most_specific
+            geo = {
+                "country": r.country.name,
+                "country_code": r.country.iso_code,
+                "region": region.name if region else None,
+                "region_code": region.iso_code if region else None,
+                "city": r.city.name,
+                "latitude": r.location.latitude,
+                "longitude": r.location.longitude,
+            }
+            if not geo["country"]:
+                return None
+            return geo
+        except AddressNotFoundError:
+            logger.warning(f"GeoIP not found in database, skip ip={ip}")
+            return None
+        except ValueError as e:
+            logger.warning(f"Invalid IP for GeoIP lookup ({ip}): {e}")
+            return None
+        except Exception:
+            logger.exception(f"Unexpected error resolving GeoIP for ip={ip}")
+            return None
+        
+    async def sync_participant_geo_cache(self, active_participants: list[dict]):
+        current_nodes: dict[str, dict] = {}
+        for p in active_participants:
+            participant_index = p.get("index")
+            inference_url = p.get("inference_url")
+            parsed = urlparse(inference_url)
+            host = parsed.hostname
+            try:
+                ip = ipaddress.ip_address(host)
+            except ValueError:
+                logger.error(f"IP is not IPv4Address")
+                continue
+            current_nodes[participant_index] = {
+                "ip": str(ip),
+                "inference_url": inference_url,
+            }
+        logger.info(f"Sync ip geo cache {len(current_nodes)}")
+
+        cached_rows = await self.cache_db.get_all_participant_node_geo()
+        cached_map = {r["participant_index"]: r for r in cached_rows}
+
+        active_ids = set(current_nodes.keys())
+        await self.cache_db.delete_participant_node_geo_except(list(active_ids))
+
+        for participant_index, node in current_nodes.items():
+            ip = node["ip"]
+            inference_url = node["inference_url"]
+
+            cached = cached_map.get(participant_index)
+            need_refresh = False
+
+            if not cached:
+                need_refresh = True
+            elif cached["ip"] != ip:
+                need_refresh = True
+            elif cached["country"] is None:
+                need_refresh = True
+            else:
+                cached_time = datetime.fromisoformat(cached["last_updated"])
+                if datetime.utcnow() - cached_time >= timedelta(days=7):
+                    need_refresh = True
+
+            if need_refresh:
+                logger.info(f"{participant_index}, {inference_url}, {ip}")
+                geo = self._fetch_geo(ip)
+                if geo:
+                    await self.cache_db.upsert_participant_node_geo(
+                        participant_index=participant_index,
+                        inference_url=inference_url,
+                        ip=ip,
+                        geo=geo
+                    )
+        logger.info(
+            f"IP geo sync done (inference_url based): active_ips={len(active_ids)}"
+        )
+
+    async def get_participants_map(self) -> ParticipantMapResponse:
+        rows = await self.cache_db.get_all_participant_node_geo()
+
+        participant_nodes = []
+        for r in rows:
+            participant_nodes.append(ParticipantMapItem(
+                index=r["participant_index"],
+                inference_url=r["inference_url"],
+                ip=r["ip"],
+                country=r.get("country"),
+                region=r.get("region"),
+                city=r.get("city"),
+                latitude=r.get("latitude"),
+                longitude=r.get("longitude"),
+                last_updated=r["last_updated"],
+            ))
+
+        return ParticipantMapResponse(
+            total_participant=len(participant_nodes),
+            participants=participant_nodes,
+        )
+
+    async def get_participants_assets(self, participant_id: str) -> ParticipantAssetsResponse:
+        try:
+            block_height = await self.client.get_latest_height()
+            balances_data = await self.client.get_balances(participant_id)
+            balances = balances_data.get("balances", [])
+            vesting_data = await self.client.get_total_vesting(participant_id)
+            total_vesting = vesting_data.get("total_amount", [])
+
+            return ParticipantAssetsResponse(
+                index=participant_id,
+                balances=balances,
+                total_vesting=total_vesting,
+                block_height=block_height
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to fetch participant assets for {participant_id}: {e}",
+                exc_info=True
+            )
+            return ParticipantAssetsResponse(
+                index=participant_id,
+                balances=[],
+                total_vesting=[],
+                block_height=0
+            )
+
+    async def get_transaction_by_address(self, address: str, limit: int = 50) -> AddressTransactionsResponse:
+        resp = await self.client.query_transactions(
+            query=f"message.sender='{address}'",
+            per_page=limit,
+        )
+        result = resp.get("result", {})
+        txs = result.get("txs", [])
+        total = int(result.get("total_count", 0))
+
+        def parse_tx_from_tx_search(tx: dict) -> dict:
+            tx_hash = tx.get("hash")
+            height = int(tx["height"])
+            message_types = []
+            events = tx.get("tx_result", {}).get("events", [])
+            for event in events:
+                if event.get("type") != "message":
+                    continue
+                for attr in event.get("attributes", []):
+                    if attr.get("key") == "action":
+                        msg_type = attr.get("value").split(".")[-1]
+                        msg = msg_type.replace("Msg", "")
+                        if msg not in message_types:
+                            message_types.append(msg)
+            return Transaction(
+                tx_hash=tx_hash,
+                height=height,
+                messages=message_types,
+            )
+
+        transactions = [parse_tx_from_tx_search(tx) for tx in txs]
+
+        return AddressTransactionsResponse(
+            address=address,
+            total=total,
+            transactions=transactions,
+        )
+    

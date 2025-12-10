@@ -1,30 +1,56 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Participant, ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail } from '../types/inference'
+import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, ParticipantAssetsResponse, AddressTransactionsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
 
 interface ParticipantModalProps {
-  participant: Participant | null
+  participantId: string
   epochId: number
-  isCurrentEpoch: boolean
   currentEpochId: number | null
-  onClose: () => void
 }
 
-type TabType = 'details' | 'inferences'
+function formatGNK(value: number | null | undefined) {
+  if (value == null) return '-'
+  return `${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} gonka`
+}
 
-export function ParticipantModal({ participant, epochId, currentEpochId, onClose }: ParticipantModalProps) {
+type TabType = 'details' | 'inferences' | 'transactions'
+
+export function ParticipantModal({ participantId, epochId, currentEpochId }: ParticipantModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('details')
   const [selectedInference, setSelectedInference] = useState<InferenceDetail | null>(null)
 
-  const { data: details, isLoading: loading } = useQuery<ParticipantDetailsResponse>({
-    queryKey: ['participant', participant?.index, epochId],
+  const { data: assets } = useQuery<ParticipantAssetsResponse>({
+    queryKey: ['participant-assets', participantId],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/participants/${participant!.index}?epoch_id=${epochId}`)
+      const res = await fetch(`/api/v1/participants/assets/${participantId}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return res.json()
     },
-    enabled: !!participant,
+    enabled: !!participantId,
+  })
+
+  const { data: transactions, isLoading: transactionsLoading, error: transactionsError} = useQuery<AddressTransactionsResponse>({
+    queryKey: ['participant-transactions', participantId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/transactions/${participantId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    enabled: !!participantId,
+  })
+
+  const { data: details, isLoading: loading } = useQuery<ParticipantDetailsResponse>({
+    queryKey: ['participant', participantId, epochId],
+    queryFn: async () => {
+      const res = await fetch(`/api/v1/participants/${participantId}?epoch_id=${epochId}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    enabled: !!participantId && !!epochId,
     staleTime: 60000,
   })
 
@@ -33,66 +59,53 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
     isLoading: inferencesLoading, 
     error: inferencesQueryError 
   } = useQuery<ParticipantInferencesResponse>({
-    queryKey: ['participant-inferences', participant?.index, epochId],
+    queryKey: ['participant-inferences', participantId, epochId],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/participants/${participant!.index}/inferences?epoch_id=${epochId}`)
+      const res = await fetch(`/api/v1/participants/${participantId}/inferences?epoch_id=${epochId}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return res.json()
     },
-    enabled: !!participant && !!currentEpochId && epochId >= currentEpochId - 1,
+    enabled: !!participantId && !!currentEpochId && epochId >= currentEpochId - 1,
     staleTime: 60000,
     refetchInterval: false,
   })
 
   const inferencesError = inferencesQueryError ? (inferencesQueryError as Error).message : null
-  
-  useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !selectedInference) {
-        onClose()
-      }
-    }
 
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [onClose, selectedInference])
-  
+  const participant = details?.participant
+
   useEffect(() => {
-    if (participant) {
-      setActiveTab('details')
-      setSelectedInference(null)
-    }
-  }, [participant?.index, epochId])
+    setSelectedInference(null)
+    setActiveTab('details')
+  }, [participantId])
 
   if (!participant) {
-    return null
+    return (
+      <div className="p-8 text-gray-400">Loading participant...</div>
+    )
   }
 
   const totalInferenced = parseInt(participant.current_epoch_stats.inference_count) + 
                          parseInt(participant.current_epoch_stats.missed_requests)
 
+  const NGONKA = 1e9
+  const balance_gonka = assets?.balances?.find(b => b.denom === 'ngonka')
+    ? Number(assets.balances.find(b => b.denom === 'ngonka')!.amount) / NGONKA : null
+
+const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
+    ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : null 
+
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-900">Participant</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
-          >
-            &times;
-          </button>
+    <div className="w-full max-w-[1440px] mx-auto px-6 py-6">
+      <div className="bg-white rounded-lg shadow-sm">
+
+        <div className="border-b border-gray-200 px-6 py-4">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {participant.index}
+          </h1>
         </div>
 
-        <div className="border-b border-gray-200 bg-white sticky top-[73px]">
+        <div className="border-b border-gray-200 bg-white">
           <nav className="flex space-x-4 px-6">
             <button
               onClick={() => setActiveTab('details')}
@@ -113,6 +126,16 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
               }`}
             >
               Inferences
+            </button>
+            <button
+              onClick={() => setActiveTab('transactions')}
+              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'transactions'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Transactions
             </button>
           </nav>
         </div>
@@ -215,7 +238,34 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
             </div>
 
             <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Assets</h3>
               <div className="grid grid-cols-3 gap-6">
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</label>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatGNK(balance_gonka != null && vesting_gonka != null ? balance_gonka + vesting_gonka: null)}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</label>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatGNK(balance_gonka)}
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vesting</label>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatGNK(vesting_gonka)}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+            
+            <div className="border-t border-gray-200 pt-6">
+              <div className="grid grid-cols-6 gap-6">
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight</label>
                   <div className="text-lg font-semibold text-gray-900">{participant.weight.toLocaleString()}</div>
@@ -291,11 +341,11 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Host Status</label>
                   <div className="mt-1">
-                    {participant.participant_status === 'INACTIVE' ? (
+                    {participant.status === 'INACTIVE' ? (
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-300 rounded">
                         INACTIVE
                       </span>
-                    ) : participant.participant_status === 'ACTIVE' ? (
+                    ) : participant.status === 'ACTIVE' ? (
                       <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
                         ACTIVE
                       </span>
@@ -329,7 +379,7 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Inference Statistics</h3>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-6 gap-4">
               <div className="bg-gray-50 p-4 rounded">
                 <div className="text-xs text-gray-500 uppercase tracking-wider">Total Inferenced</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900">{totalInferenced.toLocaleString()}</div>
@@ -436,7 +486,7 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
             {loading ? (
               <div className="text-gray-400 text-sm">Loading MLNodes...</div>
             ) : details && details.ml_nodes && details.ml_nodes.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {details.ml_nodes.map((node, idx) => (
                   <div key={idx} className="bg-gray-50 border border-gray-200 rounded p-4">
                     <div className="flex items-center justify-between mb-3">
@@ -652,6 +702,61 @@ export function ParticipantModal({ participant, epochId, currentEpochId, onClose
             )}
           </div>
         )}
+
+        {activeTab === 'transactions' && (
+          <div className="px-6 py-4 space-y-4">
+            {transactionsLoading ? (
+              <div className="text-center py-8 text-gray-400">
+                Loading transactions...
+              </div>
+            ) : transactionsError ? (
+              <div className="text-center py-8 text-red-500">
+                Failed to load transactions
+              </div>
+            ) : !transactions || transactions.transactions.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                No transactions found
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                        Height
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                        Hash
+                      </th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
+                        Messages
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {transactions.transactions.map(tx => (
+                      <tr key={tx.tx_hash} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 text-sm text-gray-900">
+                          {tx.height.toLocaleString()}
+                        </td>
+
+                        <td className="px-4 py-2 text-sm font-mono text-gray-700 break-all max-w-md">
+                          {tx.tx_hash}
+                        </td>
+
+                        <td className="px-4 py-2 text-sm text-gray-700">
+                          {tx.messages.join(', ')}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       <InferenceDetailModal 

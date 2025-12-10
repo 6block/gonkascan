@@ -1,5 +1,4 @@
 import { Participant } from '../types/inference'
-import { ParticipantModal } from './ParticipantModal'
 
 interface ParticipantTableProps {
   participants: Participant[]
@@ -58,7 +57,7 @@ function missedStatTest(nMissed: number, nTotal: number): boolean {
   return nMissed <= lastThreshold.critical
 }
 
-export function ParticipantTable({ participants, epochId, isCurrentEpoch, currentEpochId, selectedParticipantId, onParticipantSelect }: ParticipantTableProps) {
+export function ParticipantTable({ participants, onParticipantSelect }: ParticipantTableProps) {
   const sortedParticipants = [...participants].sort((a, b) => b.weight - a.weight)
 
   const shouldHighlightRed = (participant: Participant) => {
@@ -83,13 +82,13 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
     onParticipantSelect(participant.index)
   }
 
-  const handleCloseModal = () => {
-    onParticipantSelect(null)
-  }
+  // const handleCloseModal = () => {
+  //   onParticipantSelect(null)
+  // }
   
-  const selectedParticipant = selectedParticipantId 
-    ? participants.find(p => p.index === selectedParticipantId) || null
-    : null
+  // const selectedParticipant = selectedParticipantId 
+  //   ? participants.find(p => p.index === selectedParticipantId) || null
+  //   : null
 
   return (
     <div className="overflow-x-auto border border-gray-200 rounded-md">
@@ -241,14 +240,6 @@ export function ParticipantTable({ participants, epochId, isCurrentEpoch, curren
           })}
         </tbody>
       </table>
-
-      <ParticipantModal 
-        participant={selectedParticipant}
-        epochId={epochId}
-        isCurrentEpoch={isCurrentEpoch}
-        currentEpochId={currentEpochId}
-        onClose={handleCloseModal} 
-      />
     </div>
   )
 }

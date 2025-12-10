@@ -179,3 +179,51 @@ export interface ParticipantInferencesResponse {
   cached_at?: string;
 }
 
+
+export interface Transaction {
+  height: number;
+  tx_hash: string;
+  messages: string[];
+  timestamp?: string;
+}
+
+export interface TransactionsResponse {
+  height: number;
+  epoch: number;
+  transactions: Transaction[]
+}
+
+export interface AddressTransactionsResponse {
+  total: number;
+  address: string;
+  transactions: Transaction[]
+}
+
+export interface ParticipantMapItem{
+    index: string;
+    inference_url: string;
+    ip: string;
+    country?: string;
+    region?: string;
+    city?: string;
+    latitude: number;
+    longitude: number;
+    last_updated: string;
+}  
+
+export interface ParticipantMapResponse {
+    total_participant: number;
+    participants: ParticipantMapItem[];
+}
+
+export interface BalanceInfo {
+  amount: string;
+  denom: string;
+}
+
+export interface ParticipantAssetsResponse {
+  index: string;
+  balances: BalanceInfo[];
+  total_vesting: BalanceInfo[];
+  block_height: number;
+}

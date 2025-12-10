@@ -12,7 +12,9 @@ setup-env: setup-backend setup-frontend
 	@test -f config.env || cp config.env.template config.env
 
 run-app:
-	docker compose up
+	docker compose down
+	docker compose build frontend backend
+	docker compose up -d
 
 test-backend:
 	cd backend && PYTHONPATH=. uv run pytest src/tests/

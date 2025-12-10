@@ -1,21 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import toast from 'react-hot-toast'
 import { InferenceResponse } from './types/inference'
 import { ParticipantTable } from './components/ParticipantTable'
+import { ParticipantModal } from './components/ParticipantModal'
 import { EpochSelector } from './components/EpochSelector'
 import { Timeline } from './components/Timeline'
 import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
+import { Transactions } from './components/Transactions'
+import { ParticipantMap } from './components/ParticipantMap'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'timeline'
+type Page = 'dashboard' | 'models' | 'timeline' | 'transactions' | 'nodemap' | 'participant'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null)
+  const [participantSearch, setParticipantSearch] = useState('')
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { prefetchAll } = usePrefetch()
@@ -48,6 +53,8 @@ function App() {
 
   const shouldShowEstimatedBlock = data?.current_block_height && data?.current_block_timestamp && data?.avg_block_time
 
+  const isParticipantPage = currentPage === 'participant'
+
   useEffect(() => {
     if (data?.is_current) {
       setCurrentEpochId(data.epoch_id)
@@ -70,6 +77,16 @@ function App() {
       return
     }
     
+    if (pageParam === 'transactions') {
+      setCurrentPage('transactions')
+      return
+    }
+
+    if (pageParam === 'nodemap') {
+      setCurrentPage('nodemap')
+      return
+    }
+
     if (epochParam) {
       const epochId = parseInt(epochParam)
       if (!isNaN(epochId)) {
@@ -81,10 +98,52 @@ function App() {
       }
     }
     
-    if (participantParam) {
+    if (pageParam === 'participant' && participantParam) {
+      setCurrentPage('participant')
       setSelectedParticipantId(participantParam)
+      return
     }
   }, [])
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search)
+  
+      const pageParam = params.get('page') as Page | null
+      const participantParam = params.get('participant')
+      const epochParam = params.get('epoch')
+  
+      if (epochParam) {
+        const epochId = parseInt(epochParam)
+        setSelectedEpochId(isNaN(epochId) ? null : epochId)
+      } else {
+        setSelectedEpochId(null)
+      }
+  
+      if (pageParam === 'participant' && participantParam) {
+        setCurrentPage('participant')
+        setSelectedParticipantId(participantParam)
+        return
+      }
+  
+      if (
+        pageParam === 'timeline' ||
+        pageParam === 'models' ||
+        pageParam === 'transactions' ||
+        pageParam === 'nodemap'
+      ) {
+        setCurrentPage(pageParam)
+        setSelectedParticipantId(null)
+        return
+      }
+  
+      setCurrentPage('dashboard')
+      setSelectedParticipantId(null)
+    }
+  
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])  
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -116,16 +175,19 @@ function App() {
   
   const handleParticipantSelect = (participantId: string | null) => {
     setSelectedParticipantId(participantId)
+    setCurrentPage(participantId ? 'participant' : 'dashboard')
     
     const params = new URLSearchParams(window.location.search)
     if (participantId) {
+      params.set('page', 'participant')
       params.set('participant', participantId)
     } else {
+      params.delete('page')
       params.delete('participant')
     }
     
     const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname
-    window.history.replaceState({}, '', newUrl)
+    window.history.pushState({}, '', newUrl)
   }
 
   const handlePageChange = (page: Page) => {
@@ -141,6 +203,16 @@ function App() {
       params.set('page', 'models')
       params.delete('participant')
       params.delete('block')
+    } else if (page === 'transactions') {
+      params.set('page', 'transactions')
+      params.delete('epoch')
+      params.delete('participant')
+      params.delete('model')
+    } else if (page === 'nodemap') {
+      params.set('page', 'nodemap')
+      params.delete('epoch')
+      params.delete('participant')
+      params.delete('model')    
     } else {
       params.delete('page')
       params.delete('block')
@@ -148,7 +220,24 @@ function App() {
     }
     
     const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname
-    window.history.replaceState({}, '', newUrl)
+    window.history.pushState({}, '', newUrl)
+  }
+
+  const handleParticipantSearch = () => {
+    if (!data) return
+    const input = participantSearch.trim()
+    if (!input) {
+      toast.error('Please enter a participant address')
+      return
+    }
+    const matched = data.participants.find(
+      p => p.index.toLowerCase() === input.toLowerCase()
+    )
+    if (!matched) {
+      toast.error('Participant not found in this epoch')
+      return
+    }
+    handleParticipantSelect(matched.index)
   }
 
   if (loading && !data) {
@@ -182,6 +271,7 @@ function App() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="flex-1 container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8 max-w-[1600px]">
+      {!isParticipantPage && (
         <header className="mb-6 md:mb-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 md:mb-6">
             <img src="/gonka.svg" alt="Gonka" className="h-10 sm:h-12 w-auto" />
@@ -226,13 +316,47 @@ function App() {
             >
               Timeline
             </button>
+            <button
+              onClick={() => handlePageChange('transactions')}
+              className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                currentPage === 'transactions'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Transactions
+            </button>
+            <button
+              onClick={() => handlePageChange('nodemap')}
+              className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                currentPage === 'nodemap'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              Node Map
+            </button>
+
           </div>
         </header>
+      )}
 
         {currentPage === 'timeline' ? (
           <Timeline />
         ) : currentPage === 'models' ? (
           <Models />
+        ) : currentPage === 'transactions' ? (
+          <Transactions /> 
+        ) : currentPage === 'nodemap' ? (
+          <ParticipantMap />
+        ) : currentPage === 'participant' ? (
+          selectedParticipantId && (selectedEpochId ?? data?.epoch_id) ? (
+            <ParticipantModal
+              participantId={selectedParticipantId}
+              epochId={selectedEpochId ?? data!.epoch_id}
+              currentEpochId={currentEpochId}
+            />
+          ) : null
         ) : (
           data && (
             <>
@@ -336,13 +460,35 @@ function App() {
               </div>
 
               <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
-                <div className="mb-4">
-                  <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
-                    Participant Statistics
-                  </h2>
-                  <p className="text-xs md:text-sm text-gray-500">
-                    Rows with red background indicate missed rate or invalidation rate exceeding 10%
-                  </p>
+                <div className="mb-4 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
+                      Participant Statistics
+                    </h2>
+                    <p className="text-xs md:text-sm text-gray-500">
+                      Rows with red background indicate missed rate or invalidation rate exceeding 10%
+                    </p>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search participant"
+                      value={participantSearch}
+                      onChange={e => setParticipantSearch(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && handleParticipantSearch()}
+                      className="w-64 h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    />
+                    <svg
+                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      viewBox="0 0 24 24"
+                    >
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="M21 21l-4.35-4.35" />
+                    </svg>
+                  </div>
                 </div>
                 <ParticipantTable 
                   participants={data.participants} 

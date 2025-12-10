@@ -220,3 +220,48 @@ class ParticipantInferencesResponse(BaseModel):
     invalidated: List[InferenceDetail]
     cached_at: Optional[str] = None
 
+
+class Transaction(BaseModel):
+    height: int
+    tx_hash: str
+    messages: List[str]
+    timestamp: Optional[str] = None
+
+
+class TransactionResponse(BaseModel):
+    epoch_id: int
+    height: int
+    transactions: List[Transaction]
+
+class AddressTransactionsResponse(BaseModel):
+    address: str
+    total: int
+    transactions: List[Transaction]
+
+
+class ParticipantMapItem(BaseModel):
+    index: str
+    inference_url: str
+    ip: str
+    country: Optional[str]
+    region: Optional[str]
+    city: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    last_updated: str
+
+
+class ParticipantMapResponse(BaseModel):
+    total_participant: int
+    participants: List[ParticipantMapItem]
+
+
+class BalanceInfo(BaseModel):
+    amount: str
+    denom: str
+
+class ParticipantAssetsResponse(BaseModel):
+    index: str
+    balances: List[BalanceInfo]
+    total_vesting: List[BalanceInfo]
+    block_height: int

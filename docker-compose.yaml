@@ -23,6 +23,7 @@ services:
       - config.env
     volumes:
       - backend-cache:/app/cache
+      - ./backend/data:/data
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"

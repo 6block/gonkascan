@@ -450,3 +450,29 @@ class GonkaClient:
             headers["X-Cosmos-Block-Height"] = str(height)
         return await self._make_request(path, headers=headers if headers else None)
 
+    async def get_transaction(self, transaction_hash: str) -> Dict[str, Any]:
+        path = f"chain-api/cosmos/tx/v1beta1/txs/{transaction_hash}"
+        try:
+            data = await self._make_request(path)
+            tx_response = data.get("tx_response", {})
+            logger.info(f"Found transaction {transaction_hash}")
+            return tx_response
+        except Exception as e:
+            logger.warning(f"Failed to fetch hardware nodes for {transaction_hash}: {e}")
+            return {}
+    
+    async def get_balances(self, address: str) -> Dict[str, Any]:
+        return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/balances/{address}")
+
+    async def get_total_vesting(self, address: str) -> Dict[str, Any]:
+        return await self._make_request(f"/chain-api/productscience/inference/streamvesting/total_vesting/{address}")
+
+    async def query_transactions(self, query: str, page: int = 1, per_page: int = 50,) -> Dict[str, Any]:
+        params = {
+            "query": f'"{query}"',
+            "page": page,
+            "per_page": per_page,
+            "order_by": '"desc"',
+        }
+        return await self._make_request(f"/chain-rpc/tx_search", params=params)
+    

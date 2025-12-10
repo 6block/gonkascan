@@ -28,6 +28,7 @@ POLL_PARTICIPANT_INFERENCES_INTERVAL = int(os.getenv("POLL_PARTICIPANT_INFERENCE
 POLL_MODELS_API_INTERVAL = int(os.getenv("POLL_MODELS_API_INTERVAL", "300"))
 POLL_TIMELINE_INTERVAL = int(os.getenv("POLL_TIMELINE_INTERVAL", "30"))
 POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL", "120"))
+POLL_TRANSACTIONS_INTERVAL = int(os.getenv("POLL_TRANSACTIONS_INTERVAL", "10"))
 
 background_task = None
 jail_polling_task = None
@@ -41,6 +42,7 @@ models_api_polling_task = None
 timeline_polling_task = None
 confirmation_polling_task = None
 inference_service_instance = None
+transactions_polling_task = None
 
 
 async def poll_current_epoch():
@@ -84,7 +86,8 @@ async def poll_node_health():
             if inference_service_instance:
                 epoch_data = await inference_service_instance.client.get_current_epoch_participants()
                 active_participants = epoch_data["active_participants"]["participants"]
-                
+
+                await inference_service_instance.sync_participant_geo_cache(active_participants)
                 await inference_service_instance.fetch_and_cache_node_health(active_participants)
                 logger.info("Background polling: fetched node health")
         except Exception as e:
@@ -203,6 +206,19 @@ async def poll_confirmation_data():
         
         await asyncio.sleep(POLL_CONFIRMATION_DATA_INTERVAL)
 
+async def poll_transactions():
+    await asyncio.sleep(5)
+    
+    while True:
+        try:
+            if inference_service_instance:
+                await inference_service_instance.fetch_and_cache_transactions()
+                logger.info("Background polling: fetched and saved transactions")
+        except Exception as e:
+            logger.error(f"Transactions polling error: {e}")
+        
+        await asyncio.sleep(POLL_TRANSACTIONS_INTERVAL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -238,6 +254,7 @@ async def lifespan(app: FastAPI):
     models_api_polling_task = asyncio.create_task(poll_models_api())
     timeline_polling_task = asyncio.create_task(poll_timeline())
     confirmation_polling_task = asyncio.create_task(poll_confirmation_data())
+    transactions_polling_task = asyncio.create_task(poll_transactions())
     logger.info("Background polling tasks started")
     
     yield
@@ -318,6 +335,14 @@ async def lifespan(app: FastAPI):
             await confirmation_polling_task
         except asyncio.CancelledError:
             logger.info("Confirmation polling task cancelled")
+    
+    if transactions_polling_task:
+        transactions_polling_task.cancel()
+        try:
+            await transactions_polling_task
+        except asyncio.CancelledError:
+            logger.info("Transactions polling task cancelled")
+
 
 
 app = FastAPI(lifespan=lifespan)
