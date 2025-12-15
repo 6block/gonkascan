@@ -1837,7 +1837,7 @@ class InferenceService:
 
         if start_height > current_height:
             return
-        end_height = min(current_height, start_height + max_blocks - 1)
+        end_height = min(current_height + 1, start_height + max_blocks - 1)
         logger.info(f"Syncing blocks from {start_height} to {end_height} (chain_height={current_height})")
         transaction_batch = []
 

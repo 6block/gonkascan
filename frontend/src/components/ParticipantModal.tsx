@@ -85,6 +85,20 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
     )
   }
 
+  const handleBack = () => {
+    const params = new URLSearchParams(window.location.search)
+    params.delete('page')
+    params.delete('participant')
+  
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname
+  
+    window.history.pushState({}, '', newUrl)
+  
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
   const totalInferenced = parseInt(participant.current_epoch_stats.inference_count) + 
                          parseInt(participant.current_epoch_stats.missed_requests)
 
@@ -100,9 +114,20 @@ const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
       <div className="bg-white rounded-lg shadow-sm">
 
         <div className="border-b border-gray-200 px-6 py-4">
-          <h1 className="text-2xl font-semibold text-gray-900">
-            {participant.index}
-          </h1>
+          <nav className="flex items-center text-sm text-gray-500 mb-1">
+            <button
+              onClick={handleBack}
+              className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+              Dashboard
+            </button>
+
+            <span className="mx-2">/</span>
+            <span className="text-gray-900 font-medium">{participant.index}</span>
+          </nav>
         </div>
 
         <div className="border-b border-gray-200 bg-white">
