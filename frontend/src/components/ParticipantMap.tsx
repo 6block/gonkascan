@@ -11,7 +11,7 @@ export function ParticipantMap() {
     const svgRef = useRef<SVGSVGElement | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [geoData, setGeoData] = useState<FeatureCollection<Geometry> | null>(null)
-    const [dimensions, setDimensions] = useState({ width: 800, height: 450 });
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
     const fetchParticipantsMap = async (): Promise<ParticipantMapResponse> => {
         const endpoint = `${apiUrl}/v1/participants/map`
@@ -34,30 +34,46 @@ export function ParticipantMap() {
     const error = queryError ? (queryError as Error).message : ''
 
     useEffect(() => {
-        fetch('https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson')
+        fetch('/world.geojson')
             .then(res => res.json())
             .then(data => setGeoData(data))
             .catch(err => console.error("Failed to load map data", err));
     }, []);
 
     useEffect(() => {
-        const handleResize = () => {
+        let frameId: number
+        const measure = () => {
+            if (containerRef.current) {
+                const { width } = containerRef.current.getBoundingClientRect()
+                if (width > 0) {
+                    const height = width * 0.52
+                    setDimensions({ width, height })
+                    return
+                }
+            }
+            frameId = requestAnimationFrame(measure)
+        }
+    
+        measure()
+    
+        const handleWindowResize = () => {
             if (!containerRef.current) return
             const { width } = containerRef.current.getBoundingClientRect()
-            setDimensions({
-                width,
-                height: width * 0.52,
-            })
+            if (width > 0) {
+                const height = width * 0.52
+                setDimensions({ width, height })
+            }
         }
-
-        window.addEventListener("resize", handleResize)
-        setTimeout(handleResize, 50)
-
-        return () => window.removeEventListener("resize", handleResize)
-    }, [])
+        
+        window.addEventListener("resize", handleWindowResize)
+        return () => {
+            if (frameId) cancelAnimationFrame(frameId)
+            window.removeEventListener("resize", handleWindowResize)
+        }
+    }, [])    
 
     useEffect(() => {
-        if (!geoData || !svgRef.current || !data) return
+        if (!geoData || !svgRef.current || !data || !dimensions.width || !dimensions.height) return
 
         const svg = d3.select(svgRef.current)
         svg.selectAll("*").remove()
@@ -94,7 +110,7 @@ export function ParticipantMap() {
             lat: number
             lon: number
             count: number
-            cities: Set<string>
+            countries: Set<string>
         }
 
         const map = new Map<string, AggPoint>()
@@ -112,12 +128,12 @@ export function ParticipantMap() {
                     lat: p.latitude,
                     lon: p.longitude,
                     count: 1,
-                    cities: new Set(p.city ? [p.city] : [])
+                    countries: new Set(p.country ? [p.country] : [])
                 })
             } else {
                 const item = map.get(key)!
                 item.count += 1
-                if (p.city) item.cities.add(p.city)
+                if (p.country) item.countries.add(p.country)
             }
         })
 
@@ -145,12 +161,9 @@ export function ParticipantMap() {
                     .attr("stroke", "#eaff7a")
                     .attr("stroke-width", 1.5)
 
-                const cityList = Array.from(d.cities)
-
+                const countryList = Array.from(d.countries)
                 const label =
-                    cityList.length > 0
-                        ? `${d.count} nodes · ${cityList.slice(0, 3).join(", ")}`
-                        : `${d.count} nodes`
+                    countryList.length > 0? `${d.count} nodes · ${countryList.slice(0, 3).join(", ")}` : `${d.count} nodes`
 
                 const [x, y] = projection([d.lon, d.lat]) ?? [0, 0]
 
@@ -234,7 +247,7 @@ export function ParticipantMap() {
                 ref={containerRef}
                 className="w-full rounded-lg overflow-hidden relative"
                 style={{
-                    height: dimensions.height,
+                    height: dimensions.height || 450,
                     background: "#3a3a3a",
                 }}
             >
@@ -244,12 +257,7 @@ export function ParticipantMap() {
                     </div>
                 )}
 
-                <svg
-                    ref={svgRef}
-                    width={dimensions.width}
-                    height={dimensions.height}
-                    className="block"
-                />
+                <svg ref={svgRef} width={dimensions.width || "100%"} height={dimensions.height || 450} className="block"/>
             </div>
         </div>
     )
