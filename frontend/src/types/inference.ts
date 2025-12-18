@@ -203,6 +203,7 @@ export interface ParticipantMapItem{
     index: string;
     inference_url: string;
     ip: string;
+    country_code?: string;
     country?: string;
     region?: string;
     city?: string;

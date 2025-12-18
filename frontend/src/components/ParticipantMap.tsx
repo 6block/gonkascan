@@ -3,7 +3,16 @@ import { useQuery } from "@tanstack/react-query"
 import * as d3 from "d3"
 import { ParticipantMapResponse } from '../types/inference'
 import type { Feature, FeatureCollection, Geometry } from "geojson"
+import countries from "i18n-iso-countries";
+import enLocale from "i18n-iso-countries/langs/en.json";
 
+countries.registerLocale(enLocale);
+
+type CountryStat = {
+    code: string
+    name: string
+    count: number
+  }  
 
 export function ParticipantMap() {
     const apiUrl = import.meta.env.VITE_API_URL || '/api'
@@ -12,6 +21,7 @@ export function ParticipantMap() {
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [geoData, setGeoData] = useState<FeatureCollection<Geometry> | null>(null)
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const [countryStats, setCountryStats] = useState<CountryStat[]>([])
 
     const fetchParticipantsMap = async (): Promise<ParticipantMapResponse> => {
         const endpoint = `${apiUrl}/v1/participants/map`
@@ -64,7 +74,7 @@ export function ParticipantMap() {
                 setDimensions({ width, height })
             }
         }
-        
+
         window.addEventListener("resize", handleWindowResize)
         return () => {
             if (frameId) cancelAnimationFrame(frameId)
@@ -77,6 +87,26 @@ export function ParticipantMap() {
 
         const svg = d3.select(svgRef.current)
         svg.selectAll("*").remove()
+
+        const countryCounts: Record<string, CountryStat> = {}
+        data.participants.forEach(p => {
+            if (p.country_code) {
+                const codeA2 = p.country_code.trim().toUpperCase()
+                const codeA3 = countries.alpha2ToAlpha3(codeA2)
+                if (!codeA3) return
+                if (!countryCounts[codeA3]) {
+                    countryCounts[codeA3] = {
+                        code: codeA3,
+                        name: p.country || codeA3,
+                        count: 0,
+                    }
+                }
+
+                countryCounts[codeA3].count += 1
+            }
+        })
+        const sorted = Object.values(countryCounts).sort((a, b) => b.count - a.count)
+        setCountryStats(sorted)
 
         const filteredGeoData: FeatureCollection<Geometry> = {
             ...geoData,
@@ -96,90 +126,65 @@ export function ParticipantMap() {
 
         const pathGenerator = d3.geoPath().projection(projection)
 
+        const maxCount = d3.max(Object.values(countryCounts), d => d.count) ?? 1
+        const colorScale = d3.scaleSequential()
+            .domain([1, maxCount])
+            .interpolator(d3.interpolateRgbBasis([
+                "#134e4a", // 极低：深青（存在感很弱）
+                "#0f766e", // 低
+                "#14b8a6", // 中
+                "#5eead4", // 高
+              ]));  
+
         svg.append("g")
             .selectAll("path")
             .data(filteredGeoData.features)
             .enter()
             .append("path")
-            .attr("d", d => pathGenerator(d as any)!)
-            .attr("fill", "#334155")
-            .attr("stroke", "#1e293b")
-            .attr("stroke-width", 0.5)
-
-        type AggPoint = {
-            lat: number
-            lon: number
-            count: number
-            countries: Set<string>
-        }
-
-        const map = new Map<string, AggPoint>()
-
-        data.participants.forEach(p => {
-            if (
-                typeof p.latitude !== "number" ||
-                typeof p.longitude !== "number"
-            ) return
-
-            const key = `${p.latitude.toFixed(3)},${p.longitude.toFixed(3)}`
-
-            if (!map.has(key)) {
-                map.set(key, {
-                    lat: p.latitude,
-                    lon: p.longitude,
-                    count: 1,
-                    countries: new Set(p.country ? [p.country] : [])
-                })
-            } else {
-                const item = map.get(key)!
-                item.count += 1
-                if (p.country) item.countries.add(p.country)
-            }
-        })
-
-        const points = Array.from(map.values())
-
-        const rScale = d3.scaleSqrt()
-            .domain([1, d3.max(points, d => d.count) || 1])
-            .range([2, 10])
-
-        const g = svg.append("g")
-
-        g.selectAll("circle")
-            .data(points)
-            .enter()
-            .append("circle")
-            .attr("cx", d => projection([d.lon, d.lat])?.[0] ?? -100)
-            .attr("cy", d => projection([d.lon, d.lat])?.[1] ?? -100)
-            .attr("r", d => rScale(d.count))
-            .attr("fill", "#c9ff00")
-            .attr("fill-opacity", 0.7)
-            .style("mix-blend-mode", "screen")
-            .style("cursor", "pointer")
+            .attr("d", d => pathGenerator(d)!)
+            .attr("fill", d => {
+                const countryId = d.id as string | undefined;
+                const count = countryId ? countryCounts[countryId]?.count ?? 0 : 0
+                return count > 0 ? colorScale(count) : "#1f2937"
+            })
+            .attr("stroke", "#111827")
+            .attr("stroke-width", 0.6)
             .on("mouseenter", function (_, d) {
-                d3.select(this)
-                    .attr("stroke", "#eaff7a")
-                    .attr("stroke-width", 1.5)
+                const countryId = d.id as string | undefined;
+                const count = countryId ? countryCounts[countryId]?.count ?? 0 : 0
+                const countryName = (d.properties as any)?.name ?? "Unknown"
 
-                const countryList = Array.from(d.countries)
-                const label =
-                    countryList.length > 0? `${d.count} nodes · ${countryList.slice(0, 3).join(", ")}` : `${d.count} nodes`
+                d3.select(this).attr("stroke", "#99f6e4").attr("stroke-width", 1.2)
 
-                const [x, y] = projection([d.lon, d.lat]) ?? [0, 0]
+                const [x, y] = pathGenerator.centroid(d)
+                const g = svg.append("g").attr("id", "tooltip").attr("pointer-events", "none")
 
-                svg.append("text")
-                    .attr("id", "tooltip")
-                    .attr("x", x + 8)
-                    .attr("y", y - 8)
-                    .text(label)
-                    .attr("fill", "#f8fafc")
-                    .attr("font-size", 12)
+                const text = g.append("text")
+                    .attr("x", x)
+                    .attr("y", y - 18)
+                    .attr("text-anchor", "middle")
+                    .attr("fill", "white")
+                    .attr("font-size", 14)
                     .attr("font-weight", 600)
-                    .style("pointer-events", "none")
-                    .style("text-shadow", "0 1px 2px #000")
+                    .text(`${countryName} ${count}`)
+
+                const bbox = (text.node() as SVGTextElement).getBBox()
+                const paddingX = 12
+                const paddingY = 8
+
+                g.insert("rect", "text")
+                    .attr("x", bbox.x - paddingX)
+                    .attr("y", bbox.y - paddingY)
+                    .attr("width", bbox.width + paddingX * 2)
+                    .attr("height", bbox.height + paddingY * 2)
+                    .attr("rx", 8)
+                    .attr("fill", "rgba(0,0,0,0.75)")
+                    .attr("stroke", "#6ee7b7")
+                    .attr("stroke-width", 0.5)
+                
             })
             .on("mouseleave", function () {
-                d3.select(this).attr("stroke", "none")
+                d3.select(this).attr("stroke", "#111827").attr("stroke-width", 0.6)
                 svg.select("#tooltip").remove()
             })
 
@@ -248,7 +253,7 @@ export function ParticipantMap() {
                 className="w-full rounded-lg overflow-hidden relative"
                 style={{
                     height: dimensions.height || 450,
-                    background: "#3a3a3a",
+                    background: "#0b0f14",
                 }}
             >
                 {!geoData && (
@@ -259,6 +264,40 @@ export function ParticipantMap() {
 
                 <svg ref={svgRef} width={dimensions.width || "100%"} height={dimensions.height || 450} className="block"/>
             </div>
+            <div className="mt-8 border rounded-lg overflow-hidden">
+                <div className="px-4 py-3 border-b bg-gray-50">
+                    <h3 className="text-lg font-semibold text-gray-900">Countries & Regions</h3>
+                </div>
+
+                <table className="w-full text-sm">
+                    <thead className="bg-gray-100 text-gray-600">
+                    <tr>
+                        <th className="px-4 py-3 text-left w-[50%]">REGIONS</th>
+                        <th className="px-4 py-3 text-center w-[50%]">COUNT</th>
+                    </tr>
+                    </thead>
+
+                    <tbody>
+                    {countryStats.map(c => (
+                        <tr key={c.code} className="border-t hover:bg-gray-50 transition">
+                            <td className="px-4 py-3 font-medium text-gray-800 w-[50%]">{c.name}</td>
+                            <td className="px-4 py-3 text-center font-semibold text-gray-900 w-[50%]">
+                                <span className="inline-block min-w-[56px] rounded-full bg-gray-100 px-3 py-1 text-sm font-semibold text-gray-900">
+                                    {c.count.toLocaleString()}
+                                </span>
+                            </td>
+                        </tr>
+                    ))}
+
+                    {countryStats.length === 0 && (
+                        <tr>
+                            <td colSpan={2} className="px-4 py-6 text-center text-gray-400">No data</td>
+                        </tr>
+                    )}
+                    </tbody>
+                </table>
+            </div>
+
         </div>
     )
 }

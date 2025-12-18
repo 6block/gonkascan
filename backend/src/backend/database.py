@@ -241,6 +241,7 @@ class CacheDB:
                     participant_index TEXT PRIMARY KEY,
                     inference_url TEXT NOT NULL,
                     ip TEXT NOT NULL,
+                    country_code TEXT,
                     country TEXT,
                     region TEXT,
                     city TEXT,
@@ -1118,12 +1119,13 @@ class CacheDB:
 
             await db.execute("""
                 INSERT INTO participant_node_geo (
-                    participant_index, inference_url, ip, country, region, city,
+                    participant_index, inference_url, ip, country_code, country, region, city,
                     latitude, longitude, last_updated
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(participant_index) DO UPDATE SET
                     inference_url = excluded.inference_url, 
                     ip = excluded.ip,
+                    country_code = excluded.country_code,
                     country = excluded.country, 
                     region = excluded.region,
                     city = excluded.city,
@@ -1131,7 +1133,7 @@ class CacheDB:
                     longitude = excluded.longitude,
                     last_updated = excluded.last_updated
             """, (
-                participant_index, inference_url, ip, geo.get("country"), geo.get("region"), 
+                participant_index, inference_url, ip, geo.get("country_code"), geo.get("country"), geo.get("region"), 
                 geo.get("city"), geo.get("latitude"), geo.get("longitude"), last_updated
             ))
             await db.commit()

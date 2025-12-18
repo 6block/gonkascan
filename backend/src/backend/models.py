@@ -243,6 +243,7 @@ class ParticipantMapItem(BaseModel):
     index: str
     inference_url: str
     ip: str
+    country_code: Optional[str]
     country: Optional[str]
     region: Optional[str]
     city: Optional[str]

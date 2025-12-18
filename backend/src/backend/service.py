@@ -1987,6 +1987,7 @@ class InferenceService:
                 index=r["participant_index"],
                 inference_url=r["inference_url"],
                 ip=r["ip"],
+                country_code=r["country_code"],
                 country=r.get("country"),
                 region=r.get("region"),
                 city=r.get("city"),
