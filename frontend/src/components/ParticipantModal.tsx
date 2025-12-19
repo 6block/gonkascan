@@ -104,10 +104,10 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
   const NGONKA = 1e9
   const balance_gonka = assets?.balances?.find(b => b.denom === 'ngonka')
-    ? Number(assets.balances.find(b => b.denom === 'ngonka')!.amount) / NGONKA : null
+    ? Number(assets.balances.find(b => b.denom === 'ngonka')!.amount) / NGONKA : 0
 
 const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
-    ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : null 
+    ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : 0 
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-6 py-6">
@@ -130,39 +130,40 @@ const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
           </nav>
         </div>
 
-        <div className="border-b border-gray-200 bg-white">
-          <nav className="flex space-x-4 px-6">
+        <div className="px-6 py-6">
+          <div className="grid grid-cols-3 gap-12">
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka + vesting_gonka)}</div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka)}</div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vesting</div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(vesting_gonka)}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-6 py-2 flex gap-2">
+          {(['details', 'inferences', 'transactions'] as TabType[]).map(tab => (
             <button
-              onClick={() => setActiveTab('details')}
-              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'details'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 text-sm rounded border transition
+                ${
+                  activeTab === tab
+                    ? 'border-gray-800 text-gray-900'
+                    : 'border-gray-300 text-gray-400 hover:text-gray-600'
+                }`}
             >
-              Details
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
-            <button
-              onClick={() => setActiveTab('inferences')}
-              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'inferences'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Inferences
-            </button>
-            <button
-              onClick={() => setActiveTab('transactions')}
-              className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'transactions'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Transactions
-            </button>
-          </nav>
+          ))}
         </div>
 
         {activeTab === 'details' && (
@@ -260,33 +261,6 @@ const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
               ) : (
                 <div className="mt-1 text-sm text-gray-400">No warm keys configured</div>
               )}
-            </div>
-
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Assets</h3>
-              <div className="grid grid-cols-3 gap-6">
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</label>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {formatGNK(balance_gonka != null && vesting_gonka != null ? balance_gonka + vesting_gonka: null)}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</label>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {formatGNK(balance_gonka)}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vesting</label>
-                  <div className="text-lg font-semibold text-gray-900">
-                    {formatGNK(vesting_gonka)}
-                  </div>
-                </div>
-
-              </div>
             </div>
             
             <div className="border-t border-gray-200 pt-6">
