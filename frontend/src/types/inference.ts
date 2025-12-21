@@ -222,9 +222,13 @@ export interface BalanceInfo {
   denom: string;
 }
 
+export interface EpochSchedule {
+  coins: BalanceInfo[];
+}
+
 export interface ParticipantAssetsResponse {
   index: string;
   balances: BalanceInfo[];
   total_vesting: BalanceInfo[];
-  block_height: number;
+  epoch_amounts: EpochSchedule[];
 }

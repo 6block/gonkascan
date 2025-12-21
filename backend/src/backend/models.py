@@ -261,8 +261,11 @@ class BalanceInfo(BaseModel):
     amount: str
     denom: str
 
+class EpochSchedule(BaseModel):
+    coins: List[BalanceInfo]
+
 class ParticipantAssetsResponse(BaseModel):
     index: str
     balances: List[BalanceInfo]
     total_vesting: List[BalanceInfo]
-    block_height: int
+    epoch_amounts: List[EpochSchedule]

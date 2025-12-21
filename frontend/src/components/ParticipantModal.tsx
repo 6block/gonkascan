@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, ParticipantAssetsResponse, AddressTransactionsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
 
@@ -106,8 +107,16 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   const balance_gonka = assets?.balances?.find(b => b.denom === 'ngonka')
     ? Number(assets.balances.find(b => b.denom === 'ngonka')!.amount) / NGONKA : 0
 
-const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
+  const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
     ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : 0 
+  
+  const vestingEpochData = assets?.epoch_amounts?.map((epoch, idx) => {
+    const coin = epoch.coins.find(c => c.denom === 'ngonka')
+    return {
+      epoch: idx + 1,
+      amount: coin ? Number(coin.amount) / NGONKA : 0,
+    }
+  }) ?? []
 
   return (
     <div className="w-full max-w-[1440px] mx-auto px-6 py-6">
@@ -168,6 +177,22 @@ const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
 
         {activeTab === 'details' && (
           <div className="px-6 py-4 space-y-6">
+            {vestingEpochData.length > 0 && (
+              <div>
+                  <div className="text-sm font-semibold text-gray-700">Next 180 Epochs Vesting Release</div>
+                  <div className="w-full h-[260px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={vestingEpochData} barCategoryGap={1} margin={{top: 10, right: 10, bottom: 0, left: 0}}>
+                        <XAxis dataKey="epoch" tick={{ fontSize: 10 }} ticks={[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180]} tickFormatter={(v) => v.toString()}/>
+                        <YAxis tick={{ fontSize: 10 }} width={36}/>
+                        <Tooltip formatter={(value: number) => formatGNK(value)} labelFormatter={(label: number) => `Epoch +${label}`}/>
+                        <Bar dataKey="amount" fill="#16a34a"/>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+              </div>
+            )}
+          
           <div className="space-y-4">
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Participant Address</label>

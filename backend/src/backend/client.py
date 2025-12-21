@@ -476,3 +476,6 @@ class GonkaClient:
         }
         return await self._make_request(f"/chain-rpc/tx_search", params=params)
     
+    async def get_vesting_schedule(self, address: str) -> Dict[str, Any]:
+        return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
+    

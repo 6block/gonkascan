@@ -2003,17 +2003,19 @@ class InferenceService:
 
     async def get_participants_assets(self, participant_id: str) -> ParticipantAssetsResponse:
         try:
-            block_height = await self.client.get_latest_height()
             balances_data = await self.client.get_balances(participant_id)
             balances = balances_data.get("balances", [])
             vesting_data = await self.client.get_total_vesting(participant_id)
             total_vesting = vesting_data.get("total_amount", [])
+            vesting_schedule_data = await self.client.get_vesting_schedule(participant_id)
+            vesting_schedule = vesting_schedule_data.get("vesting_schedule")
+            epoch_amounts = vesting_schedule.get("epoch_amounts", [])
 
             return ParticipantAssetsResponse(
                 index=participant_id,
                 balances=balances,
                 total_vesting=total_vesting,
-                block_height=block_height
+                epoch_amounts=epoch_amounts
             )
 
         except Exception as e:
@@ -2025,7 +2027,7 @@ class InferenceService:
                 index=participant_id,
                 balances=[],
                 total_vesting=[],
-                block_height=0
+                epoch_amounts=[]
             )
 
     async def get_transaction_by_address(self, address: str, limit: int = 50) -> AddressTransactionsResponse:
