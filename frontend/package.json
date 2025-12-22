@@ -22,7 +22,8 @@
     "d3": "^7.9.0",
     "react-hot-toast": "^2.4.1",
     "i18n-iso-countries": "^7.5.0",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "bech32": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

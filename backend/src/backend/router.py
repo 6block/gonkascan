@@ -8,7 +8,7 @@ from backend.models import (
     ParticipantInferencesResponse, 
     TransactionResponse, 
     ParticipantMapResponse,
-    ParticipantAssetsResponse,
+    AssetsResponse,
     AddressTransactionsResponse
 )
 
@@ -66,13 +66,13 @@ async def get_participants_map():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch participants map: {str(e)}")
 
-@router.get("/participants/assets/{participant_id}", response_model=ParticipantAssetsResponse)
-async def get_participants_assets(participant_id: str,):
+@router.get("/address/assets/{address}", response_model=AssetsResponse)
+async def get_address_assets(address: str,):
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
     try:
-        return await inference_service.get_participants_assets(participant_id=participant_id,)
+        return await inference_service.get_address_assets(address=address)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch participants assets: {str(e)}")
 

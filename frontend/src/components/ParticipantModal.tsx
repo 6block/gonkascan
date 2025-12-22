@@ -1,21 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, ParticipantAssetsResponse, AddressTransactionsResponse } from '../types/inference'
+import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, AssetsResponse, AddressTransactionsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
+import { AddressTransactionsTable } from './AddressTransactionsTable'
+import { formatGNK } from '../utils'
 
 interface ParticipantModalProps {
   participantId: string
   epochId: number
   currentEpochId: number | null
-}
-
-function formatGNK(value: number | null | undefined) {
-  if (value == null) return '-'
-  return `${value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} gonka`
 }
 
 type TabType = 'details' | 'inferences' | 'transactions'
@@ -24,10 +18,10 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   const [activeTab, setActiveTab] = useState<TabType>('details')
   const [selectedInference, setSelectedInference] = useState<InferenceDetail | null>(null)
 
-  const { data: assets } = useQuery<ParticipantAssetsResponse>({
+  const { data: assets } = useQuery<AssetsResponse>({
     queryKey: ['participant-assets', participantId],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/participants/assets/${participantId}`)
+      const res = await fetch(`/api/v1/address/assets/${participantId}`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return res.json()
     },
@@ -729,55 +723,11 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
         {activeTab === 'transactions' && (
           <div className="px-6 py-4 space-y-4">
-            {transactionsLoading ? (
-              <div className="text-center py-8 text-gray-400">
-                Loading transactions...
-              </div>
-            ) : transactionsError ? (
-              <div className="text-center py-8 text-red-500">
-                Failed to load transactions
-              </div>
-            ) : !transactions || transactions.transactions.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                No transactions found
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                        Height
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                        Hash
-                      </th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase">
-                        Messages
-                      </th>
-                    </tr>
-                  </thead>
-
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {transactions.transactions.map(tx => (
-                      <tr key={tx.tx_hash} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 text-sm text-gray-900">
-                          {tx.height.toLocaleString()}
-                        </td>
-
-                        <td className="px-4 py-2 text-sm font-mono text-gray-700 break-all max-w-md">
-                          {tx.tx_hash}
-                        </td>
-
-                        <td className="px-4 py-2 text-sm text-gray-700">
-                          {tx.messages.join(', ')}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <AddressTransactionsTable
+              transactions={transactions}
+              isLoading={transactionsLoading}
+              error={transactionsError}
+            />
           </div>
         )}
 

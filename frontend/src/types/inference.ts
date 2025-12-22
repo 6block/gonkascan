@@ -226,8 +226,8 @@ export interface EpochSchedule {
   coins: BalanceInfo[];
 }
 
-export interface ParticipantAssetsResponse {
-  index: string;
+export interface AssetsResponse {
+  address: string;
   balances: BalanceInfo[];
   total_vesting: BalanceInfo[];
   epoch_amounts: EpochSchedule[];

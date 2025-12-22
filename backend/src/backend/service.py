@@ -35,7 +35,7 @@ from backend.models import (
     TransactionResponse,
     ParticipantMapItem,
     ParticipantMapResponse,
-    ParticipantAssetsResponse,
+    AssetsResponse,
     AddressTransactionsResponse
 )
 
@@ -2001,18 +2001,18 @@ class InferenceService:
             participants=participant_nodes,
         )
 
-    async def get_participants_assets(self, participant_id: str) -> ParticipantAssetsResponse:
+    async def get_address_assets(self, address: str) -> AssetsResponse:
         try:
-            balances_data = await self.client.get_balances(participant_id)
+            balances_data = await self.client.get_balances(address)
             balances = balances_data.get("balances", [])
-            vesting_data = await self.client.get_total_vesting(participant_id)
+            vesting_data = await self.client.get_total_vesting(address)
             total_vesting = vesting_data.get("total_amount", [])
-            vesting_schedule_data = await self.client.get_vesting_schedule(participant_id)
+            vesting_schedule_data = await self.client.get_vesting_schedule(address)
             vesting_schedule = vesting_schedule_data.get("vesting_schedule")
             epoch_amounts = vesting_schedule.get("epoch_amounts", [])
 
-            return ParticipantAssetsResponse(
-                index=participant_id,
+            return AssetsResponse(
+                address=address,
                 balances=balances,
                 total_vesting=total_vesting,
                 epoch_amounts=epoch_amounts
@@ -2020,11 +2020,11 @@ class InferenceService:
 
         except Exception as e:
             logger.error(
-                f"Failed to fetch participant assets for {participant_id}: {e}",
+                f"Failed to fetch participant assets for {address}: {e}",
                 exc_info=True
             )
-            return ParticipantAssetsResponse(
-                index=participant_id,
+            return AssetsResponse(
+                address=address,
                 balances=[],
                 total_vesting=[],
                 epoch_amounts=[]

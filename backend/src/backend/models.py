@@ -264,8 +264,8 @@ class BalanceInfo(BaseModel):
 class EpochSchedule(BaseModel):
     coins: List[BalanceInfo]
 
-class ParticipantAssetsResponse(BaseModel):
-    index: str
+class AssetsResponse(BaseModel):
+    address: str
     balances: List[BalanceInfo]
     total_vesting: List[BalanceInfo]
     epoch_amounts: List[EpochSchedule]
