@@ -9,7 +9,8 @@ from backend.models import (
     TransactionResponse, 
     ParticipantMapResponse,
     AssetsResponse,
-    AddressTransactionsResponse
+    AddressTransactionsResponse,
+    ModelEpochSeriesResponse
 )
 
 router = APIRouter(prefix="/v1")
@@ -202,3 +203,12 @@ async def get_transactions(address: str):
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
 
 
+@router.get("/metrics/models",response_model=ModelEpochSeriesResponse)
+async def get_models_metrics():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        return await inference_service.get_model_epoch_series()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch models metrics: {str(e)}")

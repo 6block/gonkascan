@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 import socket
 import ipaddress
 import geoip2.database
+from collections import defaultdict
 from geoip2.errors import AddressNotFoundError
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -36,7 +37,9 @@ from backend.models import (
     ParticipantMapItem,
     ParticipantMapResponse,
     AssetsResponse,
-    AddressTransactionsResponse
+    AddressTransactionsResponse,
+    EpochSeriesPoint,
+    ModelEpochSeriesResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -2067,3 +2070,44 @@ class InferenceService:
             transactions=transactions,
         )
     
+    async def get_model_epoch_series(self) -> ModelEpochSeriesResponse:
+        models_set = set()
+
+        series = {
+            "total_weight": defaultdict(list),
+            "hosts": defaultdict(list),
+            "inferences": defaultdict(list),
+            "ai_tokens": defaultdict(list),
+        }
+        cache_models = await self.cache_db.get_all_models()
+        cached_api_data = await self.cache_db.get_all_models_api_cache()
+        logger.error(f">>>> 1")
+
+        for cache_model in cache_models:
+            model_id = cache_model["model_id"]
+            epoch_id = cache_model["epoch_id"]
+            models_set.add(model_id)
+            series["total_weight"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_model["total_weight"]))
+            series["hosts"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=cache_model["participant_count"]))
+        logger.error(f">>>> {series}")
+
+        for row in cached_api_data:
+            epoch_id = row["epoch_id"]
+            models_stats_data = json.loads(row["models_stats_json"])
+            stats_list = models_stats_data.get("stats_models", [])
+            for stat in stats_list:
+                model_id = stat.get("model", "")
+                ai_tokens=stat.get("ai_tokens", "0")
+                inferences=stat.get("inferences", 0)
+                series["inferences"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=int(inferences)))
+                series["ai_tokens"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=int(ai_tokens)))
+
+        return ModelEpochSeriesResponse(
+            models=sorted(models_set),
+            series={
+                "total_weight": dict(series["total_weight"]),
+                "hosts": dict(series["hosts"]),
+                "inferences": dict(series["inferences"]),
+                "ai_tokens": dict(series["ai_tokens"]),
+            }
+        )

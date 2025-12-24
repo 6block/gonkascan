@@ -1,8 +1,37 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ModelsResponse, ModelInfo } from '../types/inference'
+import { ModelsResponse, ModelInfo, EpochSeriesPoint, ModelEpochSeriesResponse } from '../types/inference'
 import { EpochSelector } from './EpochSelector'
 import { ModelModal } from './ModelModal'
+import { ModelAreaChart } from "./ModelAreaChart"
+
+type EpochRow = { epoch: number } & Record<string, number>
+
+function buildEpochRows(series: Record<string, EpochSeriesPoint[]>): EpochRow[] {
+  const epochMap = new Map<number, EpochRow>()
+  const models = Object.keys(series)
+
+  for (const [model, points] of Object.entries(series)) {
+    for (const p of points) {
+      if (!epochMap.has(p.epoch_id)) {
+        epochMap.set(p.epoch_id, { epoch: p.epoch_id })
+      }
+      epochMap.get(p.epoch_id)![model] = p.value
+    }
+  }
+
+  for (const row of epochMap.values()) {
+    for (const model of models) {
+      if (row[model] == null) {
+        row[model] = 0
+      }
+    }
+  }
+
+  return Array.from(epochMap.values()).sort(
+    (a, b) => a.epoch - b.epoch
+  )
+}
 
 export function Models() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
@@ -29,6 +58,21 @@ export function Models() {
     placeholderData: (previousData) => previousData,
   })
 
+  const fetchModelsMetrics = async () => {
+    const endpoint = `${apiUrl}/v1/metrics/models`
+    const response = await fetch(endpoint)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    return response.json()
+  }
+
+  const { data: metricsData, isLoading: metricsLoading } = useQuery<ModelEpochSeriesResponse>({
+    queryKey: ['models-metrics'],
+    queryFn: fetchModelsMetrics,
+    staleTime: 300000,
+    refetchInterval: 300000,
+    refetchOnMount: false,
+  })
+  
   const error = queryError ? (queryError as Error).message : ''
 
   useEffect(() => {
@@ -133,6 +177,11 @@ export function Models() {
   const sortedModels = [...data.models].sort((a, b) => b.total_weight - a.total_weight)
   const statsMap = new Map(data.stats.map(s => [s.model, s]))
   
+  const totalWeightData = metricsData? buildEpochRows(metricsData.series.total_weight): []
+  const hostsData = metricsData? buildEpochRows(metricsData.series.hosts): []
+  const inferencesData = metricsData? buildEpochRows(metricsData.series.inferences): []
+  const aiTokensData = metricsData? buildEpochRows(metricsData.series.ai_tokens): []
+
   const selectedModel = selectedModelId 
     ? data.models.find(m => m.id === selectedModelId) || null
     : null
@@ -205,7 +254,7 @@ export function Models() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
+      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200 mb-10">
         <div className="mb-4">
           <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
             Available Models
@@ -274,6 +323,16 @@ export function Models() {
         stats={selectedStats}
         onClose={() => handleModelSelect(null)} 
       />
+
+      {metricsData && !metricsLoading && (
+        <div className="flex flex-col gap-10 mb-10">
+          <ModelAreaChart title="Total Weight" data={totalWeightData} />
+          <ModelAreaChart title="Hosts" data={hostsData} />
+          <ModelAreaChart title="Inferences" data={inferencesData} />
+          <ModelAreaChart title="AI Tokens" data={aiTokensData} />
+        </div>
+      )}
+
     </div>
   )
 }

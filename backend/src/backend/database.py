@@ -1158,4 +1158,24 @@ class CacheDB:
             """, participant_indexs)
             await db.commit()
 
-    
+    async def get_all_models(self) -> List[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT epoch_id, model_id, total_weight, participant_count, cached_at FROM models
+                ORDER BY epoch_id ASC
+            """) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_all_models_api_cache(self) -> List[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT m1.* FROM models_api_cache m1
+                JOIN (SELECT epoch_id, MAX(height) AS max_height FROM models_api_cache GROUP BY epoch_id) m2
+                ON m1.epoch_id = m2.epoch_id AND m1.height = m2.max_height
+                ORDER BY m1.epoch_id ASC
+            """) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]

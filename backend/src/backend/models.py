@@ -269,3 +269,18 @@ class AssetsResponse(BaseModel):
     balances: List[BalanceInfo]
     total_vesting: List[BalanceInfo]
     epoch_amounts: List[EpochSchedule]
+
+class EpochSeriesPoint(BaseModel):
+    epoch_id: int
+    value: int
+
+class ModelSeries(BaseModel):
+    total_weight: Dict[str, List[EpochSeriesPoint]]
+    hosts: Dict[str, List[EpochSeriesPoint]]
+    inferences: Dict[str, List[EpochSeriesPoint]]
+    ai_tokens: Dict[str, List[EpochSeriesPoint]]
+
+class ModelEpochSeriesResponse(BaseModel):
+    models: List[str]
+    series: ModelSeries
+

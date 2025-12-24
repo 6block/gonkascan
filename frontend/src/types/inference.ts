@@ -232,3 +232,20 @@ export interface AssetsResponse {
   total_vesting: BalanceInfo[];
   epoch_amounts: EpochSchedule[];
 }
+
+export interface EpochSeriesPoint {
+  epoch_id: number
+  value: number
+}
+
+export interface ModelSeries {
+  total_weight: Record<string, EpochSeriesPoint[]>
+  hosts: Record<string, EpochSeriesPoint[]>
+  inferences: Record<string, EpochSeriesPoint[]>
+  ai_tokens: Record<string, EpochSeriesPoint[]>
+}
+
+export interface ModelEpochSeriesResponse {
+  models: string[]
+  series: ModelSeries
+}
