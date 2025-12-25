@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
-import { ModelInfo, ModelStats } from '../types/inference'
+import { useQuery } from '@tanstack/react-query'
+import { ModelInfo, ModelStats, ModelEpochTokenUsageResponse } from '../types/inference'
+import { ModelTokenUsageChart } from './ModelChart'
 
 interface ModelModalProps {
   model: ModelInfo | null
@@ -20,6 +22,22 @@ export function ModelModal({ model, stats, onClose }: ModelModalProps) {
       document.removeEventListener('keydown', handleEscape)
     }
   }, [onClose])
+
+  const apiUrl = import.meta.env.VITE_API_URL || '/api'
+  const modelId = model?.id ?? ''
+
+  const fetchTokenUsage = async () => {
+    const endpoint = `${apiUrl}/v1/models/token-usage?model=${encodeURIComponent(modelId)}`
+    const response = await fetch(endpoint)
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+    return response.json()
+  }
+
+  const { data: tokenUsage } = useQuery<ModelEpochTokenUsageResponse>({
+    queryKey: ['model-token-usage', modelId],
+    queryFn: fetchTokenUsage,
+    enabled: !!model,
+  })
 
   if (!model) return null
 
@@ -90,6 +108,10 @@ export function ModelModal({ model, stats, onClose }: ModelModalProps) {
                 </div>
               </div>
             </div>
+          )}
+
+          {tokenUsage && tokenUsage.data.length > 0 && (
+            <ModelTokenUsageChart data={tokenUsage.data} />
           )}
 
           <div className="border-t border-gray-200 pt-6">

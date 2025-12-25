@@ -10,7 +10,8 @@ from backend.models import (
     ParticipantMapResponse,
     AssetsResponse,
     AddressTransactionsResponse,
-    ModelEpochSeriesResponse
+    ModelEpochSeriesResponse,
+    ModelEpochTokenUsageResponse
 )
 
 router = APIRouter(prefix="/v1")
@@ -157,6 +158,17 @@ async def get_historical_models(epoch_id: int, height: Optional[int] = None):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch models for epoch {epoch_id}: {str(e)}")
+
+
+@router.get("/models/token-usage", response_model=ModelEpochTokenUsageResponse)
+async def get_model_token_usage(model: str = Query(...)):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        return await inference_service.get_model_token_usage(model)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch models token-usage: {str(e)}")
 
 
 @router.get("/participants/{participant_id}/inferences", response_model=ParticipantInferencesResponse)

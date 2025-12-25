@@ -194,6 +194,11 @@ class CacheDB:
                 CREATE INDEX IF NOT EXISTS idx_participant_inferences
                 ON participant_inferences(epoch_id, participant_id, status)
             """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_participant_inferences_model_epoch
+                ON participant_inferences(model, epoch_id);
+            """)
             
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS timeline_cache (
@@ -1179,3 +1184,29 @@ class CacheDB:
             """) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+
+    async def get_model_token_usage_all_epochs(self, model: str) -> List[Dict[str, int]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT
+                    epoch_id,
+                    SUM(COALESCE(CAST(prompt_token_count AS INTEGER), 0)) AS total_prompt_tokens,
+                    SUM(COALESCE(CAST(completion_token_count AS INTEGER), 0)) AS total_completion_tokens,
+                    COUNT(*) AS inference_count
+                FROM participant_inferences
+                WHERE model = ?
+                AND status != '_EMPTY_MARKER_'
+                AND epoch_id IN (
+                    SELECT DISTINCT epoch_id
+                    FROM participant_inferences
+                    WHERE model = ?
+                    ORDER BY epoch_id DESC
+                    LIMIT 30
+                )
+                GROUP BY epoch_id
+                ORDER BY epoch_id ASC
+            """, (model, model)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+

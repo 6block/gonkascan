@@ -284,3 +284,12 @@ class ModelEpochSeriesResponse(BaseModel):
     models: List[str]
     series: ModelSeries
 
+class ModelEpochTokenUsageItem(BaseModel):
+    epoch: int
+    prompt_token: int
+    completion_token: int
+    inference_count: int
+
+class ModelEpochTokenUsageResponse(BaseModel):
+    model: str
+    data: List[ModelEpochTokenUsageItem]

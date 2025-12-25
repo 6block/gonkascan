@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ModelsResponse, ModelInfo, EpochSeriesPoint, ModelEpochSeriesResponse } from '../types/inference'
 import { EpochSelector } from './EpochSelector'
 import { ModelModal } from './ModelModal'
-import { ModelAreaChart } from "./ModelAreaChart"
+import { ModelAreaChart } from "./ModelChart"
 
 type EpochRow = { epoch: number } & Record<string, number>
 

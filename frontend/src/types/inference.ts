@@ -249,3 +249,15 @@ export interface ModelEpochSeriesResponse {
   models: string[]
   series: ModelSeries
 }
+
+export interface ModelEpochTokenUsageItem {
+  epoch: number
+  prompt_token: number
+  completion_token: number
+  inference_count: number
+}
+
+export interface ModelEpochTokenUsageResponse {
+  model: string
+  data: ModelEpochTokenUsageItem[]
+}

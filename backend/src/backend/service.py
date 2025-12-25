@@ -39,7 +39,9 @@ from backend.models import (
     AssetsResponse,
     AddressTransactionsResponse,
     EpochSeriesPoint,
-    ModelEpochSeriesResponse
+    ModelEpochSeriesResponse,
+    ModelEpochTokenUsageItem,
+    ModelEpochTokenUsageResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -2111,3 +2113,19 @@ class InferenceService:
                 "ai_tokens": dict(series["ai_tokens"]),
             }
         )
+    
+    async def get_model_token_usage(self, model: str) -> ModelEpochTokenUsageResponse:
+        token_usage_data = await self.cache_db.get_model_token_usage_all_epochs(model)
+
+        data = [
+            ModelEpochTokenUsageItem(
+                epoch=token_usage["epoch_id"],
+                prompt_token=token_usage["total_prompt_tokens"],
+                completion_token=token_usage["total_completion_tokens"],
+                inference_count=token_usage["inference_count"],
+            )
+            for token_usage in token_usage_data
+        ]
+
+        return ModelEpochTokenUsageResponse(model=model,data=data)
+
