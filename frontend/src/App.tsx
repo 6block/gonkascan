@@ -11,11 +11,12 @@ import { EpochTimer } from './components/EpochTimer'
 import { Transactions } from './components/Transactions'
 import { ParticipantMap } from './components/ParticipantMap'
 import { Address } from './components/Address'
+import { Hardware } from './components/Hardware'
 import { isValidGonkaAddress } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'timeline' | 'transactions' | 'nodemap' | 'address'
+type Page = 'dashboard' | 'models' | 'hardwares' | 'timeline' | 'transactions' | 'nodemap' | 'address'
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
@@ -76,6 +77,11 @@ function App() {
       setCurrentPage('models')
       return
     }
+
+    if (pageParam === 'hardwares') {
+      setCurrentPage('hardwares')
+      return
+    }
     
     if (pageParam === 'transactions') {
       setCurrentPage('transactions')
@@ -127,6 +133,7 @@ function App() {
       if (
         pageParam === 'timeline' ||
         pageParam === 'models' ||
+        pageParam === 'hardwares' ||
         pageParam === 'transactions' ||
         pageParam === 'nodemap'
       ) {
@@ -202,6 +209,10 @@ function App() {
     } else if (page === 'models') {
       params.set('page', 'models')
       params.delete('block')
+    } else if (page === 'hardwares') {
+      params.set('page', 'hardwares')
+      params.delete('epoch')
+      params.delete('model')
     } else if (page === 'transactions') {
       params.set('page', 'transactions')
       params.delete('epoch')
@@ -312,6 +323,16 @@ function App() {
                   Models
                 </button>
                 <button
+                  onClick={() => handlePageChange('hardwares')}
+                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                    currentPage === 'hardwares'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Hardware
+                </button>
+                <button
                   onClick={() => handlePageChange('timeline')}
                   className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
                     currentPage === 'timeline'
@@ -372,6 +393,8 @@ function App() {
             <Timeline />
           ) : currentPage === 'models' ? (
             <Models />
+          ) : currentPage === 'hardwares' ? (
+            <Hardware />
           ) : currentPage === 'transactions' ? (
             <Transactions /> 
           ) : currentPage === 'nodemap' ? (

@@ -261,3 +261,40 @@ export interface ModelEpochTokenUsageResponse {
   model: string
   data: ModelEpochTokenUsageItem[]
 }
+
+export interface HardwareStats {
+  id: string;
+  amount: number;
+  total_weight: number;
+}
+
+export interface HardwaresResponse {
+  epoch_id: number;
+  is_current: boolean;
+  total_weight: number;
+  hardwares: HardwareStats[];
+}
+
+export interface HardwareParticipateCount {
+  particiapte_id: string;
+  count: number;
+}
+
+export interface HardwareDetailsResponse {
+  hardware: string;
+  epoch_id: number;
+  amount: number;
+  total_weight: number;
+  particiaptes: HardwareParticipateCount[];
+  ml_nodes: MLNodeInfo[];
+}
+
+export interface HardwareSeries {
+  amount: Record<string, EpochSeriesPoint[]>;
+  total_weight: Record<string, EpochSeriesPoint[]>;
+}
+
+export interface HardwareEpochSeriesResponse {
+  hardware: string[];
+  series: HardwareSeries;
+}

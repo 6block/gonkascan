@@ -1210,3 +1210,52 @@ class CacheDB:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
+    async def get_hardwares(self, epoch_id: int) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT
+                    json_extract(hw.value, '$.type') AS hardware,
+                    SUM(CAST(json_extract(hw.value, '$.count') AS INTEGER)) AS amount,
+                    SUM(COALESCE(poc_weight, 0)) AS total_weight
+                FROM participant_hardware_nodes,
+                    json_each(hardware_json) AS hw
+                WHERE epoch_id = ?
+                GROUP BY hardware
+                """, (epoch_id,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+    
+    async def get_hardware_nodes_by_epoch(self, epoch_id: int, hardware: str) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT *
+                FROM participant_hardware_nodes
+                WHERE epoch_id = ?
+                AND EXISTS (
+                    SELECT 1
+                    FROM json_each(hardware_json)
+                    WHERE json_extract(value, '$.type') = ?
+                )
+                """, (epoch_id, hardware))  as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_hardware_metrics(self) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT
+                    epoch_id,
+                    json_extract(hw.value, '$.type') AS hardware,
+                    SUM(CAST(json_extract(hw.value, '$.count') AS INTEGER)) AS amount,
+                    SUM(COALESCE(poc_weight, 0)) AS total_weight
+                FROM participant_hardware_nodes,
+                    json_each(hardware_json) AS hw
+                GROUP BY epoch_id, hardware
+                ORDER BY epoch_id
+                """)  as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+

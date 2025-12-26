@@ -293,3 +293,37 @@ class ModelEpochTokenUsageItem(BaseModel):
 class ModelEpochTokenUsageResponse(BaseModel):
     model: str
     data: List[ModelEpochTokenUsageItem]
+
+
+class HardwareStats(BaseModel):
+    id: str
+    amount: int
+    total_weight: int
+
+
+class HardwaresResponse(BaseModel):
+    epoch_id: int
+    is_current: bool
+    total_weight: int
+    hardwares: List[HardwareStats]
+
+class HardwareParticiapteCount(BaseModel):
+    particiapte_id: str
+    count: int
+
+class HardwareDetailsResponse(BaseModel):
+    hardware: str
+    epoch_id: int
+    amount: int
+    total_weight: int
+    particiaptes: List[HardwareParticiapteCount]
+    ml_nodes: List[MLNodeInfo]
+
+class HardwareSeries(BaseModel):
+    amount: Dict[str, List[EpochSeriesPoint]]
+    total_weight: Dict[str, List[EpochSeriesPoint]]
+
+
+class HardwareEpochSeriesResponse(BaseModel):
+    hardwares: List[str]
+    series: HardwareSeries

@@ -41,7 +41,13 @@ from backend.models import (
     EpochSeriesPoint,
     ModelEpochSeriesResponse,
     ModelEpochTokenUsageItem,
-    ModelEpochTokenUsageResponse
+    ModelEpochTokenUsageResponse,
+    HardwareStats,
+    HardwaresResponse,
+    HardwareParticiapteCount,
+    HardwareDetailsResponse,
+    HardwareSeries,
+    HardwareEpochSeriesResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -836,7 +842,7 @@ class InferenceService:
             for node in (hardware_nodes_data or []):
                 local_id = node.get("local_id", "")
                 poc_weight = ml_nodes_map.get(local_id) or node.get("poc_weight")
-                
+
                 hardware_list = [
                     HardwareInfo(type=hw["type"], count=hw["count"])
                     for hw in node.get("hardware", [])
@@ -2129,3 +2135,132 @@ class InferenceService:
 
         return ModelEpochTokenUsageResponse(model=model,data=data)
 
+    async def get_current_hardwares(self) -> HardwaresResponse:
+        if self.current_epoch_id is None:
+            try:
+                latest_info = await self.client.get_latest_epoch()
+                epoch_id = latest_info["latest_epoch"]["index"]
+                self.current_epoch_id = epoch_id
+            except Exception as e:
+                logger.error(f"Failed to get current epoch ID: {e}")
+                raise
+        else:
+            epoch_id = self.current_epoch_id
+
+        cache_hardwares = await self.cache_db.get_hardwares(epoch_id)
+        all_total_weight = 0
+        hardware_items = []
+
+        for cache_hardware in cache_hardwares:
+            hardware = cache_hardware["hardware"]
+            all_total_weight += int(cache_hardware["total_weight"])
+            hardware_items.append(
+                HardwareStats(
+                    id=hardware,
+                    amount=int(cache_hardware["amount"]),
+                    total_weight=int(cache_hardware["total_weight"]),
+                )
+            )
+
+        return HardwaresResponse(
+            epoch_id=epoch_id,
+            is_current=True,
+            total_weight=all_total_weight,
+            hardwares=hardware_items,
+        )
+
+    async def get_historical_hardwares(self, epoch_id: int, height: Optional[int] = None) -> HardwaresResponse:
+        cache_hardwares = await self.cache_db.get_hardwares(epoch_id)
+        all_total_weight = 0
+        hardware_items = []
+
+        for cache_hardware in cache_hardwares:
+            hardware = cache_hardware["hardware"]
+            all_total_weight += int(cache_hardware["total_weight"])
+            hardware_items.append(
+                HardwareStats(
+                    id=hardware,
+                    amount=int(cache_hardware["amount"]),
+                    total_weight=int(cache_hardware["total_weight"]),
+                )
+            )
+
+        return HardwaresResponse(
+            epoch_id=epoch_id,
+            is_current=False,
+            total_weight=all_total_weight,
+            hardwares=hardware_items,
+        )
+
+    async def get_hardware_details(self, hardware: str, epoch_id: int) -> HardwareDetailsResponse:
+        rows = await self.cache_db.get_hardware_nodes_by_epoch(epoch_id, hardware)
+        ml_nodes: list[MLNodeInfo] = []
+        amount = 0
+        total_weight = 0
+        particiaptes = defaultdict(int)
+
+        for r in rows:
+            hardware_list = json.loads(r["hardware_json"] or "[]")
+
+            for hw in hardware_list:
+                if hw.get("type") != hardware:
+                    continue
+
+                count = int(hw.get("count", 0))
+                amount += count
+                total_weight += int(r.get("poc_weight") or 0)
+                particiaptes[r["participant_id"]] += count
+
+                ml_nodes.append(
+                    MLNodeInfo(
+                        local_id=r["local_id"],
+                        status=r.get("status", ""),
+                        models=json.loads(r.get("models_json") or "[]"),
+                        hardware=[
+                            HardwareInfo(type=hardware, count=count)
+                        ],
+                        host=r.get("host", ""),
+                        port=r.get("port", ""),
+                        poc_weight=r.get("poc_weight"),
+                    )
+                )
+    
+        particiaptes_list = [
+            HardwareParticiapteCount(
+                particiapte_id=pid,
+                count=count
+            ) for pid, count in particiaptes.items()
+        ]
+
+        return HardwareDetailsResponse(
+            hardware=hardware,
+            epoch_id=epoch_id,
+            amount=amount,
+            total_weight=total_weight,
+            particiaptes=particiaptes_list,
+            ml_nodes=ml_nodes,
+        )
+
+    async def get_hardware_metrics(self) -> HardwareEpochSeriesResponse:
+        hardwares = set()
+        series = {
+            "amount": defaultdict(list),
+            "total_weight": defaultdict(list),
+        }
+
+        cache_hardwares = await self.cache_db.get_hardware_metrics()
+
+        for cache_hardware in cache_hardwares:
+            hardware = cache_hardware["hardware"]
+            epoch_id = cache_hardware["epoch_id"]
+            hardwares.add(hardware)
+            series["amount"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["amount"]))
+            series["total_weight"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["total_weight"]))
+
+        return HardwareEpochSeriesResponse(
+            hardwares=sorted(hardwares),
+            series={
+                "amount": dict(series["amount"]),
+                "total_weight": dict(series["total_weight"])
+            }
+        )
