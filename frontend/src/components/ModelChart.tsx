@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar } from 'recharts'  
 
-interface ModelAreaChartProps {
+interface EpochAreaChartProps {
   title: string
   data: any[]
 }
@@ -12,6 +12,8 @@ interface TokenUsageRow {
   completion_token: number
 }
 
+const COLORS = [ '#22C55E', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444']
+
 function formatTokens(value: number) {
   if (value >= 1e9) return `${(value / 1e9).toFixed(2)}B`
   if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`
@@ -19,7 +21,25 @@ function formatTokens(value: number) {
   return value.toString()
 }
 
-const COLORS = [ '#22C55E', '#3B82F6', '#8B5CF6', '#06B6D4', '#EF4444']
+function safeId(input: string) {
+  return input.replace(/[^a-zA-Z0-9_-]/g, '_')
+}
+
+function stringHash(str: string) {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash)
+}
+
+function buildStableColorMap(names: string[]) {
+  const sorted = [...names].sort((a, b) => stringHash(a) - stringHash(b))
+  const map: Record<string, string> = {}
+  sorted.forEach((name, index) => {map[name] = COLORS[index]})
+  return map
+}
 
 const AreaTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload.length) return null
@@ -32,7 +52,7 @@ const AreaTooltip = ({ active, payload, label }: any) => {
 
   return (
     <div className="bg-white border border-gray-200 rounded-md p-3 text-sm shadow">
-      <div className="font-semibold mb-2">{label}</div>
+      <div className="font-semibold mb-2">Epoch {label}</div>
       {sorted.map(item => {
         const value = Number(item.value ?? 0)
         const isZero = value === 0
@@ -52,66 +72,67 @@ const AreaTooltip = ({ active, payload, label }: any) => {
   )
 }
 
-export function ModelAreaChart({ title, data }: ModelAreaChartProps) {
-  const [hiddenModels, setHiddenModels] = useState<Set<string>>(new Set())
+export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
+  const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set())
   const [activeEpoch, setActiveEpoch] = useState<number | null>(null)
 
   if (!data.length) return null
 
-  const models = Object.keys(data[0]).filter(k => k !== 'epoch')
+  const keys = Object.keys(data[0]).filter(k => k !== 'epoch')
 
-  const toggleModel = (model: string) => {
-    setHiddenModels(prev => {
+  const colorMap = useMemo(() => {
+    return buildStableColorMap(keys)
+  }, [keys])
+
+  const toggleKeys = (key: string) => {
+    setHiddenKeys(prev => {
       const next = new Set(prev)
-      if (next.has(model)) {
-        next.delete(model)
+      if (next.has(key)) {
+        next.delete(key)
       } else {
-        next.add(model)
+        next.add(key)
       }
       return next
     })
   }
 
-  const getSortedModels = () => {
+  const getSortedKeys = () => {
     const epoch = activeEpoch ?? data[data.length - 1]?.epoch
 
-    if (epoch == null) return models
+    if (epoch == null) return keys
     const row = data.find(d => d.epoch === epoch)
-    if (!row) return models
+    if (!row) return keys
   
-    return [...models].sort((a, b) => {
+    return [...keys].sort((a, b) => {
       const va = row[a] ?? 0
       const vb = row[b] ?? 0
       return vb - va
     })
   }
-  
-  const colorMap: Record<string, string> = {}
-    models.forEach((m, i) => {colorMap[m] = COLORS[i % COLORS.length]})
-  
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4">
       <div className="flex items-start justify-between gap-4 mb-3">
         <h3 className="text-sm font-semibold text-gray-700 shrink-0">{title}</h3>
 
         <div className="flex flex-wrap justify-end gap-x-4 gap-y-2 max-w-[70%]">
-          {getSortedModels().map((model) => {
-            const hidden = hiddenModels.has(model)
-            const color = colorMap[model]
+          {getSortedKeys().map((key) => {
+            const hidden = hiddenKeys.has(key)
+            const color = colorMap[key]
 
             return (
               <div
-                key={model}
+                key={key}
                 className={`flex items-center gap-2 cursor-pointer text-xs select-none ${
                   hidden ? 'text-gray-400' : 'text-gray-800'
                 }`}
-                onClick={() => toggleModel(model)}
+                onClick={() => toggleKeys(key)}
               >
                 <span
                   className="inline-block w-3 h-3 rounded"
                   style={{backgroundColor: hidden ? '#D1D5DB' : color,}}
                 />
-                <span className="truncate max-w-[180px]">{model}</span>
+                <span className="truncate max-w-[180px]">{key}</span>
               </div>
             )
           })}
@@ -122,12 +143,15 @@ export function ModelAreaChart({ title, data }: ModelAreaChartProps) {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
           <defs>
-              {models.map(model => (
-                <linearGradient key={model} id={`gradient-${model}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={colorMap[model]} stopOpacity={0.35}/>
-                  <stop offset="95%" stopColor={colorMap[model]} stopOpacity={0.05}/>
-                </linearGradient>
-              ))}
+              {keys.map(key => {
+                const gid = safeId(key)
+                return (
+                  <linearGradient key={gid} id={`gradient-${gid}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={colorMap[key]} stopOpacity={0.35}/>
+                    <stop offset="95%" stopColor={colorMap[key]} stopOpacity={0.05}/>
+                  </linearGradient>
+                )
+              })}
             </defs>
 
             <CartesianGrid strokeDasharray="3 3" />
@@ -146,17 +170,18 @@ export function ModelAreaChart({ title, data }: ModelAreaChartProps) {
               }}
             />
 
-            {models.map((model) => {
-              if (hiddenModels.has(model)) return null
+            {keys.map((key) => {
+              if (hiddenKeys.has(key)) return null
+              const gid = safeId(key)
 
               return (
                 <Area
-                  key={model}
+                  key={key}
                   type="monotone"
-                  dataKey={model}
-                  stroke={colorMap[model]}
+                  dataKey={key}
+                  stroke={colorMap[key]}
                   strokeWidth={2}
-                  fill={`url(#gradient-${model})`}
+                  fill={`url(#gradient-${gid})`}
                   isAnimationActive={false}
                 />
               )

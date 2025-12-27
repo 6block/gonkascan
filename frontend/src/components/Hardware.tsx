@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { HardwaresResponse, HardwareStats, EpochSeriesPoint, HardwareEpochSeriesResponse, } from '../types/inference'
 import { EpochSelector } from './EpochSelector'
 import { HardwareModal } from './HardwareModal'
-import { ModelAreaChart } from "./ModelChart"
+import { EpochAreaChart } from "./ModelChart"
 
 type EpochRow = { epoch: number } & Record<string, number>
 
@@ -331,8 +331,8 @@ export function Hardware() {
 
       {metricsData && !metricsLoading && (
         <div className="flex flex-col gap-10 mb-10">
-          <ModelAreaChart title="Total Weight" data={totalWeightData} />
-          <ModelAreaChart title="Amount" data={amountData} />
+          <EpochAreaChart title="Total Weight" data={totalWeightData} />
+          <EpochAreaChart title="Amount" data={amountData} />
         </div>
       )}
 

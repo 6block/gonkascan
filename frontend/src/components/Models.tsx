@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ModelsResponse, ModelInfo, EpochSeriesPoint, ModelEpochSeriesResponse } from '../types/inference'
 import { EpochSelector } from './EpochSelector'
 import { ModelModal } from './ModelModal'
-import { ModelAreaChart } from "./ModelChart"
+import { EpochAreaChart } from "./ModelChart"
 
 type EpochRow = { epoch: number } & Record<string, number>
 
@@ -326,10 +326,10 @@ export function Models() {
 
       {metricsData && !metricsLoading && (
         <div className="flex flex-col gap-10 mb-10">
-          <ModelAreaChart title="Total Weight" data={totalWeightData} />
-          <ModelAreaChart title="Hosts" data={hostsData} />
-          <ModelAreaChart title="Inferences" data={inferencesData} />
-          <ModelAreaChart title="AI Tokens" data={aiTokensData} />
+          <EpochAreaChart title="Total Weight" data={totalWeightData} />
+          <EpochAreaChart title="Hosts" data={hostsData} />
+          <EpochAreaChart title="Inferences" data={inferencesData} />
+          <EpochAreaChart title="AI Tokens" data={aiTokensData} />
         </div>
       )}
 
