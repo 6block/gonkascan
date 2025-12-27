@@ -750,6 +750,11 @@ class InferenceService:
             if hardware_nodes_data is None:
                 logger.info(f"Fetching hardware nodes inline for participant {participant_id}")
                 fetch_tasks.append(('hardware', None, self.client.get_hardware_nodes(participant_id)))
+            else:
+                has_empty_poc_weight = any(r.get("poc_weight") in (None, "", 0) for r in hardware_nodes_data)
+                if has_empty_poc_weight:
+                    logger.info(f"Fetching hardware nodes inline for participant {participant_id}")
+                    fetch_tasks.append(('hardware', None, self.client.get_hardware_nodes(participant_id)))
             
             if fetch_tasks:
                 results = await asyncio.gather(*[task[2] for task in fetch_tasks], return_exceptions=True)
@@ -775,7 +780,21 @@ class InferenceService:
                         await self.cache_db.save_warm_keys_batch(epoch_id, participant_id, warm_keys_data)
                     elif task_type == 'hardware':
                         hardware_nodes_data = result if result else []
+                        ml_nodes_map = participant.ml_nodes_map if participant.ml_nodes_map else {}
+                        if not ml_nodes_map:
+                            cached_stats = await self.cache_db.get_stats(epoch_id, height)
+                            if cached_stats:
+                                for s in cached_stats:
+                                    if s.get("index") == participant_id:
+                                        ml_nodes_map = s.get("_ml_nodes_map", {})
+                                        break
+                        if ml_nodes_map:
+                            for node in hardware_nodes_data:
+                                local_id = node.get("local_id")
+                                if local_id and local_id in ml_nodes_map:
+                                    node["poc_weight"] = ml_nodes_map[local_id]
                         await self.cache_db.save_hardware_nodes_batch(epoch_id, participant_id, hardware_nodes_data)
+                        logger.debug(f"Participant Updated {len(hardware_nodes_data)} hardware nodes for {participant_id}")
                 
                 if newly_fetched_rewards:
                     await self.cache_db.save_reward_batch(newly_fetched_rewards)
@@ -965,6 +984,18 @@ class InferenceService:
             epoch_data = await self.client.get_current_epoch_participants()
             current_epoch = epoch_data["active_participants"]["epoch_group_id"]
             participants = epoch_data["active_participants"]["participants"]
+
+            epoch_stats = None
+            if self.current_epoch_data and self.current_epoch_id == current_epoch:
+                epoch_stats = self.current_epoch_data
+            else:
+                epoch_stats = await self.get_current_epoch_stats()
+    
+            ml_nodes_map_by_participant = {}
+            if epoch_stats:
+                for p in epoch_stats.participants:
+                    if p.ml_nodes_map:
+                        ml_nodes_map_by_participant[p.index] = p.ml_nodes_map
             
             async def fetch_hardware_node(participant):
                 participant_id = participant["index"]
@@ -972,9 +1003,18 @@ class InferenceService:
                     if check_cache:
                         cached = await self.cache_db.get_hardware_nodes(current_epoch, participant_id)
                         if cached is not None:
-                            return None
+                            has_empty_poc_weight = any(r.get("poc_weight") in (None, "", 0) for r in cached)
+                            if not has_empty_poc_weight:
+                                return None
                     
                     hardware_nodes = await self.client.get_hardware_nodes(participant_id)
+                    ml_nodes_map = ml_nodes_map_by_participant.get(participant_id, {})
+                    if ml_nodes_map:
+                        for node in hardware_nodes:
+                            local_id = node.get("local_id")
+                            if local_id and local_id in ml_nodes_map:
+                                node["poc_weight"] = ml_nodes_map[local_id]
+
                     await self.cache_db.save_hardware_nodes_batch(current_epoch, participant_id, hardware_nodes)
                     logger.debug(f"Updated {len(hardware_nodes)} hardware nodes for {participant_id}")
                     return True
@@ -2089,7 +2129,6 @@ class InferenceService:
         }
         cache_models = await self.cache_db.get_all_models()
         cached_api_data = await self.cache_db.get_all_models_api_cache()
-        logger.error(f">>>> 1")
 
         for cache_model in cache_models:
             model_id = cache_model["model_id"]
@@ -2097,7 +2136,6 @@ class InferenceService:
             models_set.add(model_id)
             series["total_weight"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_model["total_weight"]))
             series["hosts"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=cache_model["participant_count"]))
-        logger.error(f">>>> {series}")
 
         for row in cached_api_data:
             epoch_id = row["epoch_id"]
