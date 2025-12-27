@@ -255,6 +255,21 @@ class CacheDB:
                     last_updated TEXT NOT NULL
                 );
             """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS epoch_participants_snapshot (
+                    epoch_id INTEGER PRIMARY KEY,
+                    effective_block_height INTEGER NOT NULL,
+                    poc_start_block_height INTEGER,
+                    created_at_block_height INTEGER,
+                    participant_count INTEGER,
+                    validator_count INTEGER,
+                    snapshot_json TEXT NOT NULL,
+                    fetched_from TEXT,
+                    fetched_at TEXT NOT NULL
+                )
+            """)
+
             
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
@@ -1258,4 +1273,55 @@ class CacheDB:
                 """)  as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+    
+    async def save_epoch_participants_snapshot(self, epoch_id: int, epoch_data: dict, fetched_from: str | None = None):
+        fetched_at = datetime.utcnow().isoformat()
+        active = epoch_data.get("active_participants", {}) or {}
+        effective_block_height = active.get("effective_block_height")
+        poc_start_block_height = active.get("poc_start_block_height")
+        created_at_block_height = active.get("created_at_block_height")
+        participants = active.get("participants", []) or []
+        validators = epoch_data.get("validators", []) or []
+        participant_count = len(participants)
+        validator_count = len(validators)
+        snapshot_json = json.dumps(epoch_data)
+
+        if effective_block_height is None:
+            raise ValueError(
+                f"epoch {epoch_id} snapshot missing effective_block_height"
+            )
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute("""
+                INSERT OR REPLACE INTO epoch_participants_snapshot (
+                    epoch_id, effective_block_height, poc_start_block_height, created_at_block_height,
+                    participant_count, validator_count, snapshot_json, fetched_from, fetched_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                epoch_id, effective_block_height, poc_start_block_height, created_at_block_height,
+                participant_count, validator_count, snapshot_json, fetched_from, fetched_at
+            ))
+
+            await db.commit()
+
+        logger.info(f"Saved epoch_participants_snapshot for epoch {epoch_id} (participants={participant_count}, validators={validator_count})"
+        )
+    
+    async def get_epoch_participants_snapshot(self, epoch_id: int) -> dict | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT snapshot_json FROM epoch_participants_snapshot WHERE epoch_id = ?
+            """, (epoch_id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+
+                try:
+                    return json.loads(row["snapshot_json"])
+                except json.JSONDecodeError as e:
+                    logger.error(f"Invalid snapshot_json for epoch {epoch_id}: {e}")
+                    return None
+
 

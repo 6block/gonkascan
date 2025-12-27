@@ -113,6 +113,30 @@ class InferenceService:
             logger.warning(f"Failed to calculate avg block time: {e}")
             return 6.0
     
+    async def get_epoch_participants(self, epoch_id: int) -> dict:
+        cached = await self.cache_db.get_epoch_participants_snapshot(epoch_id)
+        if cached:
+            logger.debug(f"Using cached epoch_participants snapshot for epoch {epoch_id}")
+            return cached
+        
+        logger.info(f"Cache miss for epoch_participants {epoch_id}, fetching from RPC")
+        try:
+            epoch_data = await self.client.get_epoch_participants(epoch_id)
+            try:
+                await self.cache_db.save_epoch_participants_snapshot(
+                    epoch_id=epoch_id,
+                    epoch_data=epoch_data,
+                    fetched_from=self.client._get_current_url()
+                )
+            except Exception as e:
+                logger.warning(f"Failed to cache epoch_participants snapshot for epoch {epoch_id}: {e}")
+
+            return epoch_data
+
+        except Exception as rpc_error:
+            logger.error(f"RPC get_epoch_participants failed for epoch {epoch_id}: {rpc_error}")
+            raise
+
     async def get_canonical_height(self, epoch_id: int, requested_height: Optional[int] = None) -> int:
         if self.current_epoch_id is None:
             latest_info = await self.client.get_latest_epoch()
@@ -126,11 +150,11 @@ class InferenceService:
             current_height = await self.client.get_latest_height()
             return requested_height if requested_height else current_height
         
-        epoch_data = await self.client.get_epoch_participants(epoch_id)
+        epoch_data = await self.get_epoch_participants(epoch_id)
         effective_height = epoch_data["active_participants"]["effective_block_height"]
         
         try:
-            next_epoch_data = await self.client.get_epoch_participants(epoch_id + 1)
+            next_epoch_data = await self.get_epoch_participants(epoch_id + 1)
             next_effective_height = next_epoch_data["active_participants"]["effective_block_height"]
             canonical_height = next_effective_height - 10
         except Exception:
@@ -378,7 +402,7 @@ class InferenceService:
                 except Exception as e:
                     logger.warning(f"Failed to parse cached participant: {e}")
             
-            epoch_data = await self.client.get_epoch_participants(epoch_id)
+            epoch_data = await self.get_epoch_participants(epoch_id)
             active_participants_list = epoch_data["active_participants"]["participants"]
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, target_height, active_participants_list)
             participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, target_height, active_participants_list)
@@ -411,7 +435,7 @@ class InferenceService:
             all_participants_data = await self.client.get_all_participants(height=target_height)
             participants_list = all_participants_data.get("participant", [])
             
-            epoch_data = await self.client.get_epoch_participants(epoch_id)
+            epoch_data = await self.get_epoch_participants(epoch_id)
             active_indices = {
                 p["index"] for p in epoch_data["active_participants"]["participants"]
             }
@@ -1100,7 +1124,7 @@ class InferenceService:
         try:
             logger.info(f"Calculating total assigned rewards for epoch {epoch_id}")
             
-            epoch_data = await self.client.get_epoch_participants(epoch_id)
+            epoch_data = await self.get_epoch_participants(epoch_id)
             participants = epoch_data["active_participants"]["participants"]
             
             total_ugnk = 0
@@ -1547,7 +1571,7 @@ class InferenceService:
         )
     
     async def get_historical_models(self, epoch_id: int, height: Optional[int] = None) -> ModelsResponse:
-        epoch_data = await self.client.get_epoch_participants(epoch_id)
+        epoch_data = await self.get_epoch_participants(epoch_id)
         participants = epoch_data["active_participants"]["participants"]
         target_height = await self.get_canonical_height(epoch_id, height)
         
@@ -2302,3 +2326,49 @@ class InferenceService:
                 "total_weight": dict(series["total_weight"])
             }
         )
+
+    async def repair_all_hardware_poc_weight(self):
+        """
+        Repair poc_weight for ALL epochs / participants / hardware nodes,
+        using the same data path as get_participant_details.
+        """
+        logger.info("Starting full hardware poc_weight repair (participant-details based)")
+
+        epoch_ids = [105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121]
+        logger.info(f"Found {len(epoch_ids)} epochs to repair")
+
+        for epoch_id in epoch_ids:
+            try:
+                if self.current_epoch_id == epoch_id:
+                    stats = await self.get_current_epoch_stats()
+                else:
+                    stats = await self.get_historical_epoch_stats(epoch_id, height=None)
+                    cached_stats = await self.cache_db.get_stats(epoch_id)
+                if not stats or not stats.participants:
+                    continue
+
+                logger.info(f"Repairing epoch {epoch_id} ({len(stats.participants)} participants)")
+                total_fixed = 0
+                for participant in stats.participants:
+                    participant_id = participant.index
+                    ml_nodes_map = participant.ml_nodes_map or {}
+
+                    if not ml_nodes_map and cached_stats:
+                        for s in cached_stats:
+                            if s.get("index") == participant_id:
+                                ml_nodes_map = s.get("_ml_nodes_map", {})
+                                break
+
+                    if ml_nodes_map:
+                        hardware_nodes = await self.cache_db.get_hardware_nodes(epoch_id, participant_id)
+                        if not hardware_nodes:
+                            continue
+                        for node in hardware_nodes:
+                            local_id = node.get("local_id")
+                            poc_weight = ml_nodes_map.get(local_id)
+                            node["poc_weight"] = poc_weight
+                            total_fixed += 1
+                        await self.cache_db.save_hardware_nodes_batch(epoch_id, participant_id, hardware_nodes)
+                logger.info(f"Hardware poc_weight repair completed, total nodes fixed: {total_fixed}")
+            except Exception as e:
+                logger.error(f"Failed to repair epoch {epoch_id}: {e}")
