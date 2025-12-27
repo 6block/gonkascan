@@ -423,7 +423,7 @@ function App() {
             data && (
               <>
                 <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6 border border-gray-200">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-4">
                     <div className="col-span-2 sm:col-span-1">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
                       <div className="flex items-center gap-2 min-h-[2rem]">
@@ -468,9 +468,16 @@ function App() {
                         <div className="text-2xl font-bold text-gray-900 leading-none">
                           {data.participants.reduce((sum, p) => sum + p.weight, 0).toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          ~{Math.round(data.participants.reduce((sum, p) => sum + p.weight, 0) / 437)} H100 GPUs
+                      </div>
+                    </div>
+
+                    <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
+                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Equivalent H100</div>
+                      <div>
+                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                          {Math.round(data.participants.reduce((sum, p) => sum + p.weight, 0) / 437).toLocaleString()} GPUs
                         </div>
+                        <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
                       </div>
                     </div>
 
