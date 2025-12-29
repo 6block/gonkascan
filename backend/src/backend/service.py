@@ -780,6 +780,7 @@ class InferenceService:
                     logger.info(f"Fetching hardware nodes inline for participant {participant_id}")
                     fetch_tasks.append(('hardware', None, self.client.get_hardware_nodes(participant_id)))
             
+            cached_stats = await self.cache_db.get_participant_stats(participant_id, epoch_id, height)
             if fetch_tasks:
                 results = await asyncio.gather(*[task[2] for task in fetch_tasks], return_exceptions=True)
                 
@@ -806,7 +807,6 @@ class InferenceService:
                         hardware_nodes_data = result if result else []
                         ml_nodes_map = participant.ml_nodes_map if participant.ml_nodes_map else {}
                         if not ml_nodes_map:
-                            cached_stats = await self.cache_db.get_stats(epoch_id, height)
                             if cached_stats:
                                 for s in cached_stats:
                                     if s.get("index") == participant_id:
@@ -851,7 +851,6 @@ class InferenceService:
                     signature=participant.seed_signature
                 )
             else:
-                cached_stats = await self.cache_db.get_stats(epoch_id, height)
                 if cached_stats:
                     for s in cached_stats:
                         if s.get("index") == participant_id:
@@ -874,7 +873,6 @@ class InferenceService:
             
             ml_nodes_map = participant.ml_nodes_map if participant.ml_nodes_map else {}
             if not ml_nodes_map:
-                cached_stats = await self.cache_db.get_stats(epoch_id, height)
                 if cached_stats:
                     for s in cached_stats:
                         if s.get("index") == participant_id:
@@ -1908,7 +1906,7 @@ class InferenceService:
         if latest_db_height == 0:
             start_height = current_height
         else:
-            start_height = latest_db_height + 1
+            start_height = max(latest_db_height + 1, current_height - 10)
 
         if start_height > current_height:
             return

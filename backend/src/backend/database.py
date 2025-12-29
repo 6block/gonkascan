@@ -30,6 +30,11 @@ class CacheDB:
                 CREATE INDEX IF NOT EXISTS idx_epoch_height 
                 ON inference_stats(epoch_id, height)
             """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_epoch_participant
+                ON inference_stats(epoch_id, participant_index);
+            """)
             
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS epoch_status (
@@ -350,6 +355,39 @@ class CacheDB:
                     results.append(stats)
                 
                 return results
+
+    async def get_participant_stats(self, participant_index: str, epoch_id: int, height: Optional[int] = None) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            if height is not None:
+                query = """
+                    SELECT participant_index, stats_json, seed_signature, height, cached_at
+                    FROM inference_stats
+                    WHERE epoch_id = ? AND participant_index = ? AND height = ?
+                    LIMIT 1
+                """
+                params = (epoch_id, participant_index, height)
+            else:
+                query = """
+                    SELECT participant_index, stats_json, seed_signature, height, cached_at
+                    FROM inference_stats
+                    WHERE epoch_id = ? AND participant_index = ?
+                    ORDER BY height DESC
+                    LIMIT 1
+                """
+                params = (epoch_id, participant_index)
+
+            async with db.execute(query, params) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+
+                stats = json.loads(row["stats_json"])
+                stats["_cached_at"] = row["cached_at"]
+                stats["_height"] = row["height"]
+                stats["_seed_signature"] = row["seed_signature"]
+                return [stats]
     
     async def has_stats_for_epoch(self, epoch_id: int, height: Optional[int] = None) -> bool:
         async with aiosqlite.connect(self.db_path) as db:
