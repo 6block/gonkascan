@@ -198,6 +198,20 @@ async def get_participant_inferences(
         )
 
 
+@router.get("/participants/{participant_id}/status")
+async def get_address_assets(
+    participant_id: str, 
+    epoch_id: Optional[int] = Query(None, description="Epoch ID (required)")
+):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+    
+    try:
+        return await inference_service.is_participant_in_epoch(participant_index=participant_id, epoch_id=epoch_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch participant status in epoch: {str(e)}")
+
+
 @router.get("/hardware/current", response_model=HardwaresResponse)
 async def get_current_hardwares():
     if inference_service is None:

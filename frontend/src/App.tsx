@@ -3,20 +3,25 @@ import { useQuery } from '@tanstack/react-query'
 import { Toaster, toast } from 'react-hot-toast'
 import { InferenceResponse } from './types/inference'
 import { ParticipantTable } from './components/ParticipantTable'
-import { ParticipantModal } from './components/ParticipantModal'
 import { EpochSelector } from './components/EpochSelector'
 import { Timeline } from './components/Timeline'
 import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
 import { Transactions } from './components/Transactions'
 import { ParticipantMap } from './components/ParticipantMap'
-import { Address } from './components/Address'
+import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
 import { isValidGonkaAddress } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
 type Page = 'dashboard' | 'models' | 'hardwares' | 'timeline' | 'transactions' | 'nodemap' | 'address'
+const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
+
+type AddressParticipantStatus = {
+  isParticipant: boolean
+  epochId: number
+} | null
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
@@ -24,6 +29,8 @@ function App() {
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
   const [addressSearch, setAddressSearch] = useState('')
+  const [appReady, setAppReady] = useState(false)
+  const [addressParticipantStatus, setAddressParticipantStatus] = useState<AddressParticipantStatus>(null)
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { prefetchAll } = usePrefetch()
@@ -43,9 +50,14 @@ function App() {
     staleTime: 0,
     refetchInterval: 30000,
     refetchOnMount: true,
-    enabled: currentPage === 'dashboard',
+    enabled: appReady && currentPage === 'dashboard',
   })
 
+  const { data: currentData } = useQuery<InferenceResponse>({
+    queryKey: ['inference', 'current'],
+    queryFn: () => fetchInference(null),
+    staleTime: 30_000,
+  })
   const error = queryError ? (queryError as Error).message : ''
 
   const estimatedBlock = useEstimatedBlock(
@@ -63,51 +75,36 @@ function App() {
   }, [data])
 
   useEffect(() => {
+    if (currentData) {
+      setCurrentEpochId(currentData.epoch_id)
+    }
+  }, [currentData])
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const pageParam = params.get('page')
+    const pageParam = params.get('page') as Page | null
     const epochParam = params.get('epoch')
     const addressParam = params.get('address')
-    
-    if (pageParam === 'timeline') {
-      setCurrentPage('timeline')
-      return
-    }
-    
-    if (pageParam === 'models') {
-      setCurrentPage('models')
-      return
-    }
-
-    if (pageParam === 'hardwares') {
-      setCurrentPage('hardwares')
-      return
-    }
-    
-    if (pageParam === 'transactions') {
-      setCurrentPage('transactions')
-      return
-    }
-
-    if (pageParam === 'nodemap') {
-      setCurrentPage('nodemap')
-      return
-    }
-
-    if (epochParam) {
+  
+    const page = pageParam ?? 'dashboard'
+    setCurrentPage(page)
+  
+    if (EPOCH_AWARE_PAGES.includes(page) && epochParam) {
       const epochId = parseInt(epochParam)
-      if (!isNaN(epochId)) {
-        setSelectedEpochId(epochId)
-        return
-      }
+      setSelectedEpochId(isNaN(epochId) ? null : epochId)
+    } else {
+      setSelectedEpochId(null)
     }
-    
-    if (pageParam === 'address' && addressParam) {
-      setCurrentPage('address')
+  
+    if (page === 'address' && addressParam) {
       setSelectedAddress(addressParam)
+      setAddressParticipantStatus(null)
       setAddressSearch(addressParam)
-      return
+    } else {
+      setSelectedAddress(null)
     }
-  }, [])
+    setAppReady(true)
+  }, [])  
 
   useEffect(() => {
     const handlePopState = () => {
@@ -126,6 +123,8 @@ function App() {
   
       if (pageParam === 'address' && addressParam) {
         setCurrentPage('address')
+        setSelectedAddress(addressParam)
+        setAddressParticipantStatus(null)
         setAddressSearch(addressParam)
         return
       }
@@ -155,17 +154,22 @@ function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    if (selectedEpochId === null) {
-      params.delete('epoch')
+  
+    if (EPOCH_AWARE_PAGES.includes(currentPage)) {
+      if (selectedEpochId !== null) {
+        params.set('epoch', selectedEpochId.toString())
+      } else {
+        params.delete('epoch')
+      }
     } else {
-      params.set('epoch', selectedEpochId.toString())
+      params.delete('epoch')
     }
-    
-    const newUrl = params.toString() 
+  
+    const newUrl = params.toString()
       ? `${window.location.pathname}?${params.toString()}`
       : window.location.pathname
     window.history.replaceState({}, '', newUrl)
-  }, [selectedEpochId])
+  }, [selectedEpochId, currentPage])  
 
   useEffect(() => {
     if (currentPage === 'dashboard' && data) {
@@ -184,11 +188,18 @@ function App() {
   const handleParticipantSelect = (address: string | null) => {
     if (!address) {
       setSelectedAddress(null)
+      setAddressParticipantStatus(null)
       setCurrentPage('dashboard')
       return
     }
 
+    if (!data) return
+
     setSelectedAddress(address)
+    setAddressParticipantStatus({
+      isParticipant: true,
+      epochId: selectedEpochId ?? currentEpochId ?? data.epoch_id,
+    })
     setCurrentPage('address')
     
     const params = new URLSearchParams()
@@ -201,34 +212,12 @@ function App() {
   const handlePageChange = (page: Page) => {
     setCurrentPage(page)
     
-    const params = new URLSearchParams(window.location.search)
-    if (page === 'timeline') {
-      params.set('page', 'timeline')
-      params.delete('epoch')
-      params.delete('model')
-    } else if (page === 'models') {
-      params.set('page', 'models')
-      params.delete('block')
-    } else if (page === 'hardwares') {
-      params.set('page', 'hardwares')
-      params.delete('epoch')
-      params.delete('model')
-    } else if (page === 'transactions') {
-      params.set('page', 'transactions')
-      params.delete('epoch')
-      params.delete('model')
-    } else if (page === 'nodemap') {
-      params.set('page', 'nodemap')
-      params.delete('epoch')
-      params.delete('model')    
-    } else {
-      params.delete('page')
-      params.delete('block')
-      params.delete('model')
+    const params = new URLSearchParams()
+    if (page !== 'dashboard') {
+      params.set('page', page)
     }
-    
-    const newUrl = params.toString() ? `?${params.toString()}` : window.location.pathname
-    window.history.pushState({}, '', newUrl)
+  
+    window.history.pushState({}, '', params.toString() ? `?${params}` : '/')
   }
 
   const handleAddressSearch = () => {
@@ -244,6 +233,7 @@ function App() {
     }
 
     setSelectedAddress(input)
+    setAddressParticipantStatus(null)
     setCurrentPage('address')
 
     const params = new URLSearchParams()
@@ -400,24 +390,13 @@ function App() {
           ) : currentPage === 'nodemap' ? (
             <ParticipantMap />
           ) : currentPage === 'address' ? (
-            selectedAddress && data ? (
-              (() => {
-                const participant = data.participants.find(
-                  p => p.index.toLowerCase() === selectedAddress.toLowerCase()
-                )
-            
-                if (participant) {
-                  return (
-                    <ParticipantModal
-                      participantId={participant.index}
-                      epochId={selectedEpochId ?? data.epoch_id}
-                      currentEpochId={currentEpochId}
-                    />
-                  )
-                }
-            
-                return <Address address={selectedAddress} />
-              })()
+            selectedAddress ? (
+              <AddressRoute
+                address={selectedAddress}
+                status={addressParticipantStatus}
+                onResolved={setAddressParticipantStatus}
+              />
+
             ) : null
           ) : (
             data && (

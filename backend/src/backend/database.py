@@ -389,6 +389,15 @@ class CacheDB:
                 stats["_seed_signature"] = row["seed_signature"]
                 return [stats]
     
+    async def has_participant_in_epoch(self, epoch_id: int, participant_index: str) -> bool:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT 1 FROM inference_stats WHERE epoch_id = ? AND participant_index = ? LIMIT 1
+            """, (epoch_id, participant_index)) as cursor:
+                row = await cursor.fetchone()
+                return row is not None
+    
     async def has_stats_for_epoch(self, epoch_id: int, height: Optional[int] = None) -> bool:
         async with aiosqlite.connect(self.db_path) as db:
             if height is not None:

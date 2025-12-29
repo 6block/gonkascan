@@ -2370,3 +2370,16 @@ class InferenceService:
                 logger.info(f"Hardware poc_weight repair completed, total nodes fixed: {total_fixed}")
             except Exception as e:
                 logger.error(f"Failed to repair epoch {epoch_id}: {e}")
+
+    async def is_participant_in_epoch(self, participant_index: str, epoch_id: int | None = None) -> bool:
+        if epoch_id is None:
+            if self.current_epoch_id is None:
+                latest_info = await self.client.get_latest_epoch()
+                self.current_epoch_id = latest_info["latest_epoch"]["index"]
+            epoch_id = self.current_epoch_id
+        exists = await self.cache_db.has_participant_in_epoch(epoch_id, participant_index)
+        return {
+            "participant_id": participant_index,
+            "epoch_id": epoch_id,
+            "is_participant": exists,
+        }
