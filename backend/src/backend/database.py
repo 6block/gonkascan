@@ -334,11 +334,17 @@ class CacheDB:
                 params = (epoch_id, height)
             else:
                 query = """
-                    SELECT participant_index, stats_json, seed_signature, height, cached_at
-                    FROM inference_stats
-                    WHERE epoch_id = ?
+                    SELECT s.participant_index, s.stats_json, s.seed_signature, s.height, s.cached_at
+                    FROM inference_stats s
+                    JOIN (
+                        SELECT participant_index, MAX(height) AS max_height FROM inference_stats
+                        WHERE epoch_id = ? GROUP BY participant_index
+                    ) latest
+                    ON s.participant_index = latest.participant_index
+                    AND s.height = latest.max_height
+                    WHERE s.epoch_id = ?
                 """
-                params = (epoch_id,)
+                params = (epoch_id, epoch_id)
             
             async with db.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
