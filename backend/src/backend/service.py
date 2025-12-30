@@ -2195,7 +2195,7 @@ class InferenceService:
 
         return ModelEpochTokenUsageResponse(model=model,data=data)
 
-    async def get_current_hardwares(self) -> HardwaresResponse:
+    async def get_current_hardware(self) -> HardwaresResponse:
         if self.current_epoch_id is None:
             try:
                 latest_info = await self.client.get_latest_epoch()
@@ -2207,11 +2207,11 @@ class InferenceService:
         else:
             epoch_id = self.current_epoch_id
 
-        cache_hardwares = await self.cache_db.get_hardwares(epoch_id)
+        cache_hardware_all = await self.cache_db.get_hardware(epoch_id)
         all_total_weight = 0
         hardware_items = []
 
-        for cache_hardware in cache_hardwares:
+        for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
             all_total_weight += int(cache_hardware["total_weight"])
             hardware_items.append(
@@ -2226,15 +2226,15 @@ class InferenceService:
             epoch_id=epoch_id,
             is_current=True,
             total_weight=all_total_weight,
-            hardwares=hardware_items,
+            hardware=hardware_items,
         )
 
-    async def get_historical_hardwares(self, epoch_id: int, height: Optional[int] = None) -> HardwaresResponse:
-        cache_hardwares = await self.cache_db.get_hardwares(epoch_id)
+    async def get_historical_hardware(self, epoch_id: int, height: Optional[int] = None) -> HardwaresResponse:
+        cache_hardware_all = await self.cache_db.get_hardware(epoch_id)
         all_total_weight = 0
         hardware_items = []
 
-        for cache_hardware in cache_hardwares:
+        for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
             all_total_weight += int(cache_hardware["total_weight"])
             hardware_items.append(
@@ -2249,7 +2249,7 @@ class InferenceService:
             epoch_id=epoch_id,
             is_current=False,
             total_weight=all_total_weight,
-            hardwares=hardware_items,
+            hardware=hardware_items,
         )
 
     async def get_hardware_details(self, hardware: str, epoch_id: int) -> HardwareDetailsResponse:
@@ -2302,23 +2302,23 @@ class InferenceService:
         )
 
     async def get_hardware_metrics(self) -> HardwareEpochSeriesResponse:
-        hardwares = set()
+        hardware_set = set()
         series = {
             "amount": defaultdict(list),
             "total_weight": defaultdict(list),
         }
 
-        cache_hardwares = await self.cache_db.get_hardware_metrics()
+        cache_hardware_all = await self.cache_db.get_hardware_metrics()
 
-        for cache_hardware in cache_hardwares:
+        for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
             epoch_id = cache_hardware["epoch_id"]
-            hardwares.add(hardware)
+            hardware_set.add(hardware)
             series["amount"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["amount"]))
             series["total_weight"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["total_weight"]))
 
         return HardwareEpochSeriesResponse(
-            hardwares=sorted(hardwares),
+            hardware=sorted(hardware_set),
             series={
                 "amount": dict(series["amount"]),
                 "total_weight": dict(series["total_weight"])

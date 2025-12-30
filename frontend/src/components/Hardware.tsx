@@ -50,7 +50,7 @@ export function Hardware() {
   }
 
   const { data, isLoading: loading, error: queryError, refetch, dataUpdatedAt } = useQuery<HardwaresResponse>({
-    queryKey: ['hardwares', selectedEpochId === null ? 'current' : selectedEpochId],
+    queryKey: ['hardware', selectedEpochId === null ? 'current' : selectedEpochId],
     queryFn: () => fetchHardware(selectedEpochId),
     staleTime: 90000,
     refetchInterval: 90000,
@@ -59,7 +59,7 @@ export function Hardware() {
   })
 
   const fetchHardwareMetrics = async () => {
-    const endpoint = `${apiUrl}/v1/metrics/hardwares`
+    const endpoint = `${apiUrl}/v1/metrics/hardware`
     const response = await fetch(endpoint)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
     return response.json()
@@ -84,7 +84,7 @@ export function Hardware() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const epochParam = params.get('epoch')
-    const hardwareParam = params.get('hardwares')
+    const hardwareParam = params.get('hardware')
     
     if (epochParam) {
       const epochId = parseInt(epochParam)
@@ -104,7 +104,7 @@ export function Hardware() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    params.set('page', 'hardwares')
+    params.set('page', 'hardware')
     
     if (selectedEpochId === null) {
       params.delete('epoch')
@@ -169,9 +169,9 @@ export function Hardware() {
 
   if (!data) return null
 
-  const sortedByWeight = [...data.hardwares].sort((a, b) => b.total_weight - a.total_weight)
-  const sortedByAmount = [...data.hardwares].sort((a, b) => b.amount - a.amount)
-  const sortedByName = [...data.hardwares].sort((a, b) =>a.id.localeCompare(b.id))
+  const sortedByWeight = [...data.hardware].sort((a, b) => b.total_weight - a.total_weight)
+  const sortedByAmount = [...data.hardware].sort((a, b) => b.amount - a.amount)
+  const sortedByName = [...data.hardware].sort((a, b) =>a.id.localeCompare(b.id))
   
   const top5ByWeight = sortedByWeight.slice(0, 5)
   const top5ByAmount = sortedByAmount.slice(0, 5)
@@ -186,7 +186,7 @@ export function Hardware() {
         extraHardwareId &&
         !displayHardwares.some(h => h.id === extraHardwareId)
     ) {
-        const extra = data.hardwares.find(h => h.id === extraHardwareId)
+        const extra = data.hardware.find(h => h.id === extraHardwareId)
         if (extra) {
         displayHardwares.push(extra)
         }
@@ -201,7 +201,7 @@ export function Hardware() {
     Object.fromEntries(Object.entries(metricsData.series.amount).filter(([k]) => top5AmountIds.includes(k)))): []
 
   const selectedHardware = selectedHardwareId 
-    ? data.hardwares.find(h => h.id === selectedHardwareId) || null
+    ? data.hardware.find(h => h.id === selectedHardwareId) || null
     : null
   
   return (
@@ -233,7 +233,7 @@ export function Hardware() {
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Hardware</div>
             <div>
               <div className="text-2xl font-bold text-gray-900 leading-none">
-                {data.hardwares.length}
+                {data.hardware.length}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
             </div>

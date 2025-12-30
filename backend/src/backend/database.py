@@ -1278,7 +1278,7 @@ class CacheDB:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
-    async def get_hardwares(self, epoch_id: int) -> list[dict]:
+    async def get_hardware(self, epoch_id: int) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("""

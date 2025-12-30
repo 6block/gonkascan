@@ -272,7 +272,7 @@ export interface HardwaresResponse {
   epoch_id: number;
   is_current: boolean;
   total_weight: number;
-  hardwares: HardwareStats[];
+  hardware: HardwareStats[];
 }
 
 export interface HardwareParticipateCount {

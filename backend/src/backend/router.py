@@ -213,18 +213,18 @@ async def get_address_assets(
 
 
 @router.get("/hardware/current", response_model=HardwaresResponse)
-async def get_current_hardwares():
+async def get_current_hardware():
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
     try:
-        return await inference_service.get_current_hardwares()
+        return await inference_service.get_current_hardware()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch current hardwares: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch current hardware: {str(e)}")
 
 
 @router.get("/hardware/epochs/{epoch_id}", response_model=HardwaresResponse)
-async def get_historical_hardwares(epoch_id: int, height: Optional[int] = None):
+async def get_historical_hardware(epoch_id: int, height: Optional[int] = None):
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
@@ -235,11 +235,11 @@ async def get_historical_hardwares(epoch_id: int, height: Optional[int] = None):
         raise HTTPException(status_code=400, detail="Invalid height")
     
     try:
-        return await inference_service.get_historical_hardwares(epoch_id, height)
+        return await inference_service.get_historical_hardware(epoch_id, height)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch hardwares for epoch {epoch_id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch hardware for epoch {epoch_id}: {str(e)}")
 
 
 @router.get("/hardware/{hardware}", response_model=HardwareDetailsResponse)
@@ -287,7 +287,7 @@ async def get_models_metrics():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch models metrics: {str(e)}")
 
-@router.get("/metrics/hardwares", response_model=HardwareEpochSeriesResponse)
+@router.get("/metrics/hardware", response_model=HardwareEpochSeriesResponse)
 async def get_hardware_metrics():
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -295,4 +295,4 @@ async def get_hardware_metrics():
     try:
         return await inference_service.get_hardware_metrics()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch hardwares metrics: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch hardware metrics: {str(e)}")

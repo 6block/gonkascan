@@ -15,7 +15,7 @@ import { isValidGonkaAddress } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'hardwares' | 'timeline' | 'transactions' | 'nodemap' | 'address'
+type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address'
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
 type AddressParticipantStatus = {
@@ -132,7 +132,7 @@ function App() {
       if (
         pageParam === 'timeline' ||
         pageParam === 'models' ||
-        pageParam === 'hardwares' ||
+        pageParam === 'hardware' ||
         pageParam === 'transactions' ||
         pageParam === 'nodemap'
       ) {
@@ -313,9 +313,9 @@ function App() {
                   Models
                 </button>
                 <button
-                  onClick={() => handlePageChange('hardwares')}
+                  onClick={() => handlePageChange('hardware')}
                   className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
-                    currentPage === 'hardwares'
+                    currentPage === 'hardware'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                   }`}
@@ -383,7 +383,7 @@ function App() {
             <Timeline />
           ) : currentPage === 'models' ? (
             <Models />
-          ) : currentPage === 'hardwares' ? (
+          ) : currentPage === 'hardware' ? (
             <Hardware />
           ) : currentPage === 'transactions' ? (
             <Transactions /> 

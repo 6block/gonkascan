@@ -305,7 +305,7 @@ class HardwaresResponse(BaseModel):
     epoch_id: int
     is_current: bool
     total_weight: int
-    hardwares: List[HardwareStats]
+    hardware: List[HardwareStats]
 
 class HardwareParticiapteCount(BaseModel):
     particiapte_id: str
@@ -325,5 +325,5 @@ class HardwareSeries(BaseModel):
 
 
 class HardwareEpochSeriesResponse(BaseModel):
-    hardwares: List[str]
+    hardware: List[str]
     series: HardwareSeries
