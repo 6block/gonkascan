@@ -21,7 +21,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   const { data: assets } = useQuery<AssetsResponse>({
     queryKey: ['participant-assets', participantId],
     queryFn: async () => {
-      const res = await fetch(`/api/v1/address/assets/${participantId}`)
+      const res = await fetch(`/api/v1/address/assets/${participantId}?is_participant=true`)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return res.json()
     },

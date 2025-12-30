@@ -2074,15 +2074,29 @@ class InferenceService:
             participants=participant_nodes,
         )
 
-    async def get_address_assets(self, address: str) -> AssetsResponse:
+    async def get_address_assets(self, address: str, is_participant: bool) -> AssetsResponse:
         try:
             balances_data = await self.client.get_balances(address)
             balances = balances_data.get("balances", [])
-            vesting_data = await self.client.get_total_vesting(address)
-            total_vesting = vesting_data.get("total_amount", [])
-            vesting_schedule_data = await self.client.get_vesting_schedule(address)
-            vesting_schedule = vesting_schedule_data.get("vesting_schedule")
-            epoch_amounts = vesting_schedule.get("epoch_amounts", [])
+            total_vesting = []
+            epoch_amounts = []
+
+            if is_participant:
+                vesting_schedule_data = await self.client.get_vesting_schedule(address)
+                vesting_schedule = vesting_schedule_data.get("vesting_schedule")
+                epoch_amounts = vesting_schedule.get("epoch_amounts", [])
+                total_vesting_amount = 0
+                for epoch_entry in epoch_amounts:
+                    coins = epoch_entry.get("coins", [])
+                    for coin in coins:
+                        if coin.get("denom") == "ngonka":
+                            total_vesting_amount += int(coin.get("amount", 0))
+                total_vesting.append(
+                    {
+                        "amount": str(total_vesting_amount),
+                        "denom": "ngonka"
+                    }
+                )
 
             return AssetsResponse(
                 address=address,
@@ -2371,7 +2385,7 @@ class InferenceService:
             except Exception as e:
                 logger.error(f"Failed to repair epoch {epoch_id}: {e}")
 
-    async def is_participant_in_epoch(self, participant_index: str, epoch_id: int | None = None) -> bool:
+    async def get_participant_status(self, participant_index: str, epoch_id: int | None = None) -> bool:
         if epoch_id is None:
             if self.current_epoch_id is None:
                 latest_info = await self.client.get_latest_epoch()

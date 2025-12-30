@@ -72,12 +72,12 @@ async def get_participants_map():
         raise HTTPException(status_code=500, detail=f"Failed to fetch participants map: {str(e)}")
 
 @router.get("/address/assets/{address}", response_model=AssetsResponse)
-async def get_address_assets(address: str,):
+async def get_address_assets(address: str, is_participant: bool = Query(False)):
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
     
     try:
-        return await inference_service.get_address_assets(address=address)
+        return await inference_service.get_address_assets(address=address, is_participant=is_participant)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch participants assets: {str(e)}")
 
@@ -199,7 +199,7 @@ async def get_participant_inferences(
 
 
 @router.get("/participants/{participant_id}/status")
-async def get_address_assets(
+async def get_participant_status(
     participant_id: str, 
     epoch_id: Optional[int] = Query(None, description="Epoch ID (required)")
 ):
@@ -207,7 +207,7 @@ async def get_address_assets(
         raise HTTPException(status_code=503, detail="Service not initialized")
     
     try:
-        return await inference_service.is_participant_in_epoch(participant_index=participant_id, epoch_id=epoch_id)
+        return await inference_service.get_participant_status(participant_index=participant_id, epoch_id=epoch_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch participant status in epoch: {str(e)}")
 
