@@ -2118,13 +2118,22 @@ class InferenceService:
             )
 
     async def get_transaction_by_address(self, address: str, limit: int = 50) -> AddressTransactionsResponse:
-        resp = await self.client.query_transactions(
+        transactions = await self.client.query_transactions(
             query=f"message.sender='{address}'",
             per_page=limit,
         )
-        result = resp.get("result", {})
-        txs = result.get("txs", [])
-        total = int(result.get("total_count", 0))
+        received_transfers = await self.client.query_transactions(
+            query=f"transfer.recipient='{address}'",
+            per_page=limit,
+        )
+        sent_txs = transactions.get("result", {}).get("txs", []) or []
+        recv_txs = received_transfers.get("result", {}).get("txs", []) or []
+
+        tx_map: dict[str, dict] = {}
+        for tx in sent_txs + recv_txs:
+            tx_hash = tx.get("hash")
+            if tx_hash not in tx_map:
+                tx_map[tx_hash] = tx
 
         def parse_tx_from_tx_search(tx: dict) -> dict:
             tx_hash = tx.get("hash")
@@ -2146,11 +2155,12 @@ class InferenceService:
                 messages=message_types,
             )
 
-        transactions = [parse_tx_from_tx_search(tx) for tx in txs]
+        transactions = [parse_tx_from_tx_search(tx) for tx in tx_map.values()]
+        transactions.sort(key=lambda t: t.height, reverse=True)
 
         return AddressTransactionsResponse(
             address=address,
-            total=total,
+            total=len(transactions),
             transactions=transactions,
         )
     
