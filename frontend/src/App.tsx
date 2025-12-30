@@ -31,6 +31,7 @@ function App() {
   const [addressSearch, setAddressSearch] = useState('')
   const [appReady, setAppReady] = useState(false)
   const [addressParticipantStatus, setAddressParticipantStatus] = useState<AddressParticipantStatus>(null)
+  const [participantFilter, setParticipantFilter] = useState<string[] | null>(null)
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { prefetchAll } = usePrefetch()
@@ -85,6 +86,7 @@ function App() {
     const pageParam = params.get('page') as Page | null
     const epochParam = params.get('epoch')
     const addressParam = params.get('address')
+    const participantsParam = params.get('participants')
   
     const page = pageParam ?? 'dashboard'
     setCurrentPage(page)
@@ -94,6 +96,17 @@ function App() {
       setSelectedEpochId(isNaN(epochId) ? null : epochId)
     } else {
       setSelectedEpochId(null)
+    }
+
+    if (participantsParam && page === 'dashboard') {
+      const list = participantsParam
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+  
+      setParticipantFilter(list.length > 0 ? list : null)
+    } else {
+      setParticipantFilter(null)
     }
   
     if (page === 'address' && addressParam) {
@@ -211,6 +224,10 @@ function App() {
 
   const handlePageChange = (page: Page) => {
     setCurrentPage(page)
+
+    if (page === 'dashboard') {
+      setParticipantFilter(null)
+    }
     
     const params = new URLSearchParams()
     if (page !== 'dashboard') {
@@ -242,6 +259,18 @@ function App() {
 
     window.history.pushState({}, '', `?${params.toString()}`)
   }
+
+  const filteredParticipants = (() => {
+    if (!data) return []
+  
+    if (!participantFilter || participantFilter.length === 0) {
+      return data.participants
+    }
+  
+    const set = new Set(participantFilter)
+    return data.participants.filter(p => set.has(p.index))
+  })()
+  
 
   if (loading && !data) {
     return (
@@ -518,18 +547,24 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <ParticipantTable 
-                    participants={data.participants} 
-                    epochId={data.epoch_id}
-                    isCurrentEpoch={data.is_current}
-                    currentEpochId={currentEpochId}
-                    selectedParticipantId={selectedAddress &&
-                      data.participants.some(p => p.index === selectedAddress)
-                        ? selectedAddress
-                        : null
-                    }
-                    onParticipantSelect={handleParticipantSelect}
-                  />
+                  {participantFilter && filteredParticipants.length === 0 ? (
+                    <div className="text-sm text-gray-500 py-8 text-center">
+                      No matching participants in this epoch
+                    </div>
+                    ) : (
+                    <ParticipantTable 
+                      participants={filteredParticipants} 
+                      epochId={data.epoch_id}
+                      isCurrentEpoch={data.is_current}
+                      currentEpochId={currentEpochId}
+                      selectedParticipantId={selectedAddress &&
+                        filteredParticipants.some(p => p.index === selectedAddress)
+                          ? selectedAddress
+                          : null
+                      }
+                      onParticipantSelect={handleParticipantSelect}
+                    />
+                  )}
                 </div>
               </>
             )
