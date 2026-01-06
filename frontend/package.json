@@ -23,7 +23,8 @@
     "react-hot-toast": "^2.4.1",
     "i18n-iso-countries": "^7.5.0",
     "recharts": "^2.12.7",
-    "bech32": "^2.0.0"
+    "bech32": "^2.0.0",
+    "react-json-view": "^1.21.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

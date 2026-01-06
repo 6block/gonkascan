@@ -298,3 +298,24 @@ export interface HardwareEpochSeriesResponse {
   hardware: string[];
   series: HardwareSeries;
 }
+
+export interface TransactionDetailResponse {
+  height: string
+  txhash: string
+  code: number
+  timestamp: string
+  gas_wanted: string
+  gas_used: string
+  tx: {
+    body: {
+      messages: any[]
+      memo: string
+    }
+    auth_info: {
+      fee: {
+        amount: { denom: string; amount: string }[]
+        gas_limit: string
+      }
+    }
+  }
+}

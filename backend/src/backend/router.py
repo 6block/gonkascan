@@ -255,6 +255,15 @@ async def get_hardware_details(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch hardware detail: {str(e)}")
 
+@router.get("/transaction/{tx_hash}")
+async def get_transaction(tx_hash: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_transaction(tx_hash)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
 
 @router.get("/transactions", response_model=TransactionResponse)
 async def get_transactions():

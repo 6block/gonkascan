@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ClockIcon } from "@heroicons/react/24/outline";
 import { TransactionsResponse } from '../types/inference'
+import { TransactionDetail } from './TransactionDetail'
 
 export function Transactions() {
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
@@ -54,6 +55,14 @@ export function Transactions() {
 
   const handleRefresh = () => {
     refetch()
+  }
+  if (selectedTxHash) {
+    return (
+      <TransactionDetail
+        txHash={selectedTxHash}
+        onClose={() => setSelectedTxHash(null)}
+      />
+    )
   }
 
   if (loading && !data) {
@@ -114,7 +123,13 @@ export function Transactions() {
               {data.transactions.map((tx) => (
                 <tr
                   key={tx.tx_hash}
-                  className="hover:bg-gray-50"
+                  className={[
+                    'cursor-pointer',
+                    selectedTxHash === tx.tx_hash
+                      ? 'bg-blue-50 ring-1 ring-blue-200'
+                      : 'hover:bg-gray-50',
+                  ].join(' ')}
+                  onClick={() => setSelectedTxHash(tx.tx_hash)}
                 >
                   <td className="px-4 py-3 text-sm text-center text-gray-900 w-[10%]">{tx.height}</td>
                   <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 w-[55%]">{tx.tx_hash}</td>

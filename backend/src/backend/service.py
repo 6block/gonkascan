@@ -1968,6 +1968,16 @@ class InferenceService:
         except Exception as e:
             raise Exception(f"Failed to fetch transactions: {e}")
     
+    async def get_transaction(self, tx_hash: str):
+        try:
+            transaction = await self.client.get_transaction(tx_hash)
+            if transaction:
+                return transaction
+            else:
+                return None
+        except Exception as e:
+            raise Exception(f"Failed to fetch transaction: {e}")
+    
     def _fetch_geo(self, ip:str) -> Optional[Dict[str, Any]]:
         reader = geoip2.database.Reader('/data/GeoLite2-City.mmdb')
         try:

@@ -11,7 +11,7 @@ import { Transactions } from './components/Transactions'
 import { ParticipantMap } from './components/ParticipantMap'
 import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
-import { isValidGonkaAddress } from './utils'
+import { isValidGonkaAddress, isHex64 } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
@@ -28,7 +28,7 @@ function App() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
-  const [addressSearch, setAddressSearch] = useState('')
+  const [globalSearch, setGlobalSearch] = useState('')
   const [appReady, setAppReady] = useState(false)
   const [addressParticipantStatus, setAddressParticipantStatus] = useState<AddressParticipantStatus>(null)
   const [participantFilter, setParticipantFilter] = useState<string[] | null>(null)
@@ -112,7 +112,7 @@ function App() {
     if (page === 'address' && addressParam) {
       setSelectedAddress(addressParam)
       setAddressParticipantStatus(null)
-      setAddressSearch(addressParam)
+      setGlobalSearch(addressParam)
     } else {
       setSelectedAddress(null)
     }
@@ -138,7 +138,7 @@ function App() {
         setCurrentPage('address')
         setSelectedAddress(addressParam)
         setAddressParticipantStatus(null)
-        setAddressSearch(addressParam)
+        setGlobalSearch(addressParam)
         return
       }
   
@@ -151,13 +151,13 @@ function App() {
       ) {
         setCurrentPage(pageParam)
         setSelectedAddress(null)
-        setAddressSearch('')
+        setGlobalSearch('')
         return
       }
   
       setCurrentPage('dashboard')
       setSelectedAddress(null)
-      setAddressSearch('')
+      setGlobalSearch('')
       window.history.replaceState({}, '', window.location.pathname)
     }
   
@@ -237,27 +237,37 @@ function App() {
     window.history.pushState({}, '', params.toString() ? `?${params}` : '/')
   }
 
-  const handleAddressSearch = () => {
-    const input = addressSearch.trim()
+  const handleGlobalSearch = () => {
+    const input = globalSearch.trim()
     if (!input) {
-      toast.error('Please enter an address')
+      toast.error('Please enter address / tx hash')
       return
     }
 
-    if (!isValidGonkaAddress(input)) {
-      toast.error('Invalid Gonka address')
+    if (isValidGonkaAddress(input)) {
+      setSelectedAddress(input)
+      setAddressParticipantStatus(null)
+      setCurrentPage('address')
+  
+      const params = new URLSearchParams()
+      params.set('page', 'address')
+      params.set('address', input)
+  
+      window.history.pushState({}, '', `?${params.toString()}`)
       return
     }
 
-    setSelectedAddress(input)
-    setAddressParticipantStatus(null)
-    setCurrentPage('address')
-
+  if (isHex64(input)) {
     const params = new URLSearchParams()
-    params.set('page', 'address')
-    params.set('address', input)
+    params.set('page', 'transactions')
+    params.set('tx', input.toUpperCase())
 
+    setCurrentPage('transactions')
     window.history.pushState({}, '', `?${params.toString()}`)
+    return
+  }
+
+  toast.error('Invalid Address / Tx Hash')
   }
 
   const filteredParticipants = (() => {
@@ -270,7 +280,9 @@ function App() {
     const set = new Set(participantFilter)
     return data.participants.filter(p => set.has(p.index))
   })()
-  
+
+  const isTransactionDetail = currentPage === 'transactions' && new URLSearchParams(window.location.search).has('tx')
+  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  
 
   if (loading && !data) {
     return (
@@ -305,7 +317,7 @@ function App() {
       <Toaster position="top-center" toastOptions={{duration: 3000,}}/>
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="flex-1 container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8 max-w-[1600px]">
-        {currentPage !== 'address'  && (
+        {shouldShowHeader  && (
           <header className="mb-6 md:mb-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 md:mb-6">
               <img src="/gonka.svg" alt="Gonka" className="h-10 sm:h-12 w-auto" />
@@ -386,10 +398,10 @@ function App() {
               <div className="ml-auto relative">
                 <input
                   type="text"
-                  placeholder="Search address"
-                  value={addressSearch}
-                  onChange={e => setAddressSearch(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleAddressSearch()}
+                  placeholder="Search Address / Tx Hash"
+                  value={globalSearch}
+                  onChange={e => setGlobalSearch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
                   className="w-64 h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
                 <svg
