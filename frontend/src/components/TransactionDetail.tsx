@@ -4,10 +4,6 @@ import { TransactionDetailResponse } from '../types/inference'
 import { useEffect, useMemo, useState } from 'react'
 import ReactJson from 'react-json-view'
 
-interface TransactionDetailProps {
-  txHash: string
-  onClose: () => void
-}
 
 function isPrimitive(v: any) {
   return v === null || ['string', 'number', 'boolean'].includes(typeof v)
@@ -192,7 +188,7 @@ function JsonViewer({ data }: { data: any }) {
   )
 }
 
-export function TransactionDetail({ txHash, onClose }: TransactionDetailProps) {
+export function TransactionDetail({ txHash }: {txHash: string }) {
   const [copied, setCopied] = useState(false)
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
@@ -237,7 +233,7 @@ export function TransactionDetail({ txHash, onClose }: TransactionDetailProps) {
         <div className="px-6 py-4">
           <nav className="flex items-center text-sm text-gray-500 mb-1">
             <button
-              onClick={onClose}
+              onClick={() => window.history.back()}
               className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

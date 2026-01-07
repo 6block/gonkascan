@@ -233,7 +233,7 @@ export function Hardware() {
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Hardware</div>
             <div>
               <div className="text-2xl font-bold text-gray-900 leading-none">
-                {data.hardware.length}
+                {data.hardware.reduce((sum, hw) => sum + hw.amount, 0).toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
             </div>

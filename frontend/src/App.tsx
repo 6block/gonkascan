@@ -10,6 +10,7 @@ import { EpochTimer } from './components/EpochTimer'
 import { Blocks } from './components/Blocks'
 import { BlockDetail } from './components/BlockDetail'
 import { Transactions } from './components/Transactions'
+import { TransactionDetail } from './components/TransactionDetail'
 import { ParticipantMap } from './components/ParticipantMap'
 import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
@@ -296,6 +297,7 @@ function App() {
 
   const searchParams = new URLSearchParams(window.location.search)
   const blockHeight = searchParams.get('height')
+  const txHash = searchParams.get('tx')
   const isTransactionDetail = currentPage === 'transactions' && searchParams.has('tx')
   const isBlockDetail = currentPage === 'blocks' && searchParams.has('height')
   const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail
@@ -390,16 +392,6 @@ function App() {
                   Blocks
                 </button>
                 <button
-                  onClick={() => handlePageChange('timeline')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
-                    currentPage === 'timeline'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Timeline
-                </button>
-                <button
                   onClick={() => handlePageChange('transactions')}
                   className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
                     currentPage === 'transactions'
@@ -408,6 +400,16 @@ function App() {
                   }`}
                 >
                   Transactions
+                </button>
+                <button
+                  onClick={() => handlePageChange('timeline')}
+                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                    currentPage === 'timeline'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Timeline
                 </button>
                 <button
                   onClick={() => handlePageChange('nodemap')}
@@ -459,7 +461,11 @@ function App() {
               <Blocks />
             )
           ) : currentPage === 'transactions' ? (
-            <Transactions /> 
+            txHash ? (
+              <TransactionDetail txHash={txHash}/>
+            ) : (
+              <Transactions />
+            )
           ) : currentPage === 'nodemap' ? (
             <ParticipantMap />
           ) : currentPage === 'address' ? (
