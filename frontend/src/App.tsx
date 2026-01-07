@@ -7,15 +7,17 @@ import { EpochSelector } from './components/EpochSelector'
 import { Timeline } from './components/Timeline'
 import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
+import { Blocks } from './components/Blocks'
+import { BlockDetail } from './components/BlockDetail'
 import { Transactions } from './components/Transactions'
 import { ParticipantMap } from './components/ParticipantMap'
 import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
-import { isValidGonkaAddress, isHex64 } from './utils'
+import { isValidGonkaAddress, isHex64, isBlockHeight } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address'
+type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address' | 'blocks'
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
 type AddressParticipantStatus = {
@@ -146,6 +148,7 @@ function App() {
         pageParam === 'timeline' ||
         pageParam === 'models' ||
         pageParam === 'hardware' ||
+        pageParam === 'blocks' ||
         pageParam === 'transactions' ||
         pageParam === 'nodemap'
       ) {
@@ -240,7 +243,7 @@ function App() {
   const handleGlobalSearch = () => {
     const input = globalSearch.trim()
     if (!input) {
-      toast.error('Please enter address / tx hash')
+      toast.error('Please enter address / tx hash / height')
       return
     }
 
@@ -257,17 +260,27 @@ function App() {
       return
     }
 
-  if (isHex64(input)) {
-    const params = new URLSearchParams()
-    params.set('page', 'transactions')
-    params.set('tx', input.toUpperCase())
+    if (isHex64(input)) {
+      const params = new URLSearchParams()
+      params.set('page', 'transactions')
+      params.set('tx', input.toUpperCase())
 
-    setCurrentPage('transactions')
-    window.history.pushState({}, '', `?${params.toString()}`)
-    return
-  }
+      setCurrentPage('transactions')
+      window.history.pushState({}, '', `?${params.toString()}`)
+      return
+    }
 
-  toast.error('Invalid Address / Tx Hash')
+    if (isBlockHeight(input)) {
+      const params = new URLSearchParams()
+      params.set('page', 'blocks')
+      params.set('height', input)
+
+      setCurrentPage('blocks')
+      window.history.pushState({}, '', `?${params.toString()}`)
+      return
+    }
+
+    toast.error('Invalid Address / Tx Hash / Height')
   }
 
   const filteredParticipants = (() => {
@@ -281,8 +294,11 @@ function App() {
     return data.participants.filter(p => set.has(p.index))
   })()
 
-  const isTransactionDetail = currentPage === 'transactions' && new URLSearchParams(window.location.search).has('tx')
-  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  
+  const searchParams = new URLSearchParams(window.location.search)
+  const blockHeight = searchParams.get('height')
+  const isTransactionDetail = currentPage === 'transactions' && searchParams.has('tx')
+  const isBlockDetail = currentPage === 'blocks' && searchParams.has('height')
+  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail
 
   if (loading && !data) {
     return (
@@ -364,6 +380,16 @@ function App() {
                   Hardware
                 </button>
                 <button
+                  onClick={() => handlePageChange('blocks')}
+                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                    currentPage === 'blocks'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Blocks
+                </button>
+                <button
                   onClick={() => handlePageChange('timeline')}
                   className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
                     currentPage === 'timeline'
@@ -398,11 +424,11 @@ function App() {
               <div className="ml-auto relative">
                 <input
                   type="text"
-                  placeholder="Search Address / Tx Hash"
+                  placeholder="Search Address / Tx Hash / Height"
                   value={globalSearch}
                   onChange={e => setGlobalSearch(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
-                  className="w-64 h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-96 h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
                 <svg
                   className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
@@ -426,6 +452,12 @@ function App() {
             <Models />
           ) : currentPage === 'hardware' ? (
             <Hardware />
+          ) : currentPage === 'blocks' ?( 
+            blockHeight ? (
+              <BlockDetail height={blockHeight}/>
+            ) : (
+              <Blocks />
+            )
           ) : currentPage === 'transactions' ? (
             <Transactions /> 
           ) : currentPage === 'nodemap' ? (
