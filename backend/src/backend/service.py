@@ -2335,18 +2335,27 @@ class InferenceService:
         else:
             epoch_id = self.current_epoch_id
 
-        cache_hardware_all = await self.cache_db.get_hardware(epoch_id)
+        cache_hardware_all = await self.cache_db.get_hardware_aggregate(epoch_id)
+        cache_hardware_model = await self.cache_db.get_hardware_models(epoch_id)
         all_total_weight = 0
         hardware_items = []
+
+        models_map = {}
+        for row in cache_hardware_model:
+            hardware = row["hardware"]
+            model = row["model"]
+            models_map.setdefault(hardware, set()).add(model)
 
         for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
             all_total_weight += int(cache_hardware["total_weight"])
+            models = models_map.get(hardware, []) 
             hardware_items.append(
                 HardwareStats(
                     id=hardware,
                     amount=int(cache_hardware["amount"]),
                     total_weight=int(cache_hardware["total_weight"]),
+                    models=models
                 )
             )
 
@@ -2358,18 +2367,27 @@ class InferenceService:
         )
 
     async def get_historical_hardware(self, epoch_id: int, height: Optional[int] = None) -> HardwaresResponse:
-        cache_hardware_all = await self.cache_db.get_hardware(epoch_id)
+        cache_hardware_all = await self.cache_db.get_hardware_aggregate(epoch_id)
+        cache_hardware_model = await self.cache_db.get_hardware_models(epoch_id)
         all_total_weight = 0
         hardware_items = []
+
+        models_map = {}
+        for row in cache_hardware_model:
+            hardware = row["hardware"]
+            model = row["model"]
+            models_map.setdefault(hardware, set()).add(model)
 
         for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
             all_total_weight += int(cache_hardware["total_weight"])
+            models = models_map.get(hardware, []) 
             hardware_items.append(
                 HardwareStats(
                     id=hardware,
                     amount=int(cache_hardware["amount"]),
                     total_weight=int(cache_hardware["total_weight"]),
+                    models=models
                 )
             )
 

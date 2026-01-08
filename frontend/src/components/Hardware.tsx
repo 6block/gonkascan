@@ -37,6 +37,7 @@ export function Hardware() {
   const [selectedHardwareId, setSelectedHardwareId] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [extraHardwareId, setExtraHardwareId] = useState<string | null>(null)
+  const [selectedModel, setSelectedModel] = useState<string | null>(null)
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
 
@@ -169,16 +170,24 @@ export function Hardware() {
 
   if (!data) return null
 
-  const sortedByWeight = [...data.hardware].sort((a, b) => b.total_weight - a.total_weight)
-  const sortedByAmount = [...data.hardware].sort((a, b) => b.amount - a.amount)
-  const sortedByName = [...data.hardware].sort((a, b) =>a.id.localeCompare(b.id))
-  
+  const allModels = Array.from(new Set(data.hardware.flatMap(hardware => hardware.models))).sort()
+  let filteredHardwares = data.hardware
+
+  if (selectedModel) {
+    filteredHardwares = filteredHardwares.filter(hw =>
+      hw.models.includes(selectedModel)
+    )
+  }
+  const canExpand = filteredHardwares.length > 5
+  const sortedByWeight = [...filteredHardwares].sort((a, b) => b.total_weight - a.total_weight)
+  const sortedByAmount = [...filteredHardwares].sort((a, b) => b.amount - a.amount)
+
   const top5ByWeight = sortedByWeight.slice(0, 5)
   const top5ByAmount = sortedByAmount.slice(0, 5)
 
   let displayHardwares: HardwareStats[] = []
   
-  if (showAll) {
+  if (showAll && canExpand) {
     displayHardwares = sortedByWeight
   } else {
     displayHardwares = [...top5ByWeight]
@@ -207,7 +216,7 @@ export function Hardware() {
   return (
     <div>
       <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6 border border-gray-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
             <div className="flex items-center gap-2 min-h-[2rem]">
@@ -233,7 +242,17 @@ export function Hardware() {
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Hardware</div>
             <div>
               <div className="text-2xl font-bold text-gray-900 leading-none">
-                {data.hardware.reduce((sum, hw) => sum + hw.amount, 0).toLocaleString()}
+                {data.hardware.reduce((sum, hardware) => sum + hardware.amount, 0).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
+            </div>
+          </div>
+
+          <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
+            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Supported Hardware Types</div>
+            <div>
+              <div className="text-2xl font-bold text-gray-900 leading-none">
+                {data.hardware.length}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
             </div>
@@ -274,27 +293,16 @@ export function Hardware() {
             <p className="text-xs md:text-sm text-gray-500">Click on a hardware to view detailed information</p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <select
-            value={extraHardwareId ?? ''}
-            onChange={(e) =>setExtraHardwareId(e.target.value || null)}
+          <select
+            value={selectedModel ?? ''}
+            onChange={(e) => setSelectedModel(e.target.value || null)}
             className="text-sm border border-gray-300 rounded px-2 py-1 bg-white w-56 h-10 max-w-[14rem] truncate"
-            >
-              <option className="text-sm" value="">Select Hardware</option>
-              {sortedByName.map(hw => (<option key={hw.id} value={hw.id}>{hw.id}</option>))}
-            </select>
+          >
+            <option className="text-sm" value="">Select Model</option>
+            {allModels.map(model => (<option key={model} value={model}>{model}</option>))}
+          </select>
 
-            <button
-                onClick={() => {
-                    setShowAll(!showAll)
-                    setExtraHardwareId(null)
-                }}
-                className={`px-3 py-1.5 h-10 text-sm font-medium rounded border transition ${
-                    showAll ? 'bg-gray-900 text-white' : 'border-gray-300 hover:text-gray-700'
-                }`}
-                >All Hardware
-            </button>
-          </div>
+
         </div>
 
 
@@ -320,6 +328,25 @@ export function Hardware() {
             </tbody>
           </table>
         </div>
+
+        {canExpand && (
+          <div className="w-full flex justify-center mt-4">
+            <button
+              onClick={() => {
+                setShowAll(!showAll)
+                setExtraHardwareId(null)
+              }}
+              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
+            >
+              <span className="text-lg leading-none">
+                {showAll ? '▲' : '▼'}
+              </span>
+              <span>
+                {showAll ? 'Collapse' : 'All Hardware'}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
 
       <HardwareModal 

@@ -266,6 +266,7 @@ export interface HardwareStats {
   id: string;
   amount: number;
   total_weight: number;
+  models: string[];
 }
 
 export interface HardwaresResponse {

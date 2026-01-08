@@ -1298,7 +1298,7 @@ class CacheDB:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
-    async def get_hardware(self, epoch_id: int) -> list[dict]:
+    async def get_hardware_aggregate(self, epoch_id: int) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
             async with db.execute("""
@@ -1310,6 +1310,19 @@ class CacheDB:
                     json_each(hardware_json) AS hw
                 WHERE epoch_id = ?
                 GROUP BY hardware
+                """, (epoch_id,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+    
+    async def get_hardware_models(self, epoch_id: int) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                    SELECT DISTINCT json_extract(hw.value, '$.type') AS hardware, mj.value AS model
+                    FROM participant_hardware_nodes
+                    JOIN json_each(hardware_json) AS hw
+                    JOIN json_each(models_json) AS mj
+                    WHERE epoch_id = ?
                 """, (epoch_id,)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]

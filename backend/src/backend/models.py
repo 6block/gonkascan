@@ -299,6 +299,7 @@ class HardwareStats(BaseModel):
     id: str
     amount: int
     total_weight: int
+    models: List[str]
 
 
 class HardwaresResponse(BaseModel):
