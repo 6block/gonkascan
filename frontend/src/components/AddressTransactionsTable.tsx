@@ -6,8 +6,6 @@ interface AddressTransactionsTableProps {
   error?: unknown
 }
 
-const TX_BASE_URL = import.meta.env.VITE_TX_EXPLORER_BASE_URL || 'https://gonka04.6block.com:8443'
-
 export function AddressTransactionsTable({transactions, isLoading, error,}: AddressTransactionsTableProps) {
   if (isLoading) {
     return (
@@ -42,10 +40,10 @@ export function AddressTransactionsTable({transactions, isLoading, error,}: Addr
           {transactions.transactions.map(tx => (
             <tr key={tx.tx_hash} className="hover:bg-gray-50">
               <td className="px-4 py-2 text-center text-sm text-blue-600 whitespace-nowrap">
-                <a href={`${TX_BASE_URL}/dashboard/gonka/block/${tx.height}`} target="_blank" rel="noopener noreferrer" className="hover:underline">{tx.height.toLocaleString()}</a>
+                <a href={`?page=blocks&height=${tx.height}`} rel="noopener noreferrer" className="hover:underline">{tx.height.toLocaleString()}</a>
               </td>
               <td className="px-4 py-2 text-center text-sm font-mono text-blue-600 break-all max-w-md">
-                <a href={`${TX_BASE_URL}/dashboard/gonka/tx/${tx.tx_hash}`} target="_blank" rel="noopener noreferrer" className="hover:underline"> {tx.tx_hash}</a>
+                <a href={`?page=transactions&tx=${tx.tx_hash}`} rel="noopener noreferrer" className="hover:underline"> {tx.tx_hash}</a>
               </td>
               <td className="px-4 py-2 text-center text-sm text-gray-700">{tx.messages.join(', ')}</td>
             </tr>
