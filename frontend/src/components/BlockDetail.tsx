@@ -34,20 +34,20 @@ function formatTime(ts: string) {
 }
 
 function typeTail(typeUrl: string) {
-  const tail = typeUrl.split('.').pop() || typeUrl
-  return tail.replace(/^Msg/, '') || tail
+  const tail = typeUrl.split('/').pop() || typeUrl
+  const dotTail = tail.split('.').pop() || tail  
+  const cleaned = dotTail.replace(/^Msg/, '')
+  return cleaned
 }
 
 function extractCreatorsFromAny(anyMsg: any): string[] {
   const creators = new Set<string>()
+  if (!anyMsg || typeof anyMsg !== 'object') return []
+  const typeUrl = anyMsg["@type"]
 
-  if (!anyMsg || typeof anyMsg !== 'object') {
-    return []
-  }
-
-  if (anyMsg.type === 'cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)) {
+  if (typeUrl === '/cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)) {
     for (const inner of anyMsg.msgs) {
-      const creator = inner?.value?.creator
+      const creator = inner?.creator
       if (typeof creator === 'string' && creator.length > 0) {
         creators.add(creator)
       }
@@ -55,10 +55,19 @@ function extractCreatorsFromAny(anyMsg: any): string[] {
     return Array.from(creators)
   }
 
-  const creator = anyMsg?.value?.creator
+  if (typeUrl === '/cosmwasm.wasm.v1.MsgExecuteContract') {
+    const sender = anyMsg?.sender
+    if (typeof sender === 'string' && sender.length > 0) {
+      creators.add(sender)
+    }
+    return Array.from(creators)
+  }
+
+  const creator = anyMsg?.creator
   if (typeof creator === 'string' && creator.length > 0) {
     creators.add(creator)
   }
+  console.log(creators)
 
   return Array.from(creators)
 }
@@ -70,10 +79,10 @@ function extractMsgTypeCountsFromAny(anyMsg: any): {isExec: boolean, counts: Map
     return { isExec: false, counts }
   }
 
-  const isExec = anyMsg.type === 'cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)
+  const isExec = anyMsg["@type"] === '/cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)
   if (isExec) {
     for (const inner of anyMsg.msgs) {
-      const typeUrl = inner?.type
+      const typeUrl = inner["@type"]
       if (!typeUrl || typeof typeUrl !== 'string') continue
       const type = typeTail(typeUrl)
       counts.set(type, (counts.get(type) || 0) + 1)
@@ -86,8 +95,8 @@ function extractMsgTypeCountsFromAny(anyMsg: any): {isExec: boolean, counts: Map
     return { isExec: true, counts }
   }
 
-  if (typeof anyMsg.type === 'string') {
-    const type = typeTail(anyMsg.type)
+  if (typeof anyMsg["@type"] === 'string') {
+    const type = typeTail(anyMsg["@type"])
     counts.set(type, 1)
   }
 
@@ -233,17 +242,19 @@ export function BlockDetail({ height }: {height: string }) {
     const results = data.result?.txs_results || []
   
     return txs.flatMap((tx, txIndex) => {
-      const txhash = tx.hash
-      const body = tx.body
-      const auth = tx.auth_info
-      const gasLimit = auth.fee?.gasLimit?.toString?.() ?? '-'
+      const txhash = tx.hash || {}
+      const body = tx.body || {}
+      const auth = tx.auth_info || {}
+      const gasLimit = auth.fee?.gas_limit?.toString?.() ?? '-'
   
       const result = results[txIndex]
       const status = result?.code === 0 ? 'Success' : result?.code != null ? 'Failed': 'Unknown'
       const gasUsed = result?.gas_used ?? '-'
       const gasWanted = result?.gas_wanted ?? gasLimit
+
+      const messages = body?.messages ?? []
   
-      return body.messages.flatMap((anyMsg: any, msgIndex: number) => {
+      return messages.flatMap((anyMsg: any, msgIndex: number) => {
         const creators = extractCreatorsFromAny(anyMsg)
         const creator = 
             creators.length === 1 ? creators[0] : creators.length > 1
@@ -354,7 +365,12 @@ export function BlockDetail({ height }: {height: string }) {
         </div>
         {msgSummary
           .slice()
-          .sort((a, b) => b.totalCount - a.totalCount)
+          .sort((a, b) => {
+            if (b.totalCount !== a.totalCount) {
+              return b.totalCount - a.totalCount
+            }
+            return a.key.localeCompare(b.key)
+          })
           .map(node => (
             <MsgSummaryRow key={node.key} node={node} />
         ))}
