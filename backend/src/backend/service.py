@@ -13,7 +13,13 @@ from collections import defaultdict
 from geoip2.errors import AddressNotFoundError
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
-from cosmospy_protobuf.cosmos.tx.v1beta1.tx_pb2 import TxRaw, TxBody
+import importlib
+import pkgutil
+from google.protobuf.any_pb2 import Any
+from google.protobuf.message import Message
+from gonka_protos.cosmos.tx.v1beta1.tx_pb2 import TxRaw, TxBody
+from gonka_protos.cosmos.tx.v1beta1.tx_pb2 import AuthInfo
+from google.protobuf.json_format import MessageToDict
 from backend.client import GonkaClient
 from backend.database import CacheDB
 from backend.models import (
@@ -46,12 +52,31 @@ from backend.models import (
     HardwaresResponse,
     HardwareParticiapteCount,
     HardwareDetailsResponse,
-    HardwareSeries,
-    HardwareEpochSeriesResponse
+    HardwareEpochSeriesResponse,
+    BlockStats,
+    BlockStatsResponse
 )
 
 logger = logging.getLogger(__name__)
 
+def build_registry(root_pkg: str) -> dict[str, type[Message]]:
+    registry: dict[str, type[Message]] = {}
+
+    pkg = importlib.import_module(root_pkg)
+    for modinfo in pkgutil.walk_packages(pkg.__path__, pkg.__name__ + "."):
+        if not modinfo.name.endswith("_pb2"):
+            continue
+        mod = importlib.import_module(modinfo.name)
+        for attr in dir(mod):
+            cls = getattr(mod, attr)
+            if (isinstance(cls, type) and issubclass(cls, Message) and hasattr(cls, "DESCRIPTOR")):
+                full_name = cls.DESCRIPTOR.full_name
+                if full_name:
+                    registry[full_name] = cls
+
+    return registry
+
+REGISTRY = build_registry("gonka_protos")
 
 # ml_nodes_data structure: [{ml_nodes: [node, ...]}, {ml_nodes: [...]}]
 # Sum poc_weight for nodes where timeslot_allocation[1] == False
@@ -90,6 +115,35 @@ class InferenceService:
         self.timeline_cache_ttl: float = 30.0
         self.cache_warming_in_progress: bool = False
         self.last_cache_warm_time: Optional[float] = None
+    
+    def decode_tx_base64(self, tx_base64: str) -> dict:
+        tx_bytes = base64.b64decode(tx_base64)
+        raw = TxRaw()
+        raw.ParseFromString(tx_bytes)
+        body = TxBody()
+        body.ParseFromString(raw.body_bytes)
+        body_dict = MessageToDict(
+            body,
+            preserving_proto_field_name=True,
+            always_print_fields_with_no_presence=True,
+        )
+
+        auth_info = AuthInfo()
+        auth_info.ParseFromString(raw.auth_info_bytes)
+        auth_info_dict = MessageToDict(
+            auth_info,
+            preserving_proto_field_name=True,
+            always_print_fields_with_no_presence=True,
+        )
+
+        signatures = [base64.b64encode(s).decode("utf-8") for s in raw.signatures]
+
+        return {
+            "hash": hashlib.sha256(tx_bytes).hexdigest(),
+            "body": body_dict,
+            "auth_info": auth_info_dict,
+            "signatures": signatures
+        }
     
     async def _calculate_avg_block_time(self, current_height: int) -> float:
         try:
@@ -1977,6 +2031,46 @@ class InferenceService:
                 return None
         except Exception as e:
             raise Exception(f"Failed to fetch transaction: {e}")
+    
+    async def get_recent_block_stats(self, limit: int = 100) -> BlockStatsResponse:
+        blocks = await self.cache_db.get_recent_block_stats(limit)
+
+        if not blocks:
+            return []
+
+        return BlockStatsResponse(
+            blocks = [
+                BlockStats(
+                    height=row["height"],
+                    tx_count=row["tx_count"],
+                    timestamp=row["timestamp"],
+                ) 
+                for row in blocks
+            ]
+        )
+
+    async def get_block_detail(self, height: str):
+        try:
+            block = await self.client.get_block_detail(height)
+            if not block:
+                return None
+
+            txs = block.get("data", {}).get("txs", [])
+            decoded_txs = []
+            for tx_base64 in txs:
+                try:
+                    decoded_txs.append(self.decode_tx_base64(tx_base64))
+                except Exception as e:
+                    logger.error(e)
+                    decoded_txs.append({
+                        "error": str(e),
+                        "raw": tx_base64,
+                    })
+
+            block["data"]["txs"] = decoded_txs
+            return block
+        except Exception as e:
+            raise Exception(f"Failed to fetch block: {e}")
     
     def _fetch_geo(self, ip:str) -> Optional[Dict[str, Any]]:
         reader = geoip2.database.Reader('/data/GeoLite2-City.mmdb')

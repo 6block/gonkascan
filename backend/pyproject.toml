@@ -14,7 +14,8 @@ dependencies = [
     "bech32>=1.2.0",
     "cosmospy-protobuf>=0.4.0",
     "geoip2>=5.2.0",
-    "ipaddress>=1.0.23"
+    "ipaddress>=1.0.23",
+    "googleapis-common-protos>=1.63.0"
 ]
 
 [project.urls]

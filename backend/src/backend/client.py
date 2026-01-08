@@ -464,6 +464,20 @@ class GonkaClient:
     async def get_balances(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/balances/{address}")
 
+    async def get_block_detail(self, height: str) -> Dict[str, Any]:
+        block_path = f"/chain-api/cosmos/tx/v1beta1/txs/block/{height}"
+        result_path = f"/chain-rpc/block_results?height={height}"
+        try:
+            block_data = await self._make_request(block_path)
+            block = block_data.get("block", {})
+            result_data = await self._make_request(result_path)
+            block["result"] = result_data.get("result", {})
+            logger.info(f"Found block {height}")
+            return block
+        except Exception as e:
+            logger.warning(f"Failed to fetch hardware nodes for {height}: {e}")
+            return {}
+
     async def get_total_vesting(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/total_vesting/{address}")
 

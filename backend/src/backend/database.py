@@ -1178,6 +1178,26 @@ class CacheDB:
                 if not rows:
                     return None
                 return [dict(row) for row in rows]
+    
+    async def get_recent_block_stats(self, limit: int = 100) -> list[dict]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT height, COUNT(*) AS tx_count, MAX(timestamp) AS timestamp FROM transactions
+                WHERE height IN (SELECT DISTINCT height FROM transactions ORDER BY height DESC LIMIT ?)
+                GROUP BY height ORDER BY height DESC
+            """,(limit,)) as cursor:
+                rows = await cursor.fetchall()
+
+                return [
+                    {
+                        "height": row["height"],
+                        "tx_count": row["tx_count"],
+                        "timestamp": row["timestamp"],
+                    }
+                    for row in rows
+                ]
 
     async def upsert_participant_node_geo(self,
         participant_index: str,

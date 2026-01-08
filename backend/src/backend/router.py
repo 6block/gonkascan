@@ -14,7 +14,8 @@ from backend.models import (
     ModelEpochTokenUsageResponse,
     HardwaresResponse,
     HardwareDetailsResponse,
-    HardwareEpochSeriesResponse
+    HardwareEpochSeriesResponse,
+    BlockStatsResponse
 )
 
 router = APIRouter(prefix="/v1")
@@ -254,6 +255,29 @@ async def get_hardware_details(
         return await inference_service.get_hardware_details(hardware, epoch_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch hardware detail: {str(e)}")
+
+
+@router.get("/blocks/recent", response_model=BlockStatsResponse)
+async def get_recent_blocks(limit: int = 100,):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_recent_block_stats(limit)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch recent block: {str(e)}")
+
+
+@router.get("/block/{height}")
+async def get_block(height: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_block_detail(height)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch block: {str(e)}")
+
 
 @router.get("/transaction/{tx_hash}")
 async def get_transaction(tx_hash: str):

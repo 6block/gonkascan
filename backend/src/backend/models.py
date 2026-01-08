@@ -327,3 +327,13 @@ class HardwareSeries(BaseModel):
 class HardwareEpochSeriesResponse(BaseModel):
     hardware: List[str]
     series: HardwareSeries
+
+
+class BlockStats(BaseModel):
+    height: int
+    tx_count: int
+    timestamp: str
+
+
+class BlockStatsResponse(BaseModel):
+    blocks: List[BlockStats]
