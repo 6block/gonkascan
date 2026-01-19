@@ -6,6 +6,7 @@ import logging
 import time
 import bech32
 import asyncio
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +14,51 @@ BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
 class GonkaClient:
-    def __init__(self, base_urls: List[str], timeout: float = 30.0):
+    def __init__(self, base_urls: List[str], timeout: float = 30.0, max_concurrency: int =50):
         self.base_urls = base_urls
         self.timeout = timeout
         self.current_url_index = 0
+        self.pool_semaphore = asyncio.Semaphore(max_concurrency)
+        self.pool_node_health = {u: {"score": 100, "latency": 1.0} for u in base_urls}
+        self.pool_http_client = httpx.AsyncClient(
+            timeout=timeout,
+            http2=True,
+            limits=httpx.Limits(max_connections=max_concurrency, max_keepalive_connections=max_concurrency)
+        )
         
+    def pool_pick_nodes(self, num_candidates=5):
+        sorted_nodes = sorted(self.pool_node_health.items(), key=lambda x: (-x[1]["score"], x[1]["latency"]))
+        candidates = [u for u, _ in sorted_nodes[:num_candidates]]
+        random.shuffle(candidates)
+        return candidates
+    
+    async def pool_fetch_one(self, base_url: str, full_url: str) -> Optional[dict]:
+        async with self.pool_semaphore:
+            start = time.perf_counter()
+            try:
+                resp = await self.pool_http_client.get(full_url)
+                latency = time.perf_counter() - start
+                resp.raise_for_status()
+                health = self.pool_node_health.get(base_url)
+                if health is not None:
+                    health["latency"] = latency
+                    health["score"] = min(health["score"] + 5, 200)
+                return resp.json()
+            except Exception:
+                health = self.pool_node_health.get(base_url)
+                if health is not None:
+                    health["score"] = max(health["score"] - 20, 0)
+                return None
+
+    async def pool_race_first(self, pairs: List[tuple[str, str]]) -> dict:
+        coros = [self.pool_fetch_one(base, full) for base, full in pairs]
+        for coro in asyncio.as_completed(coros):
+            result = await coro
+            if result is not None:
+                return result
+
+        raise Exception("All RPC nodes failed")
+    
     def _get_current_url(self) -> str:
         return self.base_urls[self.current_url_index]
     
@@ -330,8 +371,15 @@ class GonkaClient:
             logger.warning(f"Failed to fetch hardware nodes for {participant_address}: {e}")
             return []
     
-    async def get_block(self, height: int) -> Dict[str, Any]:
-        return await self._make_request(f"/chain-rpc/block?height={height}")
+    async def get_block(self, height: int) -> dict:
+        nodes = self.pool_pick_nodes(num_candidates=2)
+        pairs = [(base, f"{base}/chain-rpc/block?height={height}") for base in nodes]
+        return await self.pool_race_first(pairs)
+
+    async def get_block_results(self, height: int) -> dict:
+        nodes = self.pool_pick_nodes(num_candidates=2)
+        pairs = [(base, f"{base}/chain-rpc/block_results?height={height}") for base in nodes]
+        return await self.pool_race_first(pairs)
     
     async def get_restrictions_params(self) -> Dict[str, Any]:
         return await self._make_request("/chain-api/productscience/inference/restrictions/params")

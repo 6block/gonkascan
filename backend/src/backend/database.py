@@ -14,6 +14,170 @@ class CacheDB:
         
     async def initialize(self):
         async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("PRAGMA journal_mode=WAL;")
+            await db.execute("PRAGMA synchronous=NORMAL;")
+            await db.execute("PRAGMA temp_store=MEMORY;")
+            await db.execute("PRAGMA cache_size=-64000;") 
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS blocks (
+                    height BIGINT PRIMARY KEY,
+                    chain_id TEXT NOT NULL,
+                    time TEXT NOT NULL,
+                    last_commit_hash TEXT NOT NULL,
+                    data_hash TEXT NOT NULL,
+                    validators_hash TEXT NOT NULL,
+                    next_validators_hash TEXT NOT NULL,
+                    consensus_hash TEXT NOT NULL,
+                    app_hash TEXT NOT NULL,
+                    last_results_hash TEXT NOT NULL,
+                    evidence_hash TEXT NOT NULL,
+                    proposer_address TEXT NOT NULL,
+                    block_id_hash TEXT NOT NULL,
+                    block_id_parts_total INTEGER NOT NULL,
+                    block_id_parts_hash TEXT NOT NULL,
+                    last_block_id_hash TEXT,
+                    last_block_id_parts_total INTEGER NOT NULL,
+                    last_block_id_parts_hash TEXT,
+                    last_commit_height BIGINT NOT NULL,
+                    last_commit_round INTEGER NOT NULL,
+                    last_commit_signatures_count INTEGER NOT NULL DEFAULT 0,
+                    transaction_count INTEGER NOT NULL DEFAULT 0,
+                    evidence_json TEXT
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_blocks_proposer ON blocks(proposer_address)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS block_commit_signatures (
+                    block_height BIGINT NOT NULL,
+                    signature_index INTEGER NOT NULL,
+                    block_id_flag TEXT NOT NULL,
+                    validator_address TEXT,
+                    timestamp TEXT,
+                    signature TEXT,
+                    PRIMARY KEY (block_height, signature_index)
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_block_commit_signatures_validator 
+                ON block_commit_signatures(validator_address)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS transactions (
+                    hash TEXT PRIMARY KEY,
+                    transaction_index INTEGER NOT NULL,
+                    height BIGINT NOT NULL,
+                    messages_json TEXT,
+                    memo TEXT,
+                    timeout_height TEXT,
+                    timeout_timestamp TEXT,
+                    unordered BOOLEAN,
+                    extension_options_json TEXT,
+                    non_critical_extension_options_json TEXT,
+                    fee_amount_json TEXT,
+                    gas_limit TEXT,
+                    payer TEXT,
+                    granter TEXT,
+                    signer_infos_json TEXt,
+                    signatures TEXT,
+                    msg_types TEXT,
+                    raw_data TEXT
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transactions_height ON transactions(height)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS transaction_participants (
+                    height BIGINT NOT NULL,
+                    transaction_hash TEXT NOT NULL,
+                    address TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    FOREIGN KEY(transaction_hash) REFERENCES transactions(transaction_hash)
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_height 
+                ON transaction_participants(height)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_address 
+                ON transaction_participants(address)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_role_address 
+                ON transaction_participants(role, address)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS block_results (
+                    height BIGINT PRIMARY KEY,
+                    app_hash TEXT,
+                    consensus_param_updates_json TEXT,
+                    finalize_block_events_json TEXT,
+                    validator_updates_json TEXT
+                )
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS transaction_results (
+                    transaction_hash TEXT PRIMARY KEY,
+                    height BIGINT NOT NULL,
+                    code INTEGER NOT NULL,
+                    codespace TEXT,
+                    data TEXT,
+                    gas_wanted TEXT,
+                    gas_used TEXT,
+                    info TEXT,
+                    log TEXT,
+                    FOREIGN KEY (transaction_hash) REFERENCES transactions(transaction_hash)
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_results_code ON transaction_results(code)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS transaction_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    height BIGINT NOT NULL,
+                    transaction_hash TEXT NOT NULL,
+                    type TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT,
+                    indexed BOOLEAN,
+                    FOREIGN KEY (transaction_hash) REFERENCES transactions(transaction_hash)
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_events_height ON transaction_events(height)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_events_addr ON transaction_events(value)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_events_type_key ON transaction_events(type, key)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_events_type_key_value ON transaction_events (type, key, value)
+            """)
+
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS inference_stats (
                     epoch_id INTEGER NOT NULL,
@@ -232,7 +396,7 @@ class CacheDB:
             """)
 
             await db.execute("""
-                CREATE TABLE IF NOT EXISTS transactions (
+                CREATE TABLE IF NOT EXISTS transactions_old (
                     height INTEGER NOT NULL,
                     tx_hash TEXT NOT NULL,
                     messages TEXT NOT NULL,
@@ -243,7 +407,7 @@ class CacheDB:
 
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_transactions_height
-                ON transactions(height)
+                ON transactions_old(height)
             """)
 
             await db.execute("""
@@ -1142,7 +1306,7 @@ class CacheDB:
         async with aiosqlite.connect(self.db_path) as db:
             for tx in tx_list:
                 await db.execute("""
-                    INSERT OR REPLACE INTO transactions
+                    INSERT OR REPLACE INTO transactions_old
                     (height, tx_hash, messages, timestamp)
                     VALUES (?, ?, ?, ?)
                 """, (
@@ -1158,11 +1322,211 @@ class CacheDB:
     async def get_latest_tx_height(self) -> int:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            async with db.execute("""SELECT MAX(height) AS max_height FROM transactions;""") as cursor:
+            async with db.execute("""SELECT MAX(height) AS max_height FROM transactions_old;""") as cursor:
                 row = await cursor.fetchone()
                 if row is None or row["max_height"] is None:
                     return 0
                 return int(row["max_height"])
+
+    async def _save_blocks_batch(self, db, blocks: list[dict]):
+        await db.executemany("""
+            INSERT OR REPLACE INTO blocks (
+                height, chain_id, time, last_commit_hash, data_hash, validators_hash, next_validators_hash, 
+                consensus_hash, app_hash, last_results_hash, evidence_hash, proposer_address,
+                block_id_hash, block_id_parts_total, block_id_parts_hash,
+                last_block_id_hash, last_block_id_parts_total, last_block_id_parts_hash,
+                last_commit_height, last_commit_round, last_commit_signatures_count, 
+                transaction_count, evidence_json
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (
+                int(block["header"]["height"]),
+                block["header"]["chain_id"],
+                block["header"]["time"],
+                block["header"]["last_commit_hash"],
+                block["header"]["data_hash"],
+                block["header"]["validators_hash"],
+                block["header"]["next_validators_hash"],
+                block["header"]["consensus_hash"],
+                block["header"]["app_hash"],
+                block["header"]["last_results_hash"],
+                block["header"]["evidence_hash"],
+                block["header"]["proposer_address"],
+                block["block_id"]["hash"],
+                block["block_id"]["parts"]["total"],
+                block["block_id"]["parts"]["hash"],
+                block["header"]["last_block_id"]["hash"],
+                block["header"]["last_block_id"]["parts"]["total"],
+                block["header"]["last_block_id"]["parts"]["hash"], 
+                int(block["last_commit"]["height"]),
+                block["last_commit"]["round"],
+                len(block["last_commit"]["signatures"]),
+                len(block["data"]["txs"]),
+                json.dumps(block.get("evidence", {}).get("evidence", []))
+            )
+            for block in blocks
+        ])
+
+    async def _save_block_commit_signatures_batch(self, db, signatures: list[dict]):
+        await db.executemany("""
+            INSERT OR REPLACE INTO block_commit_signatures (
+                block_height, signature_index, block_id_flag, validator_address, timestamp, signature
+            ) VALUES (?, ?, ?, ?, ?, ?)
+        """, [
+            (
+                signature["height"],
+                signature["index"],
+                signature.get("block_id_flag"),
+                signature.get("validator_address"),
+                signature.get("timestamp"),
+                signature.get("signature"),
+            )
+            for signature in signatures
+        ])
+
+    async def _save_transactions_batch(self, db, transactions: list[dict]):
+        await db.executemany("""
+            INSERT OR REPLACE INTO transactions (
+                hash, transaction_index, height, messages_json, memo, timeout_height,
+                timeout_timestamp, unordered, extension_options_json,
+                non_critical_extension_options_json, fee_amount_json,
+                gas_limit, payer, granter, signer_infos_json,
+                signatures, msg_types, raw_data
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (
+                transaction["hash"],
+                transaction["index"],
+                transaction["height"],
+                json.dumps(transaction.get("body", {}).get("messages", [])),
+                transaction["body"]["memo"],
+                transaction["body"]["timeout_height"],
+                json.dumps(transaction.get("body", {}).get("timeout_timestamp", "")),
+                transaction["body"]["unordered"],
+                json.dumps(transaction.get("body", {}).get("extension_options", [])),
+                json.dumps(transaction.get("body", {}).get("non_critical_extension_options", [])),
+                json.dumps(transaction.get("auth_info", {}).get("fee", {}).get("amount", [])),
+                transaction["auth_info"]["fee"]["gas_limit"],
+                transaction["auth_info"]["fee"]["payer"],
+                transaction["auth_info"]["fee"]["granter"],
+                json.dumps(transaction.get("auth_info", {}).get("signer_infos", [])),
+                json.dumps(transaction.get("signatures", [])),
+                json.dumps(transaction.get("msg_types", [])),
+                transaction["raw_data"],
+            )
+            for transaction in transactions
+        ])
+    
+    async def _save_transaction_participants_batch(self, db, transaction_participants: list[dict]):
+        await db.executemany("""
+            INSERT INTO transaction_participants (
+                height, transaction_hash, address, role
+            ) VALUES (?, ?, ?, ?)
+        """, [
+            (
+                transaction_participant["height"],
+                transaction_participant["transaction_hash"],
+                transaction_participant["address"],
+                transaction_participant["role"],
+            )
+            for transaction_participant in transaction_participants
+        ])
+    
+    async def _save_block_results_batch(self, db, block_results: list[dict]):
+        await db.executemany("""
+            INSERT OR REPLACE INTO block_results (
+                height, app_hash, consensus_param_updates_json, finalize_block_events_json, validator_updates_json
+            ) VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                int(block_result["height"]),
+                block_result["app_hash"],
+                json.dumps(block_result.get("consensus_param_updates", {})),
+                json.dumps(block_result.get("finalize_block_events", [])),
+                json.dumps(block_result.get("validator_updates", None)),
+            )
+            for block_result in block_results
+        ])
+    
+    async def _save_transaction_results_batch(self, db, transaction_results: list[dict]):
+        await db.executemany("""
+            INSERT OR REPLACE INTO transaction_results (
+                transaction_hash, height, code, codespace, data, gas_wanted, gas_used, info, log
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, [
+            (
+                transaction_result["transaction_hash"],
+                transaction_result["height"],
+                transaction_result["code"],
+                transaction_result["codespace"],
+                transaction_result["data"],
+                transaction_result["gas_wanted"],
+                transaction_result["gas_used"],
+                transaction_result["info"],
+                transaction_result["log"],
+            )
+            for transaction_result in transaction_results
+        ])            
+
+    async def _save_transaction_events_batch(self, db, transaction_events: list[dict]):
+            await db.executemany("""
+                INSERT INTO transaction_events (
+                    height, transaction_hash, type, key, value, indexed
+                ) VALUES (?, ?, ?, ?, ?, ?)
+            """, [
+                (
+                    transaction_event["height"],
+                    transaction_event["transaction_hash"],
+                    transaction_event["type"],
+                    transaction_event["key"],
+                    transaction_event["value"],
+                    transaction_event["indexed"],
+                )
+                for transaction_event in transaction_events
+            ])
+
+    async def save_block_full_batch(
+        self,
+        blocks_batch: list[dict],
+        commit_signatures_batch: list[dict],
+        transactions_batch: list[dict],
+        participants_batch: list[dict],
+        block_results_batch: list[dict],
+        transaction_results_batch: list[dict],
+        transaction_events_batch: list[dict],
+    ):
+        async with aiosqlite.connect(self.db_path) as db:
+            try:
+                await db.execute("BEGIN")
+                await self._save_blocks_batch(db, blocks_batch)
+                logger.info(f"Saved blocks data for {len(blocks_batch)}")
+                await self._save_block_commit_signatures_batch(db, commit_signatures_batch)
+                logger.info(f"Saved block_commit_signatures data for {len(commit_signatures_batch)}")
+                await self._save_transactions_batch(db, transactions_batch)
+                logger.info(f"Saved transactions data for {len(transactions_batch)}")
+                await self._save_transaction_participants_batch(db, participants_batch)
+                logger.info(f"Saved transaction_participants data for {len(participants_batch)}")
+                await self._save_block_results_batch(db, block_results_batch)
+                logger.info(f"Saved transaction_results data for {len(block_results_batch)}")
+                await self._save_transaction_results_batch(db, transaction_results_batch)
+                logger.info(f"Saved transaction_results data for {len(transaction_results_batch)}")
+                await self._save_transaction_events_batch(db, transaction_events_batch)
+                logger.info(f"Saved transaction_events data for {len(transaction_events_batch)}")
+                await db.commit()
+                return True
+
+            except Exception as e:
+                await db.rollback()
+                raise e
+
+    async def get_latest_block_height(self) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""SELECT MAX(height) AS latest_height FROM blocks;""") as cursor:
+                row = await cursor.fetchone()
+                if row is None or row["latest_height"] is None:
+                    return 0
+                return int(row["latest_height"])
 
     async def get_latest_transactions(self, limit: int = 50) -> Optional[List[Dict[str, Any]]]:
         async with aiosqlite.connect(self.db_path) as db:
@@ -1170,7 +1534,7 @@ class CacheDB:
             
             async with db.execute("""
                 SELECT height, tx_hash, messages, timestamp
-                FROM transactions
+                FROM transactions_old
                 ORDER BY height DESC
                 LIMIT ?
             """, (limit,)) as cursor:
@@ -1184,8 +1548,8 @@ class CacheDB:
             db.row_factory = aiosqlite.Row
 
             async with db.execute("""
-                SELECT height, COUNT(*) AS tx_count, MAX(timestamp) AS timestamp FROM transactions
-                WHERE height IN (SELECT DISTINCT height FROM transactions ORDER BY height DESC LIMIT ?)
+                SELECT height, COUNT(*) AS tx_count, MAX(timestamp) AS timestamp FROM transactions_old
+                WHERE height IN (SELECT DISTINCT height FROM transactions_old ORDER BY height DESC LIMIT ?)
                 GROUP BY height ORDER BY height DESC
             """,(limit,)) as cursor:
                 rows = await cursor.fetchall()
@@ -1237,6 +1601,28 @@ class CacheDB:
             async with db.execute("SELECT * FROM participant_node_geo") as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+    
+    async def get_all_inference_urls(self) -> List[str]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT MAX(epoch_id) AS max_epoch FROM inference_stats") as cursor:
+                row = await cursor.fetchone()
+                if not row or row["max_epoch"] is None:
+                    return []
+                max_epoch = row["max_epoch"]
+            
+            async with db.execute(
+                "SELECT stats_json FROM inference_stats WHERE epoch_id = ?",(max_epoch,)
+            ) as cursor:
+                rows = await cursor.fetchall()
+            
+            urls = set()
+            for r in rows:
+                data = json.loads(r["stats_json"])
+                inference_url= data.get("inference_url")
+                if inference_url:
+                    urls.add(inference_url.strip())
+            return list(urls)
     
     async def delete_participant_node_geo_except(self, participant_indexs: list[str]):
         if not participant_indexs:

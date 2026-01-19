@@ -29,6 +29,7 @@ POLL_MODELS_API_INTERVAL = int(os.getenv("POLL_MODELS_API_INTERVAL", "300"))
 POLL_TIMELINE_INTERVAL = int(os.getenv("POLL_TIMELINE_INTERVAL", "30"))
 POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL", "120"))
 POLL_TRANSACTIONS_INTERVAL = int(os.getenv("POLL_TRANSACTIONS_INTERVAL", "10"))
+POLL_BLOCKS_INTERVAL = int(os.getenv("POLL_BLOCKS_INTERVAL", "10"))
 
 background_task = None
 jail_polling_task = None
@@ -43,7 +44,7 @@ timeline_polling_task = None
 confirmation_polling_task = None
 inference_service_instance = None
 transactions_polling_task = None
-
+blocks_polling_task = None
 
 async def poll_current_epoch():
     while True:
@@ -219,17 +220,26 @@ async def poll_transactions():
         
         await asyncio.sleep(POLL_TRANSACTIONS_INTERVAL)
 
+async def poll_blocks():
+    await asyncio.sleep(60)
+
+    while True:
+        try:
+            if inference_service_instance:
+                await inference_service_instance.fetch_and_cache_blocks()
+                logger.info("Background polling: fetched and saved blocks")
+        except Exception as e:
+            logger.error(f"Block polling error: {e}")
+
+        await asyncio.sleep(POLL_BLOCKS_INTERVAL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global background_task, jail_polling_task, health_polling_task, rewards_polling_task, warm_keys_polling_task, hardware_nodes_polling_task, epoch_total_rewards_polling_task, participant_inferences_polling_task, models_api_polling_task, timeline_polling_task, confirmation_polling_task, inference_service_instance
     
-    inference_urls = os.getenv("INFERENCE_URLS", "http://node2.gonka.ai:8000").split(",")
-    inference_urls = [url.strip() for url in inference_urls]
-    
     db_path = os.getenv("CACHE_DB_PATH", "cache.db")
     
-    logger.info(f"Initializing with URLs: {inference_urls}")
     logger.info(f"Database path: {db_path}")
     logger.info(f"Polling intervals (s): epoch={POLL_CURRENT_EPOCH_INTERVAL}, jail={POLL_JAIL_STATUS_INTERVAL}, health={POLL_NODE_HEALTH_INTERVAL}, rewards={POLL_REWARDS_INTERVAL}")
     logger.info(f"Polling intervals (s): warm_keys={POLL_WARM_KEYS_INTERVAL}, hardware_nodes={POLL_HARDWARE_NODES_INTERVAL}, total_rewards={POLL_EPOCH_TOTAL_REWARDS_INTERVAL}, inferences={POLL_PARTICIPANT_INFERENCES_INTERVAL}, models_api={POLL_MODELS_API_INTERVAL}, timeline={POLL_TIMELINE_INTERVAL}, confirmation_data={POLL_CONFIRMATION_DATA_INTERVAL}")
@@ -237,6 +247,12 @@ async def lifespan(app: FastAPI):
     
     cache_db = CacheDB(db_path)
     await cache_db.initialize()
+
+    inference_urls = os.getenv("INFERENCE_URLS", "http://node2.gonka.ai:8000").split(",")
+    inference_urls = [url.strip() for url in inference_urls]
+    database_inference_urls = await cache_db.get_all_inference_urls()
+    inference_urls.extend(database_inference_urls)
+    logger.info(f"Initializing with all Participant inference_urls, total: {len(inference_urls)}")
     
     client = GonkaClient(base_urls=inference_urls)
     inference_service_instance = InferenceService(client=client, cache_db=cache_db)
@@ -255,6 +271,7 @@ async def lifespan(app: FastAPI):
     timeline_polling_task = asyncio.create_task(poll_timeline())
     confirmation_polling_task = asyncio.create_task(poll_confirmation_data())
     transactions_polling_task = asyncio.create_task(poll_transactions())
+    blocks_polling_task = asyncio.create_task(poll_blocks())
     logger.info("Background polling tasks started")
     
     yield
@@ -343,6 +360,12 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             logger.info("Transactions polling task cancelled")
 
+    if blocks_polling_task:
+        blocks_polling_task.cancel()
+        try:
+            await blocks_polling_task
+        except asyncio.CancelledError:
+            logger.info("Blocks polling task cancelled")
 
 
 app = FastAPI(lifespan=lifespan)

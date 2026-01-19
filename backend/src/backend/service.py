@@ -20,6 +20,7 @@ from google.protobuf.message import Message
 from gonka_protos.cosmos.tx.v1beta1.tx_pb2 import TxRaw, TxBody
 from gonka_protos.cosmos.tx.v1beta1.tx_pb2 import AuthInfo
 from google.protobuf.json_format import MessageToDict
+from bech32 import bech32_decode, convertbits
 from backend.client import GonkaClient
 from backend.database import CacheDB
 from backend.models import (
@@ -58,6 +59,13 @@ from backend.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+def is_valid_gonka_address(addr: str, prefix="gonka") -> bool:
+    hrp, data = bech32_decode(addr)
+    if hrp != prefix or data is None:
+        return False
+    decoded = convertbits(data, 5, 8, False)
+    return decoded is not None
 
 def build_registry(root_pkg: str) -> dict[str, type[Message]]:
     registry: dict[str, type[Message]] = {}
@@ -1996,6 +2004,191 @@ class InferenceService:
         if transaction_batch:
             await self.cache_db.save_transactions_batch(transaction_batch)
 
+    def extract_gonka_addresses(self, obj, role_prefix=None):
+        results = []
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                results.extend(self.extract_gonka_addresses(value, key))
+        elif isinstance(obj, list):
+            for value in obj:
+                results.extend(self.extract_gonka_addresses(value, role_prefix=None))
+        elif isinstance(obj, str):
+            if is_valid_gonka_address(obj):
+                if role_prefix is not None:
+                    results.append((role_prefix, obj))
+        return results
+    
+    async def fetch_block_data(self, height):
+        commit_signatures = []
+        transactions = []
+        participants = []
+        transaction_results = []
+        transaction_events = []
+        transaction_index_hash_map = {}
+
+        block_results = await self.client.get_block_results(height)
+        block_data = await self.client.get_block(height)
+        logger.debug(f"[Cache blocks] {height}: Complete data has been obtained. ")
+
+        block = block_data["result"]["block"]
+        block["block_id"] = block_data["result"]["block_id"]
+
+        last_commit = block.get("last_commit", {}) or {}
+        signatures = last_commit.get("signatures", []) or []
+        for idx, signature in enumerate(signatures):
+            signature["height"] = height
+            signature["index"] = idx
+            commit_signatures.append(signature)
+
+        block_txs = block["data"].get("txs", [])
+        for idx, tx_base64 in enumerate(block_txs):
+            decoded_transaction = self.decode_tx_base64(tx_base64)
+            decoded_transaction["index"] = idx
+            decoded_transaction["height"] = height
+            decoded_transaction["raw_data"] = tx_base64
+            decoded_transaction["msg_types"] = [
+                (msg.get("@type", "").split(".")[-1]).replace("Msg", "")
+                for msg in decoded_transaction["body"].get("messages", [])
+            ]
+            transactions.append(decoded_transaction)
+            transaction_index_hash_map[idx] = decoded_transaction["hash"]
+
+            transaction_hash = decoded_transaction["hash"]
+            for msg in decoded_transaction["body"].get("messages", []):
+                address_hits = self.extract_gonka_addresses(msg)
+                for role, address in address_hits:
+                    participants.append({
+                        "height": height,
+                        "transaction_hash": transaction_hash,
+                        "address": address,
+                        "role": role,
+                    })
+                
+        result = block_results.get("result", {})
+        txs_results = result.get("txs_results", []) or []
+
+        for idx, tx_result in enumerate(txs_results):
+            tx_hash = transaction_index_hash_map.get(idx)
+            if not tx_hash:
+                return {"height": height, "ok": False, "error": "missing tx_hash"}
+
+            transaction_results.append({
+                "transaction_hash": tx_hash,
+                "height": height,
+                "code": tx_result.get("code"),
+                "codespace": tx_result.get("codespace"),
+                "data": tx_result.get("data"),
+                "gas_wanted": tx_result.get("gas_wanted"),
+                "gas_used": tx_result.get("gas_used"),
+                "info": tx_result.get("info"),
+                "log": tx_result.get("log"),
+            })
+            for event in tx_result.get("events", []) or []:
+                event_type = event.get("type")
+                for attribute in event.get("attributes", []) or []:
+                    transaction_events.append({
+                        "height": height,
+                        "transaction_hash": tx_hash,
+                        "type": event_type,
+                        "key": attribute.get("key"),
+                        "value": attribute.get("value"),
+                        "indexed": attribute.get("indexed"),
+                    })        
+        return {
+            "height": height,
+            "block": [block],
+            "block_result": [result],
+            "commit_signatures": commit_signatures,
+            "transactions": transactions,
+            "participants": participants,
+            "tx_results": transaction_results,
+            "tx_events": transaction_events,
+        }
+    
+    async def safe_fetch(self, height):
+        try:
+            result = await self.fetch_block_data(height)
+
+            if not result["block_result"][0].get("height"):
+                return {"ok": False, "height": height, "reason": "no_results"}
+
+            return {"ok": True, **result}
+        except Exception as e:
+            return {"ok": False, "height": height, "error": str(e)}
+
+    async def fetch_and_cache_blocks(self):
+        max_blocks = 200
+        latest_db_height = await self.cache_db.get_latest_block_height()
+        current_height = await self.client.get_latest_height()
+
+        if latest_db_height == 0:
+            start_height = 1
+        else:
+            start_height = latest_db_height + 1
+
+        if start_height > current_height:
+            return
+        
+        end_height = min(current_height + 1, start_height + max_blocks - 1)
+        logger.info(f"[Cache blocks] Syncing blocks from {start_height} to {end_height} (chain_height={current_height})")
+
+        blocks_batch = []
+        commit_signatures_batch = []
+        transactions_batch = []
+        participants_batch = []
+        block_results_batch = []
+        transaction_results_batch = []
+        transaction_events_batch = []
+
+        fetch_results = await asyncio.gather(
+            *[self.safe_fetch(h) for h in range(start_height, end_height)]
+        )
+
+        commit_upto = None
+        for work_result in fetch_results:
+            if work_result["ok"]:
+                commit_upto = work_result["height"]
+            else:
+                break
+
+        if commit_upto is None:
+            logger.error("[Cache blocks] No contiguous block data to commit, skip")
+            return
+        
+        to_commits = [r for r in fetch_results if r["ok"] and r["height"] <= commit_upto]
+        for work_result in to_commits:
+            blocks_batch.extend(work_result["block"])
+            commit_signatures_batch.extend(work_result["commit_signatures"])
+            transactions_batch.extend(work_result["transactions"])
+            participants_batch.extend(work_result["participants"])
+            block_results_batch.extend(work_result["block_result"])
+            transaction_results_batch.extend(work_result["tx_results"])
+            transaction_events_batch.extend(work_result["tx_events"])
+
+        try:
+            logger.info(
+                f"[Cache blocks] Block batch saved: blocks={len(blocks_batch)}, "
+                f"signatures={len(commit_signatures_batch)}, "
+                f"transactions={len(transactions_batch)}, "
+                f"participants={len(participants_batch)}, "
+                f"block_results={len(block_results_batch)}, "
+                f"transaction_results={len(transaction_results_batch)}, "
+                f"transaction_events={len(transaction_events_batch)}, "
+            )
+            await self.cache_db.save_block_full_batch(
+                blocks_batch,
+                commit_signatures_batch,
+                transactions_batch,
+                participants_batch,
+                block_results_batch,
+                transaction_results_batch,
+                transaction_events_batch,
+            )
+            logger.info(f"[Cache blocks] Batch block data saved successfully, to {commit_upto} count: {len(to_commits)}")
+        except Exception as e:
+            logger.error(f"[Cache blocks] Batch failed and rolled back: {e}")
+            raise e
+    
     async def get_transactions(self, limit: int = 100) -> TransactionResponse:
         try:
             latest_info = await self.client.get_latest_epoch()
@@ -2109,7 +2302,7 @@ class InferenceService:
             try:
                 ip = ipaddress.ip_address(host)
             except ValueError:
-                logger.error(f"IP is not IPv4Address")
+                logger.debug(f"IP is not IPv4Address")
                 continue
             current_nodes[participant_index] = {
                 "ip": str(ip),
