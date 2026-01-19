@@ -17,6 +17,7 @@ for _pkg_name in (
     "inference",
     "tendermint",
     "cosmos",
-    "cosmwasm"
+    "cosmwasm",
+    "ibc"
 ):
     _alias_subpackage(_pkg_name)
