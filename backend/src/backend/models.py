@@ -338,3 +338,72 @@ class BlockStats(BaseModel):
 
 class BlockStatsResponse(BaseModel):
     blocks: List[BlockStats]
+
+
+class FinalTallyResult(BaseModel):
+    yes_count: str
+    abstain_count: str
+    no_count: str
+    no_with_veto_count: str
+
+
+class TallyParams(BaseModel):
+    quorum: str
+    threshold: str
+    veto_threshold: str
+
+
+class TotalDeposit(BaseModel):
+    denom: str
+    amount: str
+
+
+class ProposalModel(BaseModel):
+    id: int
+    status: str
+    code: int
+    metadata: Optional[str]
+    title: str
+    summary: str
+    proposer: str
+    expedited: bool
+    failed_reason: Optional[str]
+    submit_time: str
+    deposit_end_time: str
+    voting_start_time: str
+    voting_end_time: str
+    final_tally_result: FinalTallyResult
+    tally_params: TallyParams
+    epoch_id: int
+    voting_start_height: int
+    total_weight: int
+    voted_weight: int
+    total_voters: int
+    total_participants: int
+    total_vote_txs: int
+    total_submit_txs: int
+    total_deposit_txs: int
+    total_deposit: List[TotalDeposit]
+    messages: List[Any]
+
+
+class ProposalsResponse(BaseModel):
+    passed: Optional[List[ProposalModel]] = None
+    rejected: Optional[List[ProposalModel]] = None
+    voting: Optional[List[ProposalModel]] = None
+
+
+class ProposalTransaction(BaseModel):
+    total: int
+    txs: List[Any]
+
+
+class ProposalTransactions(BaseModel):
+    deposit: ProposalTransaction
+    submit: ProposalTransaction
+    vote: ProposalTransaction
+
+
+class ProposalDetailResponse(BaseModel):
+    proposal: ProposalModel
+    diff_params: Optional[List[Any]] = None

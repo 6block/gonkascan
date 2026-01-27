@@ -439,6 +439,57 @@ class CacheDB:
                 )
             """)
 
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS gov_proposals (
+                    id INTEGER PRIMARY KEY,
+                    status TEXT NOT NULL,
+                    code INTEGER NOT NULL,
+                    metadata TEXT,
+                    title TEXT,
+                    summary TEXT,
+                    proposer TEXT NOT NULL,
+                    expedited INTEGER,
+                    failed_reason TEXT,
+                    submit_time TEXT NOT NULL,
+                    deposit_end_time TEXT NOT NULL,
+                    voting_start_time TEXT NOT NULL,
+                    voting_end_time TEXT NOT NULL,
+                    yes_count TEXT NOT NULL,
+                    abstain_count TEXT NOT NULL,
+                    no_count TEXT NOT NULL,
+                    no_with_veto_count TEXT NOT NULL,
+                    quorum TEXT NOT NULL,
+                    threshold TEXT NOT NULL,
+                    veto_threshold TEXT NOT NULL,
+                    epoch_id INTEGER NOT NULL,
+                    voting_start_height INTEGER NOT NULL,
+                    total_weight INTEGER NOT NULL,
+                    voted_weight INTEGER NOT NULL,
+                    total_voters INTEGER NOT NULL,
+                    total_participants INTEGER NOT NULL,
+                    total_vote_txs INTEGER NOT NULL,
+                    total_submit_txs INTEGER NOT NULL,
+                    total_deposit_txs INTEGER NOT NULL,
+                    total_deposit_json TEXT NOT NULL,
+                    messages_json TEXT NOT NULL
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_gov_proposals_code
+                ON gov_proposals(code)
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS params_snapshot (
+                    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                    height          INTEGER NOT NULL,
+                    proposal_id     INTEGER,
+                    module          TEXT NOT NULL,
+                    params_json     TEXT NOT NULL,
+                    UNIQUE(height, module)
+                );
+            """)
             
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
@@ -616,6 +667,23 @@ class CacheDB:
             await db.execute("DELETE FROM inference_stats WHERE epoch_id = ?", (epoch_id,))
             await db.execute("DELETE FROM epoch_status WHERE epoch_id = ?", (epoch_id,))
             await db.commit()
+    
+    async def get_all_epoch_status(self):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT epoch_id, is_finished, finish_height, marked_at FROM epoch_status ORDER BY epoch_id ASC
+            """) as cursor:
+                return await cursor.fetchall()
+
+    async def get_epoch_by_height(self, height: int):
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT epoch_id FROM epoch_status WHERE finish_height >= :height ORDER BY finish_height ASC LIMIT 1;
+            """, (height,)) as cursor:
+                row = await cursor.fetchone()
+                return row["epoch_id"] if row else None
     
     async def save_jail_status_batch(
         self,
@@ -1777,8 +1845,7 @@ class CacheDB:
 
             await db.commit()
 
-        logger.info(f"Saved epoch_participants_snapshot for epoch {epoch_id} (participants={participant_count}, validators={validator_count})"
-        )
+        logger.info(f"Saved epoch_participants_snapshot for epoch {epoch_id} (participants={participant_count}, validators={validator_count})")
     
     async def get_epoch_participants_snapshot(self, epoch_id: int) -> dict | None:
         async with aiosqlite.connect(self.db_path) as db:
@@ -1795,5 +1862,183 @@ class CacheDB:
                 except json.JSONDecodeError as e:
                     logger.error(f"Invalid snapshot_json for epoch {epoch_id}: {e}")
                     return None
+
+    async def save_proposal(self, proposal: dict):
+        tally = proposal.get("final_tally_result", {})
+        tally_params = proposal.get("tally_params", {})
+
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO gov_proposals (
+                    id, status, code, metadata, title, summary, proposer, expedited, failed_reason,
+                    submit_time, deposit_end_time, voting_start_time, voting_end_time,
+                    yes_count, abstain_count, no_count, no_with_veto_count,
+                    quorum, threshold, veto_threshold,
+                    epoch_id, voting_start_height, total_weight, voted_weight, total_voters, total_participants,
+                    total_vote_txs, total_submit_txs, total_deposit_txs,
+                    total_deposit_json, messages_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, 
+                        ?, ?)
+            """,(
+                int(proposal["id"]),
+                proposal["status"],
+                proposal["code"],
+                proposal["metadata"],
+                proposal["title"],
+                proposal["summary"],
+                proposal["proposer"],
+                int(proposal.get("expedited", False)),
+                proposal["failed_reason"], 
+                proposal["submit_time"],
+                proposal["deposit_end_time"],
+                proposal["voting_start_time"],
+                proposal["voting_end_time"],
+                tally["yes_count"],
+                tally["abstain_count"],
+                tally["no_count"],
+                tally["no_with_veto_count"],
+                tally_params["quorum"],
+                tally_params["threshold"],
+                tally_params["veto_threshold"],
+                proposal["epoch_id"],
+                proposal["voting_start_height"],
+                proposal["total_weight"],
+                proposal["voted_weight"],
+                proposal["total_voters"],
+                proposal["total_participants"],
+
+                proposal["total_vote_txs"],
+                proposal["total_submit_txs"],
+                proposal["total_deposit_txs"],
+
+                json.dumps(proposal.get("total_deposit", [])),
+                json.dumps(proposal.get("messages", [])),
+            ))
+
+            await db.commit()
+        logger.info(f"Saved proposal for id {proposal['id']}")
+    
+    async def get_proposal(self, proposal_id: int) -> dict | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""SELECT * FROM gov_proposals WHERE id = ?""", (proposal_id,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                
+                return {
+                    "id": row["id"],
+                    "status": row["status"],
+                    "code": row["code"],
+                    "metadata": row["metadata"],
+                    "title": row["title"],
+                    "summary": row["summary"],
+                    "proposer": row["proposer"],
+                    "expedited": bool(row["expedited"]),
+                    "failed_reason": row["failed_reason"],
+                    "submit_time": row["submit_time"],
+                    "deposit_end_time": row["deposit_end_time"],
+                    "voting_start_time": row["voting_start_time"],
+                    "voting_end_time": row["voting_end_time"],
+                    "final_tally_result": {
+                        "yes_count": row["yes_count"],
+                        "abstain_count": row["abstain_count"],
+                        "no_count": row["no_count"],
+                        "no_with_veto_count": row["no_with_veto_count"],
+                    },
+                    "tally_params": {
+                        "quorum": row["quorum"],
+                        "threshold": row["threshold"],
+                        "veto_threshold": row["veto_threshold"],
+                    },
+                    "epoch_id": row["epoch_id"],
+                    "voting_start_height": row["voting_start_height"],
+                    "total_weight": row["total_weight"],
+                    "voted_weight": row["voted_weight"],
+                    "total_voters": row["total_voters"],
+                    "total_participants": row["total_participants"],
+                    "total_vote_txs": row["total_vote_txs"],
+                    "total_submit_txs": row["total_submit_txs"],
+                    "total_deposit_txs": row["total_deposit_txs"],
+                    "messages": json.loads(row["messages_json"]),
+                    "total_deposit": json.loads(row["total_deposit_json"]),
+                }
+    
+
+    async def get_proposals_by_code(self, code: int) -> list:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT * FROM gov_proposals WHERE code = ? ORDER BY id DESC
+            """, (code,)) as cursor:
+                rows = await cursor.fetchall()
+                proposals = []
+                for row in rows:
+                    proposals.append({
+                        "id": row["id"],
+                        "status": row["status"],
+                        "code": row["code"],
+                        "metadata": row["metadata"],
+                        "title": row["title"],
+                        "summary": row["summary"],
+                        "proposer": row["proposer"],
+                        "expedited": bool(row["expedited"]),
+                        "failed_reason": row["failed_reason"],
+                        "submit_time": row["submit_time"],
+                        "deposit_end_time": row["deposit_end_time"],
+                        "voting_start_time": row["voting_start_time"],
+                        "voting_end_time": row["voting_end_time"],
+                        "final_tally_result": {
+                            "yes_count": row["yes_count"],
+                            "abstain_count": row["abstain_count"],
+                            "no_count": row["no_count"],
+                            "no_with_veto_count": row["no_with_veto_count"],
+                        },
+                        "tally_params": {
+                            "quorum": row["quorum"],
+                            "threshold": row["threshold"],
+                            "veto_threshold": row["veto_threshold"],
+                        },
+                        "epoch_id": row["epoch_id"],
+                        "voting_start_height": row["voting_start_height"],
+                        "total_weight": row["total_weight"],
+                        "voted_weight": row["voted_weight"],
+                        "total_voters": row["total_voters"],
+                        "total_participants": row["total_participants"],
+                        "total_vote_txs": row["total_vote_txs"],
+                        "total_submit_txs": row["total_submit_txs"],
+                        "total_deposit_txs": row["total_deposit_txs"],
+                        "messages": json.loads(row["messages_json"]),
+                        "total_deposit": json.loads(row["total_deposit_json"]),
+                    })
+
+                return proposals
+
+    async def save_params_snapshot(self, height: int, module: str, params: dict, proposal_id: int | None):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO params_snapshot
+                (height, proposal_id, module, params_json)
+                VALUES (?, ?, ?, ?)
+            """, (height, proposal_id, module, json.dumps(params)))
+
+            await db.commit()
+
+        logger.info(f"Saved params_snapshot for module={module} at height={height}")
+
+    async def get_latest_params_snapshot(self, module: str, height: int) -> dict | None:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT params_json FROM params_snapshot WHERE module = ? AND height < ?
+                ORDER BY height DESC LIMIT 1
+            """,(module, height)) as cursor:
+                row = await cursor.fetchone()
+                return json.loads(row["params_json"]) if row else None
 
 

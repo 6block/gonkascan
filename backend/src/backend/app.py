@@ -30,6 +30,7 @@ POLL_TIMELINE_INTERVAL = int(os.getenv("POLL_TIMELINE_INTERVAL", "30"))
 POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL", "120"))
 POLL_TRANSACTIONS_INTERVAL = int(os.getenv("POLL_TRANSACTIONS_INTERVAL", "10"))
 POLL_BLOCKS_INTERVAL = int(os.getenv("POLL_BLOCKS_INTERVAL", "10"))
+POLL_PROPOSALS_INTERVAL = int(os.getenv("POLL_PROPOSALS_INTERVAL", "60"))
 
 background_task = None
 jail_polling_task = None
@@ -45,6 +46,7 @@ confirmation_polling_task = None
 inference_service_instance = None
 transactions_polling_task = None
 blocks_polling_task = None
+proposals_polling_task = None
 
 async def poll_current_epoch():
     while True:
@@ -233,6 +235,19 @@ async def poll_blocks():
 
         await asyncio.sleep(POLL_BLOCKS_INTERVAL)
 
+async def poll_proposals():
+    await asyncio.sleep(55)
+
+    while True:
+        try:
+            if inference_service_instance:
+                await inference_service_instance.fetch_and_cache_proposal()
+                logger.info("Background polling: fetched and saved proposals")
+        except Exception as e:
+            logger.error(f"Proposal polling error: {e}")
+
+        await asyncio.sleep(POLL_PROPOSALS_INTERVAL)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -250,8 +265,8 @@ async def lifespan(app: FastAPI):
 
     inference_urls = os.getenv("INFERENCE_URLS", "http://node2.gonka.ai:8000").split(",")
     inference_urls = [url.strip() for url in inference_urls]
-    database_inference_urls = await cache_db.get_all_inference_urls()
-    inference_urls.extend(database_inference_urls)
+    # database_inference_urls = await cache_db.get_all_inference_urls()
+    # inference_urls.extend(database_inference_urls)
     logger.info(f"Initializing with all Participant inference_urls, total: {len(inference_urls)}")
     
     client = GonkaClient(base_urls=inference_urls)
@@ -272,6 +287,7 @@ async def lifespan(app: FastAPI):
     confirmation_polling_task = asyncio.create_task(poll_confirmation_data())
     transactions_polling_task = asyncio.create_task(poll_transactions())
     blocks_polling_task = asyncio.create_task(poll_blocks())
+    proposals_polling_task = asyncio.create_task(poll_proposals())
     logger.info("Background polling tasks started")
     
     yield
@@ -366,6 +382,13 @@ async def lifespan(app: FastAPI):
             await blocks_polling_task
         except asyncio.CancelledError:
             logger.info("Blocks polling task cancelled")
+    
+    if proposals_polling_task:
+        proposals_polling_task.cancel()
+        try:
+            await proposals_polling_task
+        except asyncio.CancelledError:
+            logger.info("Proposals polling task cancelled")
 
 
 app = FastAPI(lifespan=lifespan)

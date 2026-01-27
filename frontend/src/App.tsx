@@ -14,11 +14,13 @@ import { TransactionDetail } from './components/TransactionDetail'
 import { ParticipantMap } from './components/ParticipantMap'
 import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
+import { Governance } from './components/Governance'
+import { GovernanceDetail } from './components/GovernanceDetail'
 import { isValidGonkaAddress, isHex64, isBlockHeight } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address' | 'blocks'
+type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address' | 'blocks' | 'governance'
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
 type AddressParticipantStatus = {
@@ -149,6 +151,7 @@ function App() {
         pageParam === 'timeline' ||
         pageParam === 'models' ||
         pageParam === 'hardware' ||
+        pageParam === 'governance' ||
         pageParam === 'blocks' ||
         pageParam === 'transactions' ||
         pageParam === 'nodemap'
@@ -298,9 +301,11 @@ function App() {
   const searchParams = new URLSearchParams(window.location.search)
   const blockHeight = searchParams.get('height')
   const txHash = searchParams.get('tx')
+  const proposalId = searchParams.get('proposal_id')
   const isTransactionDetail = currentPage === 'transactions' && searchParams.has('tx')
   const isBlockDetail = currentPage === 'blocks' && searchParams.has('height')
-  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail
+  const isGovernancenDetail = currentPage === 'governance' && searchParams.has('proposal_id')
+  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail && !isGovernancenDetail
 
   if (loading && !data) {
     return (
@@ -382,6 +387,17 @@ function App() {
                   Hardware
                 </button>
                 <button
+                  onClick={() => handlePageChange('governance')}
+                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                    currentPage === 'governance'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Governance
+                </button>
+
+                <button
                   onClick={() => handlePageChange('blocks')}
                   className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
                     currentPage === 'blocks'
@@ -454,6 +470,12 @@ function App() {
             <Models />
           ) : currentPage === 'hardware' ? (
             <Hardware />
+          ) : currentPage === 'governance' ? (
+            proposalId ? (
+              <GovernanceDetail proposalId={proposalId}/>
+            ) : (
+              <Governance />
+            )        
           ) : currentPage === 'blocks' ?( 
             blockHeight ? (
               <BlockDetail height={blockHeight}/>

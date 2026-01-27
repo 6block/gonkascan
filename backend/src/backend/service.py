@@ -7,6 +7,7 @@ import hashlib
 import httpx
 from urllib.parse import urlparse
 import socket
+import copy
 import ipaddress
 import geoip2.database
 from collections import defaultdict
@@ -55,7 +56,10 @@ from backend.models import (
     HardwareDetailsResponse,
     HardwareEpochSeriesResponse,
     BlockStats,
-    BlockStatsResponse
+    BlockStatsResponse,
+    ProposalsResponse,
+    ProposalDetailResponse,
+    ProposalTransactions
 )
 
 logger = logging.getLogger(__name__)
@@ -123,6 +127,7 @@ class InferenceService:
         self.timeline_cache_ttl: float = 30.0
         self.cache_warming_in_progress: bool = False
         self.last_cache_warm_time: Optional[float] = None
+        self.params_module_index: Optional[dict] = None
     
     def decode_tx_base64(self, tx_base64: str) -> dict:
         tx_bytes = base64.b64decode(tx_base64)
@@ -2664,6 +2669,272 @@ class InferenceService:
             }
         )
 
+    async def get_participant_status(self, participant_index: str, epoch_id: int | None = None) -> bool:
+        if epoch_id is None:
+            if self.current_epoch_id is None:
+                latest_info = await self.client.get_latest_epoch()
+                self.current_epoch_id = latest_info["latest_epoch"]["index"]
+            epoch_id = self.current_epoch_id
+        exists = await self.cache_db.has_participant_in_epoch(epoch_id, participant_index)
+        return {
+            "participant_id": participant_index,
+            "epoch_id": epoch_id,
+            "is_participant": exists,
+        }
+    
+    def build_params_module_index(self, app_state: dict) -> dict:
+        index = {}
+        for module, data in app_state.items():
+            if not isinstance(data, dict) or not data: continue
+            params = data.get("params")
+            if isinstance(params, dict):
+                for k in params.keys():
+                    index[k] = module
+        return index
+    
+    def merge_params(self, old_params: dict, new_params: dict) -> dict:
+        result = copy.deepcopy(old_params)
+        for k, v in new_params.items():
+            if isinstance(v, dict) and isinstance(result.get(k), dict):
+                result[k] = self.merge_params(result[k], v)
+            else:
+                result[k] = v
+        return result
+
+    def diff_params(self, old_params: dict, new_params: dict, prefix: str = None) -> List[Dict[str, Any]]:
+        diffs: List[Dict[str, Any]] = []
+        keys = set(old_params.keys()) | set(new_params.keys())
+
+        for key in sorted(keys):
+            path = f"{prefix}.{key}" if prefix else key
+            old_val = old_params.get(key)
+            new_val = new_params.get(key)
+            if isinstance(old_val, dict) and isinstance(new_val, dict):
+                diffs.extend(self.diff_params(old_val, new_val, path))
+                continue
+
+            if old_val != new_val:
+                diffs.append({
+                    "path": path,
+                    "old": old_val,
+                    "new": new_val
+                })
+        return diffs
+    
+    async def resolve_module_from_msg(self, msg: dict, height: int) -> str:
+        if self.params_module_index is None:
+            genesis = await self.client.get_genesis()
+            app_state = genesis["result"]["genesis"]["app_state"]
+            self.params_module_index = self.build_params_module_index(app_state)
+
+        params = msg.get("params")
+        if not isinstance(params, dict) or not params:
+            raise RuntimeError("MsgUpdateParams.params is empty")
+
+        modules = set()
+        for key in params.keys():
+            module = self.params_module_index.get(key)
+            if module:
+                modules.add(module)
+
+        if not modules:
+            raise RuntimeError(f"Cannot resolve module for MsgUpdateParams keys={list(params.keys())}")
+        if len(modules) != 1:
+            raise RuntimeError(f"Ambiguous MsgUpdateParams keys={list(params.keys())}, modules={modules}")
+        
+        return modules.pop()
+    
+    async def enrich_proposal_detail(self, proposal):
+        proposal_id = proposal["id"]
+        max_retry = 5
+        attempt = 0
+        txs = await self.client.get_proposal_transactions(proposal_id)
+        while attempt < max_retry:
+            attempt += 1
+            txs = await self.client.get_proposal_transactions(proposal_id)
+            total_vote_txs = txs["vote"]["total"]
+            total_submit_txs = txs["submit"]["total"]
+            total_deposit_txs = txs["deposit"]["total"]
+
+            if total_vote_txs > 0 and total_submit_txs > 0 and total_deposit_txs > 0:
+                break
+
+            logger.info(
+                f"Proposal id={proposal_id} has zero tx totals "
+                f"(submit={total_submit_txs}, deposit={total_deposit_txs}, vote={total_vote_txs}) "
+                f"on attempt {attempt}/{max_retry}, retrying..."
+            )
+            self.client._rotate_url()
+
+        if total_vote_txs == 0 or total_submit_txs == 0 or total_deposit_txs == 0:
+            raise RuntimeError(
+                f"Failed to get non-zero tx totals for proposal id={proposal_id} after {max_retry} attempts: "
+                f"submit={total_submit_txs}, deposit={total_deposit_txs}, vote={total_vote_txs}"
+            )
+
+        vote_txs = txs["vote"]["txs"]
+        submit_txs = txs["submit"]["txs"]
+        total_vote_txs = txs["vote"]["total"]
+        total_submit_txs = txs["submit"]["total"]
+        total_deposit_txs = txs["deposit"]["total"]
+
+        submit_time = proposal["submit_time"]
+        voting_start_time = proposal["voting_start_time"]
+        if submit_time == voting_start_time:
+            submit_height = int(submit_txs[0]["height"]) if submit_txs else None
+            if submit_height:
+                voting_start_height = submit_height
+        # else:
+        #     voting_start_height = await self.cache_db.get_height_by_time(voting_start_time)
+
+        epoch_id = await self.cache_db.get_epoch_by_height(voting_start_height)
+        logger.info(f"{proposal_id} epoch_id {epoch_id} {voting_start_height}")
+        
+        epoch_data =  await self.client.get_epoch_group_data(epoch_id)
+        total_participants = set()
+        for validation  in epoch_data["epoch_group_data"]["validation_weights"]:
+            total_participants.add(validation["member_address"])
+
+        try:
+            validators = await self.client.get_all_validators(voting_start_height)
+        except Exception as e:
+            logger.warning(f"get_all_validators failed at height={voting_start_height}, use empty list. error={e}")
+            validators = []
+        bonded = [v for v in validators if v["status"] == "BOND_STATUS_BONDED"]
+        total_weight = sum(int(v["tokens"]) for v in bonded) if bonded else 0
+        voted_weight = sum([int(x) for x in proposal["final_tally_result"].values()])
+
+        voters = set()
+        for tx in vote_txs:
+            for msg in tx["tx"]["body"]["messages"]:
+                voter = msg.get("voter")
+                if voter: voters.add(voter)
+
+        result = {
+            **proposal,
+            "epoch_id": epoch_id,
+            "voting_start_height": voting_start_height,
+            "total_weight": total_weight,
+            "voted_weight": voted_weight,
+            "total_voters": len(voters),
+            "total_participants": len(total_participants),
+            "total_vote_txs": total_vote_txs,
+            "total_submit_txs": total_submit_txs,
+            "total_deposit_txs": total_deposit_txs
+        }
+        return result
+    
+    async def fetch_and_cache_proposal(self):
+        voting_list = await self.client.get_proposals(status_code=2)
+        voting_proposal = []
+        if voting_list:
+            logger.info(f"Found {len(voting_list)} active voting proposals from chain, caching...")
+            tallying_data = await self.client.get_tallying()
+            for proposal in voting_list:
+                proposal_id = proposal["id"]
+                voting_proposal.append(int(proposal_id))
+                proposal["code"] = 2
+                proposal["tally_params"] = tallying_data["tally_params"]
+                enriched = await self.enrich_proposal_detail(proposal)
+                await self.cache_db.save_proposal(enriched)
+                logger.info(f"Cached active voting proposal id={proposal_id}")
+
+        db_voting = await self.cache_db.get_proposals_by_code(2)
+        if not db_voting:
+            logger.info("No voting proposals found in DB.")
+            return
+        tallying_data = await self.client.get_tallying()
+        for proposal in db_voting:
+            proposal_id = int(proposal["id"])
+            if proposal_id in voting_proposal: 
+                continue
+            raw = await self.client.get_proposal(proposal_id)
+            final_proposal = raw["proposal"]
+            status = final_proposal.get("status")
+            if status == "PROPOSAL_STATUS_VOTING_PERIOD":
+                logger.info(f"Proposal id={proposal_id} is still in voting period, skipping final update.")
+                continue
+            
+            final_proposal["tally_params"] = tallying_data["tally_params"]
+            enriched = await self.enrich_proposal_detail(final_proposal)
+            if status == "PROPOSAL_STATUS_PASSED":
+                enriched["code"] = 3
+            elif status == "PROPOSAL_STATUS_REJECTED":
+                enriched["code"] = 4
+            else:
+                enriched["code"] = 0
+            await self.cache_db.save_proposal(enriched)
+            logger.info(f"Proposal id={proposal_id} finalized with status={status}")
+            if enriched["code"] == 3:
+                msgs = [msg for msg in proposal.get("messages", []) if msg.get("@type", "").endswith("MsgUpdateParams")]
+                if not msgs: continue
+                height = enriched["voting_start_height"]
+                for msg in msgs:
+                    module = await self.resolve_module_from_msg(msg, height)
+                    old_params = await self.cache_db.get_latest_params_snapshot(module=module, height=height)
+                    if old_params is None:
+                        raise RuntimeError(f"No base params for module={module}")
+
+                    new_params = self.merge_params(old_params, msg["params"])
+                    await self.cache_db.save_params_snapshot(
+                        height=height, module=module, params=new_params, proposal_id=proposal_id
+                    )
+
+    async def get_proposals(self) -> ProposalsResponse:
+        status_map = {2: "voting", 3: "passed", 4: "rejected"}
+        data = {}
+        for code, name in status_map.items():
+            proposals = await self.cache_db.get_proposals_by_code(code)
+            data[name] = proposals
+        return ProposalsResponse(**data)
+    
+    async def get_proposal(self, proposal_id: int) -> ProposalDetailResponse:
+        proposal_detail = await self.cache_db.get_proposal(proposal_id)
+        diff_params = []
+        if proposal_detail["code"] == 3:
+            height = proposal_detail["voting_start_height"]
+            for msg in proposal_detail.get("messages", []):
+                if msg.get("@type", "").endswith("MsgUpdateParams"):
+                    
+                    module = await self.resolve_module_from_msg(msg, height)
+                    old_params = await self.cache_db.get_latest_params_snapshot(module=module, height=height)
+                    if old_params is None:
+                        raise RuntimeError(f"No base params for module={module}")
+
+                    diff_params.append({
+                        "@type": msg["@type"],
+                        "authority": msg["authority"],
+                        "diff_params": self.diff_params(old_params, msg["params"])
+                    })
+
+        response = ProposalDetailResponse(
+            proposal=proposal_detail,
+            diff_params=diff_params,
+        )
+        return response
+    
+    async def get_proposal_transactions(self, proposal_id: int) -> ProposalTransactions:
+        proposal_detail = await self.cache_db.get_proposal(proposal_id)
+        epoch_id = proposal_detail["epoch_id"]
+        try:
+            epoch_data = await self.get_epoch_participants(epoch_id)
+            active_participants_list = epoch_data["active_participants"]["participants"]
+            participants_weights_map = {
+                participant["index"]: participant for participant in active_participants_list
+            }
+        except:
+            epoch_group_data = await self.client.get_epoch_group_data(epoch_id)
+            validation_weights = epoch_group_data.get("epoch_group_data", {}).get("validation_weights", [])
+            participants_weights_map = {
+                vw["member_address"]: vw for vw in validation_weights
+            }
+        proposal_txs: ProposalTransactions = await self.client.get_proposal_transactions(proposal_id)
+        vote_txs = proposal_txs["vote"]["txs"]
+        for vote_tx in vote_txs:
+            msg = vote_tx["tx"]["body"]["messages"][0]
+            msg["weight"] = participants_weights_map.get(msg.get("voter"), {}).get("weight")
+        return proposal_txs
+
     async def repair_all_hardware_poc_weight(self):
         """
         Repair poc_weight for ALL epochs / participants / hardware nodes,
@@ -2710,15 +2981,60 @@ class InferenceService:
             except Exception as e:
                 logger.error(f"Failed to repair epoch {epoch_id}: {e}")
 
-    async def get_participant_status(self, participant_index: str, epoch_id: int | None = None) -> bool:
-        if epoch_id is None:
-            if self.current_epoch_id is None:
-                latest_info = await self.client.get_latest_epoch()
-                self.current_epoch_id = latest_info["latest_epoch"]["index"]
-            epoch_id = self.current_epoch_id
-        exists = await self.cache_db.has_participant_in_epoch(epoch_id, participant_index)
-        return {
-            "participant_id": participant_index,
-            "epoch_id": epoch_id,
-            "is_participant": exists,
-        }
+    async def collect_history_epoch_status(self):
+        latest_info = await self.client.get_latest_epoch()
+        current_epoch_id = latest_info["latest_epoch"]["index"]
+        cache_epoch = await self.cache_db.get_all_epoch_status()
+        existing_epoch = {int(r["epoch_id"]): dict(r) for r in cache_epoch}
+        logger.info(f"Existing local epoch_status count: {len(existing_epoch)}, current_epoch_id: {current_epoch_id}")
+
+        for epoch_id in range(0, current_epoch_id):
+            status = existing_epoch.get(epoch_id)
+            if status and status.get("is_finished"): continue
+            try:
+                data = await self.client.get_epoch_group_data(epoch_id)
+                epoch_data = data.get("epoch_group_data", {})
+                last_height = int(epoch_data.get("last_block_height", "0"))
+                await self.cache_db.mark_epoch_finished(epoch_id, last_height)
+                logger.info(f"Epoch {epoch_id} finished at height {last_height}")
+            except Exception as e:
+                logger.error(f"Failed to fetch epoch_group_data for {epoch_id}: {e}")
+    
+    async def collect_history_proposals(self):
+        tallying_data = await self.client.get_tallying()
+        if self.params_module_index is None:
+            genesis = await self.client.get_genesis()
+            app_state = genesis["result"]["genesis"]["app_state"]
+            self.params_module_index = self.build_params_module_index(app_state)
+            for module, data in app_state.items():
+                if not isinstance(data, dict) or not data: continue
+                params = data.get("params")
+                if not isinstance(params, dict): continue
+                await self.cache_db.save_params_snapshot(height=0, module=module, params=params, proposal_id=None)
+
+        for code in [3, 4]:
+            proposals = await self.client.get_proposals(status_code=code)
+            proposals.sort(key=lambda p: int(p["id"]))
+
+            for proposal in proposals:
+                proposal_id = int(proposal["id"])
+                proposal["code"] = code
+                proposal["tally_params"] = tallying_data["tally_params"]
+                
+                enriched = await self.enrich_proposal_detail(proposal)
+                await self.cache_db.save_proposal(enriched)
+
+                if code == 3:
+                    msgs = [ msg for msg in proposal.get("messages", []) if msg.get("@type", "").endswith("MsgUpdateParams")]
+                    if not msgs: continue
+                    height = enriched["voting_start_height"]
+                    for msg in msgs:
+                        module = await self.resolve_module_from_msg(msg, height)
+                        old_params = await self.cache_db.get_latest_params_snapshot(module=module, height=height)
+                        if old_params is None:
+                            raise RuntimeError(f"No base params for module={module}")
+
+                        new_params = self.merge_params(old_params, msg["params"])
+                        await self.cache_db.save_params_snapshot(
+                            height=height, module=module, params=new_params, proposal_id=proposal_id
+                        )

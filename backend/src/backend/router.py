@@ -15,7 +15,10 @@ from backend.models import (
     HardwaresResponse,
     HardwareDetailsResponse,
     HardwareEpochSeriesResponse,
-    BlockStatsResponse
+    BlockStatsResponse,
+    ProposalsResponse,
+    ProposalDetailResponse,
+    ProposalTransactions
 )
 
 router = APIRouter(prefix="/v1")
@@ -329,3 +332,34 @@ async def get_hardware_metrics():
         return await inference_service.get_hardware_metrics()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch hardware metrics: {str(e)}")
+
+
+@router.get("/proposals", response_model=ProposalsResponse)
+async def get_proposals():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_proposals()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch proposals: {str(e)}")
+
+@router.get("/proposals/{proposal_id}", response_model=ProposalDetailResponse)
+async def get_proposal(proposal_id: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_proposal(proposal_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch proposal detail: {str(e)}")
+
+@router.get("/proposals/{proposal_id}/transactions", response_model=ProposalTransactions)
+async def get_proposal_transactions(proposal_id: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_proposal_transactions(proposal_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch proposal transactions: {str(e)}")

@@ -91,6 +91,51 @@ function TabbedObject({ data, level, }: { data: Record<string, any>, level: numb
   )
 }
 
+export function StringArray({data, collapseCount = 30}: {
+  data: string[]
+  collapseCount?: number
+}) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (data.length === 0) {
+    return <span className="text-gray-500">[]</span>
+  }
+
+  const visible = expanded ? data : data.slice(0, collapseCount)
+  const hiddenCount = data.length - visible.length
+
+  return (
+    <div className="font-mono text-sm text-gray-600">
+      <span>[</span>
+
+      <div className="flex flex-wrap gap-x-4 gap-y-1 pl-4">
+        {visible.map((v, i) => (
+          <span key={i} className="whitespace-nowrap">
+            "{v}"
+            {i < visible.length - 1 || hiddenCount > 0 ? ',' : ''}
+          </span>
+        ))}
+
+        {!expanded && hiddenCount > 0 && (
+          <span className="text-gray-400 italic whitespace-nowrap"> … {hiddenCount} more</span>
+        )}
+      </div>
+
+      <span>]</span>
+
+      {data.length > collapseCount && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-2 text-xs text-blue-600 hover:underline"
+        >
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function StructArray({ data, level }: { data: any[], level: number }) {
   if (data.length === 0) {
     return <span className="text-gray-500">[]</span>
@@ -144,6 +189,9 @@ function StructRenderer({ data, level }: { data: any, level: number }) {
     return (<span className="break-all font-normal text-sm text-gray-500">{String(data)}</span>)
   }
   if (Array.isArray(data)) {
+    if (data.every(v => typeof v === 'string')) {
+      return <StringArray data={data} />
+    }
     return (<StructArray data={data} level={level} />)
   }
   if (level % 2 === 1) {
@@ -152,7 +200,7 @@ function StructRenderer({ data, level }: { data: any, level: number }) {
   return <TabbedObject data={data} level={level} />
 }
 
-function MessageBlock({ msg }: { msg: any }) {
+export function MessageBlock({ msg }: { msg: any }) {
   return (
     <div className="border rounded-lg mb-6">
       <div className="bg-gray-100 px-4 py-2 font-mono text-xs flex gap-2">
@@ -168,7 +216,7 @@ function MessageBlock({ msg }: { msg: any }) {
   )
 }
 
-function JsonViewer({ data }: { data: any }) {
+export function JsonViewer({ data }: { data: any }) {
   return (
     <ReactJson
       src={data}

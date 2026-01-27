@@ -541,3 +541,66 @@ class GonkaClient:
     async def get_vesting_schedule(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
     
+    async def get_tallying(self):
+        return await self._make_request("/chain-api/cosmos/gov/v1/params/tallying")
+    
+    async def get_genesis(self):
+        return await self._make_request("/chain-rpc/genesis")
+    
+    async def get_proposal(self, proposal_id: int):
+        return await self._make_request(f"/chain-api/cosmos/gov/v1/proposals/{proposal_id}")
+
+    async def get_proposals(self, status_code: int, limit: int = 100):
+        url = f"/chain-api/cosmos/gov/v1/proposals?proposal_status={status_code}&pagination.limit={limit}&pagination.count_total=true&pagination.reverse=true"
+        responses = await self._make_request(url)
+        proposals = responses.get("proposals", [])
+        next_key = responses["pagination"]["next_key"] if responses else None
+        while next_key:
+            url = f"chain-api/cosmos/gov/v1/proposals?proposal_status={status_code}&pagination.key={next_key}&pagination.limit={limit}&pagination.reverse=true"
+            responses = await self._make_request(url)
+            proposals.extend(responses["proposals"])
+            next_key = responses["pagination"]["next_key"] if responses else None
+        return proposals
+
+    async def get_proposal_transactions(self, proposal_id: int, limit: int = 100):
+        result = {}
+        tx_urls = {
+            "submit":  f"/chain-api/cosmos/tx/v1beta1/txs?query=submit_proposal.proposal_id={proposal_id}&page=1&limit={limit}",
+            "deposit": f"/chain-api/cosmos/tx/v1beta1/txs?query=proposal_deposit.proposal_id={proposal_id}&page=1&limit={limit}",
+            "vote":    f"/chain-api/cosmos/tx/v1beta1/txs?query=proposal_vote.proposal_id={proposal_id}&page=1&limit={limit}"
+        }
+
+        first_tx_responses = await asyncio.gather(*(self._make_request(url) for url in tx_urls.values()))
+        for key in tx_urls.keys():
+            result[key] = {"total": 0, "txs": []}
+
+        pagination_jobs = []
+        for (key, _), res in zip(tx_urls.items(), first_tx_responses):
+            if not res:
+                continue
+
+            total = int(res.get("total", 0))
+            txs = res.get("tx_responses", [])
+            result[key]["txs"].extend(txs)
+            result[key]["total"] = total
+
+            if len(txs) < total:
+                total_pages = (total + limit - 1) // limit
+                for page in range(2, total_pages + 1):
+                    pagination_jobs.append((key, page, limit))
+
+        if pagination_jobs:
+            urls2 = [
+                (
+                    key,
+                    f"/chain-api/cosmos/tx/v1beta1/txs?query="
+                    f"{('submit_proposal' if key=='submit' else ('proposal_deposit' if key=='deposit' else 'proposal_vote'))}"
+                    f".proposal_id={proposal_id}&page={page}&limit={limit}"
+                )
+                for key, page, limit in pagination_jobs
+            ]
+            pages = await asyncio.gather(*(self._make_request(url) for _, url in urls2))
+            for (key, _), page_res in zip(urls2, pages):
+                if page_res and "txs" in page_res:
+                    result[key]["txs"].extend(page_res["tx_responses"])
+        return result
