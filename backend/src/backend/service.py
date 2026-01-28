@@ -2788,6 +2788,12 @@ class InferenceService:
         #     voting_start_height = await self.cache_db.get_height_by_time(voting_start_time)
 
         epoch_id = await self.cache_db.get_epoch_by_height(voting_start_height)
+        if not epoch_id:
+            if self.current_epoch_id: 
+                epoch_id = self.current_epoch_id
+            else:
+                latest_info = await self.client.get_latest_epoch()
+                epoch_id = latest_info["latest_epoch"]["index"]
         logger.info(f"{proposal_id} epoch_id {epoch_id} {voting_start_height}")
         
         epoch_data =  await self.client.get_epoch_group_data(epoch_id)
@@ -2835,6 +2841,8 @@ class InferenceService:
                 voting_proposal.append(int(proposal_id))
                 proposal["code"] = 2
                 proposal["tally_params"] = tallying_data["tally_params"]
+                tally = await self.client.get_proposal_tally(int(proposal_id))
+                proposal["final_tally_result"] = tally["tally"]
                 enriched = await self.enrich_proposal_detail(proposal)
                 await self.cache_db.save_proposal(enriched)
                 logger.info(f"Cached active voting proposal id={proposal_id}")
@@ -2846,7 +2854,7 @@ class InferenceService:
         tallying_data = await self.client.get_tallying()
         for proposal in db_voting:
             proposal_id = int(proposal["id"])
-            if proposal_id in voting_proposal: 
+            if proposal_id in voting_proposal:
                 continue
             raw = await self.client.get_proposal(proposal_id)
             final_proposal = raw["proposal"]

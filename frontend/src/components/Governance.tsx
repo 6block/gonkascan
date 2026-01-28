@@ -62,10 +62,10 @@ export function Governance() {
   const [selectedProposalId, setSelectedProposalId] = useState<string | null>(
     null
   )
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-  const [tab, setTab] = useState<Tab>('passed')
+  const [tab, setTab] = useState<Tab | null>(null)
   const [page, setPage] = useState(1)
 
+  const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { data, isLoading } = useQuery({
     queryKey: ['governance-proposals'],
     queryFn: async () => {
@@ -80,6 +80,17 @@ export function Governance() {
     if (data.voting?.length > 0) return 'voting'
     return 'passed'
   }, [data])
+
+  useEffect(() => {
+    if (!data) return
+    if (tab !== null) return
+  
+    if (data.voting?.length > 0) {
+      setTab('voting')
+    } else {
+      setTab('passed')
+    }
+  }, [data, tab])
 
   const activeTab = tab ?? effectiveTab
 

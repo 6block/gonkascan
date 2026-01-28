@@ -543,6 +543,9 @@ class GonkaClient:
     
     async def get_tallying(self):
         return await self._make_request("/chain-api/cosmos/gov/v1/params/tallying")
+
+    async def get_proposal_tally(self, proposal_id: int):
+        return await self._make_request(f"/chain-api/cosmos/gov/v1/proposals/{proposal_id}/tally")
     
     async def get_genesis(self):
         return await self._make_request("/chain-rpc/genesis")

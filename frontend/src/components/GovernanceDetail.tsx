@@ -347,7 +347,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
           {/* 历史文档标注 */}
           {data.source === 'commit' && (
             <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">
-              historical
+              commit
             </span>
           )}
         </div>
