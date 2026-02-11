@@ -205,6 +205,8 @@ class CacheDB:
                     epoch_id INTEGER PRIMARY KEY,
                     is_finished BOOLEAN NOT NULL,
                     finish_height INTEGER,
+                    total_weight TEXT,
+                    epoch_data_json TEXT,
                     marked_at TEXT NOT NULL
                 )
             """)
@@ -632,15 +634,17 @@ class CacheDB:
                 row = await cursor.fetchone()
                 return row[0] > 0
     
-    async def mark_epoch_finished(self, epoch_id: int, finish_height: int):
+    async def mark_epoch_finished(self, epoch_id: int, finish_height: int, epoch_data: dict):
         marked_at = datetime.utcnow().isoformat()
+        total_weight = epoch_data["total_weight"]
+        epoch_data_json = json.dumps(epoch_data)
         
         async with aiosqlite.connect(self.db_path) as db:
             await db.execute("""
                 INSERT OR REPLACE INTO epoch_status 
-                (epoch_id, is_finished, finish_height, marked_at)
-                VALUES (?, ?, ?, ?)
-            """, (epoch_id, True, finish_height, marked_at))
+                (epoch_id, is_finished, finish_height, total_weight, epoch_data_json, marked_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (epoch_id, True, finish_height, total_weight, epoch_data_json, marked_at))
             await db.commit()
             logger.info(f"Marked epoch {epoch_id} as finished at height {finish_height}")
     
@@ -661,6 +665,15 @@ class CacheDB:
             """, (epoch_id,)) as cursor:
                 row = await cursor.fetchone()
                 return row["finish_height"] if row else None
+    
+    async def get_epoch_status_data(self, epoch_id: int) -> Optional[int]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT epoch_data_json FROM epoch_status WHERE epoch_id = ?
+            """, (epoch_id,)) as cursor:
+                row = await cursor.fetchone()
+                return json.loads(row["epoch_data_json"]) if row else None
     
     async def clear_epoch_stats(self, epoch_id: int):
         async with aiosqlite.connect(self.db_path) as db:

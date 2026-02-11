@@ -559,7 +559,9 @@ class InferenceService:
             )
             
             if height is None and not is_finished:
-                await self.cache_db.mark_epoch_finished(epoch_id, target_height)
+                data = await self.client.get_epoch_group_data(epoch_id)
+                epoch_data = data.get("epoch_group_data", {})
+                await self.cache_db.mark_epoch_finished(epoch_id, target_height, epoch_data)
             
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, target_height, epoch_data["active_participants"]["participants"])
             participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, target_height, epoch_data["active_participants"]["participants"])
@@ -2122,7 +2124,7 @@ class InferenceService:
             return {"ok": False, "height": height, "error": str(e)}
 
     async def fetch_and_cache_blocks(self):
-        max_blocks = 200
+        max_blocks = 20
         latest_db_height = await self.cache_db.get_latest_block_height()
         current_height = await self.client.get_latest_height()
 
@@ -2154,6 +2156,7 @@ class InferenceService:
             if work_result["ok"]:
                 commit_upto = work_result["height"]
             else:
+                logger.info(f"[Cache blocks] work_result: {work_result}")
                 break
 
         if commit_upto is None:
@@ -2931,8 +2934,12 @@ class InferenceService:
                 participant["index"]: participant for participant in active_participants_list
             }
         except:
-            epoch_group_data = await self.client.get_epoch_group_data(epoch_id)
-            validation_weights = epoch_group_data.get("epoch_group_data", {}).get("validation_weights", [])
+            cache_epoch_data = await self.cache_db.get_epoch_status_data(epoch_id)
+            if cache_epoch_data:
+                validation_weights = cache_epoch_data.get("validation_weights", [])
+            else:
+                epoch_group_data = await self.client.get_epoch_group_data(epoch_id)
+                validation_weights = epoch_group_data.get("epoch_group_data", {}).get("validation_weights", [])
             participants_weights_map = {
                 vw["member_address"]: vw for vw in validation_weights
             }
@@ -3003,7 +3010,7 @@ class InferenceService:
                 data = await self.client.get_epoch_group_data(epoch_id)
                 epoch_data = data.get("epoch_group_data", {})
                 last_height = int(epoch_data.get("last_block_height", "0"))
-                await self.cache_db.mark_epoch_finished(epoch_id, last_height)
+                await self.cache_db.mark_epoch_finished(epoch_id, last_height, epoch_data)
                 logger.info(f"Epoch {epoch_id} finished at height {last_height}")
             except Exception as e:
                 logger.error(f"Failed to fetch epoch_group_data for {epoch_id}: {e}")
@@ -3046,3 +3053,13 @@ class InferenceService:
                         await self.cache_db.save_params_snapshot(
                             height=height, module=module, params=new_params, proposal_id=proposal_id
                         )
+
+        for code in [3, 4]:
+            proposals = await self.cache_db.get_proposals_by_code(code)
+            for proposal in proposals:
+                total_weight = proposal["total_weight"]
+                if total_weight: continue
+                cache_epoch_data = await self.cache_db.get_epoch_status_data(proposal["epoch_id"])
+                proposal["total_weight"] = cache_epoch_data["total_weight"]
+                await self.cache_db.save_proposal(proposal)
+
