@@ -28,6 +28,20 @@ type AddressParticipantStatus = {
   epochId: number
 } | null
 
+function weightToH100(weight: number, epoch: number) {
+  let BASELINE: number
+
+  if (epoch <= 158) {
+    BASELINE = 437
+  } else if (epoch <= 176) {
+    BASELINE = 292.88
+  } else {
+    BASELINE = 254.5
+  }
+
+  return weight / BASELINE
+}
+
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
@@ -555,7 +569,7 @@ function App() {
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Equivalent H100</div>
                       <div>
                         <div className="text-2xl font-bold text-gray-900 leading-none">
-                          {Math.round(data.participants.reduce((sum, p) => sum + p.weight, 0) / 437).toLocaleString()} GPUs
+                          {Math.round(weightToH100(data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id)).toLocaleString()} GPUs
                         </div>
                         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
                       </div>
