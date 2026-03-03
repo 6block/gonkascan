@@ -18,7 +18,9 @@ from backend.models import (
     BlockStatsResponse,
     ProposalsResponse,
     ProposalDetailResponse,
-    ProposalTransactions
+    ProposalTransactions,
+    MarketStats,
+    TokenStats
 )
 
 router = APIRouter(prefix="/v1")
@@ -363,3 +365,13 @@ async def get_proposal_transactions(proposal_id: str):
         return await inference_service.get_proposal_transactions(proposal_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch proposal transactions: {str(e)}")
+
+@router.get("/stats/market", response_model=MarketStats)
+async def get_market_stats():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_market_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch gonka market stats: {str(e)}")

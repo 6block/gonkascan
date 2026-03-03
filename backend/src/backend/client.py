@@ -7,6 +7,7 @@ import time
 import bech32
 import asyncio
 import random
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -607,3 +608,103 @@ class GonkaClient:
                 if page_res and "txs" in page_res:
                     result[key]["txs"].extend(page_res["tx_responses"])
         return result
+    
+    async def fetch_gonka_orderbook(self) -> Dict[str, Any]:
+        RPC_URL = "https://api.hot-labs.org/api/v1/evm/rpc/1010"
+
+        args = {
+            "token_pair": {
+                "base": "nep245:v2_1.omni.hot.tg:4444119_wyixUKCL",
+                "quote": "nep141:usdt.tether-token.near"
+            },
+            "depth": 1000,
+            "with_extra": True
+        }
+
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "query",
+            "params": {
+                "request_type": "call_function",
+                "finality": "optimistic",
+                "account_id": "orderbook.fi.tg",
+                "method_name": "get_orderbook",
+                "args_base64": base64.b64encode(json.dumps(args).encode()).decode()
+            }
+        }
+
+        headers = {
+            "Content-Type": "application/json",
+            "Api-Key": "hex",
+            "Origin": "https://hex.exchange",
+            "Referer": "https://hex.exchange/",
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        start_time = time.time()
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(RPC_URL, json=payload, headers=headers)
+                response_time_ms = int((time.time() - start_time) * 1000)
+
+                if response.status_code != 200:
+                    return {
+                        "is_success": False,
+                        "error_message": f"HTTP {response.status_code}",
+                        "response_time_ms": response_time_ms,
+                        "data": None
+                    }
+
+                data = response.json()
+
+                raw_bytes = bytes(data["result"]["result"])
+                orderbook = json.loads(raw_bytes.decode())
+
+                return {
+                    "is_success": True,
+                    "error_message": None,
+                    "response_time_ms": response_time_ms,
+                    "data": orderbook
+                }
+
+        except Exception as e:
+            return {
+                "is_success": False,
+                "error_message": str(e),
+                "response_time_ms": None,
+                "data": None
+            }
+
+    async def fetch_gonka_limit_orders_stat(self) -> Dict[str, Any]:
+        url = "https://api0.herewallet.app/api/v1/exchange/limit_orders/gonka/stat"
+        start_time = time.time()
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url)
+                response_time_ms = int((time.time() - start_time) * 1000)
+
+                if response.status_code == 200:
+                    return {
+                        "is_success": True,
+                        "error_message": None,
+                        "response_time_ms": response_time_ms,
+                        "data": response.json()
+                    }
+                else:
+                    return {
+                        "is_success": False,
+                        "error_message": f"HTTP {response.status_code}",
+                        "response_time_ms": response_time_ms,
+                        "data": None
+                    }
+
+        except Exception as e:
+            return {
+                "is_success": False,
+                "error_message": str(e),
+                "response_time_ms": None,
+                "data": None
+            }

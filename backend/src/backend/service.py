@@ -13,6 +13,7 @@ import geoip2.database
 from collections import defaultdict
 from geoip2.errors import AddressNotFoundError
 from typing import Optional, List, Dict, Any
+from decimal import Decimal, getcontext
 from datetime import datetime, timezone, timedelta
 import importlib
 import pkgutil
@@ -59,8 +60,16 @@ from backend.models import (
     BlockStatsResponse,
     ProposalsResponse,
     ProposalDetailResponse,
-    ProposalTransactions
+    ProposalTransactions,
+    OrderbookStats,
+    TokenStats,
+    MarketStats
 )
+
+getcontext().prec = 60
+
+BASE_DECIMALS = Decimal("1e9")
+QUOTE_DECIMALS = Decimal("1e6")
 
 logger = logging.getLogger(__name__)
 
@@ -2949,6 +2958,111 @@ class InferenceService:
             msg = vote_tx["tx"]["body"]["messages"][0]
             msg["weight"] = participants_weights_map.get(msg.get("voter"), {}).get("weight")
         return proposal_txs
+    
+    async def poll_market_stats(self):
+        result = await self.client.fetch_gonka_orderbook()
+        if not result["is_success"]:
+            raise Exception(result["error_message"])
+
+        orderbook = result["data"]
+        asks = orderbook.get("asks", [])
+        bids = orderbook.get("bids", [])
+
+        ask_volume_gnk = Decimal(0)
+        ask_volume_usd = Decimal(0)
+        bid_volume_gnk = Decimal(0)
+        bid_volume_usd = Decimal(0)
+
+        for a in asks:
+            quote_raw = Decimal(a["order_balance"])
+            price_raw = Decimal(a["price"])
+            base_amount = quote_raw / BASE_DECIMALS
+            quote_amount = (quote_raw * price_raw) / QUOTE_DECIMALS
+
+            ask_volume_gnk += base_amount
+            ask_volume_usd += quote_amount
+
+        for b in bids:
+            quote_raw = Decimal(b["order_balance"])
+            price_raw = Decimal(b["price"])
+            base_smallest = quote_raw / price_raw
+            base_amount = base_smallest / BASE_DECIMALS
+            quote_amount = quote_raw / QUOTE_DECIMALS
+
+            bid_volume_gnk += base_amount
+            bid_volume_usd += quote_amount
+
+        best_ask = min((Decimal(a["price"]) for a in asks), default=Decimal(0)) * Decimal("1000")
+        best_bid = max((Decimal(b["price"]) for b in bids), default=Decimal(0)) * Decimal("1000")
+
+        if best_ask > 0 and best_bid > 0:
+            price = (best_ask + best_bid) / 2
+        else:
+            price = Decimal(0)
+
+        if price > 0:
+            spread_percent = (best_ask - best_bid) / price * 100
+        else:
+            spread_percent = Decimal(0)
+        
+        orderbook_stats = {
+            "price": float(price),
+            "best_ask": float(best_ask),
+            "best_bid": float(best_bid),
+            "spread_percent": float(spread_percent),
+            "ask_volume_gnk": float(ask_volume_gnk),
+            "ask_volume_usd": float(ask_volume_usd),
+            "ask_orders_count": len(asks),
+            "bid_volume_gnk": float(bid_volume_gnk),
+            "bid_volume_usd": float(bid_volume_usd),
+            "bid_orders_count": len(bids),
+            "updated_at": datetime.utcnow()
+        }
+    
+        limit_orders = await self.client.fetch_gonka_limit_orders_stat()
+
+        if not limit_orders["is_success"]:
+            raise Exception(limit_orders["error_message"])
+
+        token_stats = limit_orders["data"]
+        await self.cache_db.save_market_stats(orderbook_stats, token_stats)
+    
+    async def get_market_stats(self) -> MarketStats:
+        market_stats = await self.cache_db.get_market_stats()
+        orderbook_stats = OrderbookStats(
+            price=float(market_stats["price"]),
+            best_ask=float(market_stats["best_ask"]),
+            best_bid=float(market_stats["best_bid"]),
+            spread_percent=float(market_stats["spread_percent"]),
+            ask_volume_gnk=float(market_stats["ask_volume_gnk"]),
+            ask_volume_usd=float(market_stats["ask_volume_usd"]),
+            ask_orders_count=market_stats["ask_orders_count"],
+            bid_volume_gnk=float(market_stats["bid_volume_gnk"]),
+            bid_volume_usd=float(market_stats["bid_volume_usd"]),
+            bid_orders_count=market_stats["bid_orders_count"],
+            updated_at=market_stats["orderbook_updated_at"]
+        )
+        token_stats = TokenStats(
+            epoch_id=market_stats["epoch_id"],
+            total_mining_rewards=market_stats["total_mining_rewards"],
+            user_circulating=market_stats["user_circulating"],
+            user_unlocked=market_stats["user_unlocked"],
+            user_in_vesting=market_stats["user_in_vesting"],
+            user_accounts_count=market_stats["user_accounts_count"],
+            genesis_total=market_stats["genesis_total"],
+            genesis_unlocked=market_stats["genesis_unlocked"],
+            genesis_in_vesting=market_stats["genesis_in_vesting"],
+            genesis_accounts_count=market_stats["genesis_accounts_count"],
+            module_balance=market_stats["module_balance"],
+            module_accounts_count=market_stats["module_accounts_count"],
+            community_pool=market_stats["community_pool"],
+            total_supply=market_stats["total_supply"],
+            updated_at=market_stats["token_updated_at"],
+        )
+        return MarketStats(
+            market_stats = orderbook_stats,
+            token_stats = token_stats
+        )
 
     async def repair_all_hardware_poc_weight(self):
         """

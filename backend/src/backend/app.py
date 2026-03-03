@@ -31,6 +31,7 @@ POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL
 POLL_TRANSACTIONS_INTERVAL = int(os.getenv("POLL_TRANSACTIONS_INTERVAL", "10"))
 POLL_BLOCKS_INTERVAL = int(os.getenv("POLL_BLOCKS_INTERVAL", "10"))
 POLL_PROPOSALS_INTERVAL = int(os.getenv("POLL_PROPOSALS_INTERVAL", "60"))
+POLL_MARKET_STATS_INTERVAL = int(os.getenv("POLL_MARKET_STATS_INTERVAL", "60"))
 
 background_task = None
 jail_polling_task = None
@@ -249,6 +250,20 @@ async def poll_proposals():
         await asyncio.sleep(POLL_PROPOSALS_INTERVAL)
 
 
+async def poll_market_stats():
+    await asyncio.sleep(10)
+
+    while True:
+        try:
+            if inference_service_instance:
+                await inference_service_instance.poll_market_stats()
+                logger.info("Background polling: fetched and saved market stats")
+        except Exception as e:
+            logger.error(f"Market stats polling error: {e}")
+
+        await asyncio.sleep(POLL_MARKET_STATS_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global background_task, jail_polling_task, health_polling_task, rewards_polling_task, warm_keys_polling_task, hardware_nodes_polling_task, epoch_total_rewards_polling_task, participant_inferences_polling_task, models_api_polling_task, timeline_polling_task, confirmation_polling_task, inference_service_instance
@@ -288,6 +303,7 @@ async def lifespan(app: FastAPI):
     transactions_polling_task = asyncio.create_task(poll_transactions())
     blocks_polling_task = asyncio.create_task(poll_blocks())
     proposals_polling_task = asyncio.create_task(poll_proposals())
+    market_stats_polling_task = asyncio.create_task(poll_market_stats())
     logger.info("Background polling tasks started")
     
     yield
@@ -389,6 +405,13 @@ async def lifespan(app: FastAPI):
             await proposals_polling_task
         except asyncio.CancelledError:
             logger.info("Proposals polling task cancelled")
+    
+    if market_stats_polling_task:
+        market_stats_polling_task.cancel()
+        try:
+            await market_stats_polling_task
+        except asyncio.CancelledError:
+            logger.info("Market stats polling task cancelled")
 
 
 app = FastAPI(lifespan=lifespan)

@@ -492,6 +492,38 @@ class CacheDB:
                     UNIQUE(height, module)
                 );
             """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS market_stats (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    price REAL NOT NULL,
+                    best_ask REAL NOT NULL,
+                    best_bid REAL NOT NULL,
+                    spread_percent REAL NOT NULL,
+                    ask_volume_gnk REAL NOT NULL,
+                    ask_volume_usd REAL NOT NULL,
+                    ask_orders_count INTEGER NOT NULL,
+                    bid_volume_gnk REAL NOT NULL,
+                    bid_volume_usd REAL NOT NULL,
+                    bid_orders_count INTEGER NOT NULL,
+                    orderbook_updated_at TEXT NOT NULL,
+                    epoch_id INTEGER NOT NULL,
+                    total_mining_rewards REAL NOT NULL,
+                    user_circulating REAL NOT NULL,
+                    user_unlocked REAL NOT NULL,
+                    user_in_vesting REAL NOT NULL,
+                    user_accounts_count INTEGER NOT NULL,
+                    genesis_total REAL NOT NULL,
+                    genesis_unlocked REAL NOT NULL,
+                    genesis_in_vesting REAL NOT NULL,
+                    genesis_accounts_count INTEGER NOT NULL,
+                    module_balance REAL NOT NULL,
+                    module_accounts_count INTEGER NOT NULL,
+                    community_pool REAL NOT NULL,
+                    total_supply REAL NOT NULL,
+                    token_updated_at TEXT NOT NULL
+                );
+            """)
             
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
@@ -2053,5 +2085,57 @@ class CacheDB:
             """,(module, height)) as cursor:
                 row = await cursor.fetchone()
                 return json.loads(row["params_json"]) if row else None
+    
+    async def save_market_stats(self, orderboot_stats: dict, token_stats: dict):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO market_stats (
+                    id, price, best_ask, best_bid, spread_percent,
+                    ask_volume_gnk, ask_volume_usd, ask_orders_count,
+                    bid_volume_gnk, bid_volume_usd, bid_orders_count, orderbook_updated_at,
+                    epoch_id, total_mining_rewards,
+                    user_circulating, user_unlocked, user_in_vesting, user_accounts_count,
+                    genesis_total, genesis_unlocked, genesis_in_vesting, genesis_accounts_count,
+                    module_balance, module_accounts_count, community_pool, total_supply, token_updated_at
+                ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            )""", (
+                orderboot_stats["price"],
+                orderboot_stats["best_ask"],
+                orderboot_stats["best_bid"],
+                orderboot_stats["spread_percent"],
+                orderboot_stats["ask_volume_gnk"],
+                orderboot_stats["ask_volume_usd"],
+                orderboot_stats["ask_orders_count"],
+                orderboot_stats["bid_volume_gnk"],
+                orderboot_stats["bid_volume_usd"],
+                orderboot_stats["bid_orders_count"],
+                orderboot_stats["updated_at"],
+                token_stats["epoch_id"],
+                token_stats["total_mining_rewards"],
+                token_stats["user_circulating"],
+                token_stats["user_unlocked"],
+                token_stats["user_in_vesting"],
+                token_stats["user_accounts_count"],
+                token_stats["genesis_total"],
+                token_stats["genesis_unlocked"],
+                token_stats["genesis_in_vesting"],
+                token_stats["genesis_accounts_count"],
+                token_stats["module_balance"],
+                token_stats["module_accounts_count"],
+                token_stats["community_pool"],
+                token_stats["total_supply"],
+                token_stats["updated_at"]
+            ))
+
+            await db.commit()
+            logger.info(f"Saved market_stats")
+    
+    async def get_market_stats(self):
+         async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM market_stats WHERE id = 1") as cursor:
+                row = await cursor.fetchone()
+                return row if row else None
+
 
 

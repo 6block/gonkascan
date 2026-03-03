@@ -407,3 +407,39 @@ class ProposalTransactions(BaseModel):
 class ProposalDetailResponse(BaseModel):
     proposal: ProposalModel
     diff_params: Optional[List[Any]] = None
+
+
+class OrderbookStats(BaseModel):
+    price: float
+    best_ask: float
+    best_bid: float
+    spread_percent: float
+    ask_volume_gnk: float
+    ask_volume_usd: float
+    ask_orders_count: int
+    bid_volume_gnk: float
+    bid_volume_usd: float
+    bid_orders_count: int
+    updated_at: datetime
+
+
+class TokenStats(BaseModel):
+    epoch_id: int
+    total_mining_rewards: float
+    user_circulating: float
+    user_unlocked: float
+    user_in_vesting: float
+    user_accounts_count: int
+    genesis_total: float
+    genesis_unlocked: float
+    genesis_in_vesting: float
+    genesis_accounts_count: int
+    module_balance: float
+    module_accounts_count: int
+    community_pool: float
+    total_supply: float
+    updated_at: datetime
+
+class MarketStats(BaseModel):
+    market_stats : OrderbookStats
+    token_stats: TokenStats
