@@ -162,7 +162,15 @@ function StructArray({ data, level }: { data: any[], level: number }) {
               <tr key={rowIndex} className="border-t align-top">
                 {columns.map((col) => (
                   <td key={col} className="px-4 py-2 break-all align-middle">
-                    <StructRenderer data={row[col]} level={level + 1} />
+                    {(() => {
+                      let value = row[col]
+                      if (row?.denom === 'ngonka') {
+                        if (col === 'amount') {
+                          value = row.amount + " ( " + (Number(row.amount) / 1e9).toString() + " gonka )"
+                        }
+                      }
+                      return <StructRenderer data={value} level={level + 1} />
+                    })()}
                   </td>
                 ))}
               </tr>
