@@ -17,11 +17,23 @@ import { Hardware } from './components/Hardware'
 import { Governance } from './components/Governance'
 import { GovernanceDetail } from './components/GovernanceDetail'
 import { MarketStats } from './components/MarketStats'
+import { Resource } from './components/Resource'
 import { isValidGonkaAddress, isHex64, isBlockHeight } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
-type Page = 'dashboard' | 'models' | 'hardware' | 'timeline' | 'transactions' | 'nodemap' | 'address' | 'blocks' | 'governance'
+type Page =
+  | 'dashboard'
+  | 'models'
+  | 'hardware'
+  | 'timeline'
+  | 'transactions'
+  | 'nodemap'
+  | 'address'
+  | 'blocks'
+  | 'governance'
+  | 'resource'
+
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
 type AddressParticipantStatus = {
@@ -354,7 +366,7 @@ function App() {
     <>
       <Toaster position="top-center" toastOptions={{duration: 3000,}}/>
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <div className="flex-1 container mx-auto px-3 sm:px-4 py-4 sm:py-6 md:py-8 max-w-[1600px]">
+        <div className="flex-1 mx-auto w-full max-w-[1400px] px-6 md:px-8 py-8">
         {shouldShowHeader  && (
           <header className="mb-6 md:mb-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 md:mb-6">
@@ -452,6 +464,16 @@ function App() {
                 >
                   Node Map
                 </button>
+                <button
+                  onClick={() => handlePageChange('resource')}
+                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                    currentPage === 'resource'
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  Resource
+                </button>
               </div>
 
               <div className="ml-auto relative">
@@ -505,6 +527,8 @@ function App() {
             )
           ) : currentPage === 'nodemap' ? (
             <ParticipantMap />
+          ) : currentPage === 'resource' ? (
+            <Resource />
           ) : currentPage === 'address' ? (
             selectedAddress ? (
               <AddressRoute
