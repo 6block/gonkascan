@@ -231,6 +231,7 @@ export interface AssetsResponse {
   balances: BalanceInfo[];
   total_vesting: BalanceInfo[];
   epoch_amounts: EpochSchedule[];
+  total_rewarded: BalanceInfo;
 }
 
 export interface EpochSeriesPoint {

@@ -2394,8 +2394,10 @@ class InferenceService:
             balances = balances_data.get("balances", [])
             total_vesting = []
             epoch_amounts = []
+            total_rewarded = 0
 
             if is_participant:
+                rewards_data = await self.cache_db.get_all_rewards_for_participant(address)
                 vesting_schedule_data = await self.client.get_vesting_schedule(address)
                 vesting_schedule = vesting_schedule_data.get("vesting_schedule")
                 epoch_amounts = vesting_schedule.get("epoch_amounts", [])
@@ -2411,12 +2413,19 @@ class InferenceService:
                         "denom": "ngonka"
                     }
                 )
+                for reward_data in rewards_data:
+                    rewarded_coins = int(reward_data.get("rewarded_coins", "0"))
+                    total_rewarded += rewarded_coins
 
             return AssetsResponse(
                 address=address,
                 balances=balances,
                 total_vesting=total_vesting,
-                epoch_amounts=epoch_amounts
+                epoch_amounts=epoch_amounts,
+                total_rewarded={
+                    "amount": str(total_rewarded),
+                    "denom": "ngonka"
+                }
             )
 
         except Exception as e:

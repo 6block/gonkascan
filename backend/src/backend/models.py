@@ -269,6 +269,7 @@ class AssetsResponse(BaseModel):
     balances: List[BalanceInfo]
     total_vesting: List[BalanceInfo]
     epoch_amounts: List[EpochSchedule]
+    total_rewarded: BalanceInfo
 
 class EpochSeriesPoint(BaseModel):
     epoch_id: int

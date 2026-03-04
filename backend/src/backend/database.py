@@ -940,6 +940,32 @@ class CacheDB:
                 
                 return results
     
+    async def get_all_rewards_for_participant(self, participant_id: str) -> List[Dict[str, Any]]:
+        
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            
+            query = """
+                SELECT * FROM participant_rewards
+                WHERE participant_id = ? AND epoch_id > 99
+                ORDER BY epoch_id DESC
+            """
+            
+            async with db.execute(query, (participant_id,)) as cursor:
+                rows = await cursor.fetchall()
+                
+                results = []
+                for row in rows:
+                    results.append({
+                        "epoch_id": row["epoch_id"],
+                        "participant_id": row["participant_id"],
+                        "rewarded_coins": row["rewarded_coins"],
+                        "claimed": bool(row["claimed"]),
+                        "last_updated": row["last_updated"]
+                    })
+                
+                return results
+    
     async def save_warm_keys_batch(
         self,
         epoch_id: int,

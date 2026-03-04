@@ -104,6 +104,8 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
     ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : 0 
   
+  const total_rewards = Number(assets?.total_rewarded?.amount) / NGONKA
+
   const vestingEpochData = assets?.epoch_amounts?.map((epoch, idx) => {
     const coin = epoch.coins.find(c => c.denom === 'ngonka')
     return {
@@ -134,7 +136,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
         </div>
 
         <div className="px-6 py-6">
-          <div className="grid grid-cols-3 gap-12">
+          <div className="grid grid-cols-4 gap-9">
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</div>
               <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka + vesting_gonka)}</div>
@@ -143,6 +145,14 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</div>
               <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka)}</div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="flex items-baseline gap-2 mb-2">
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mined</span>
+                <span className="text-[11px] text-gray-400 normal-case">(Data since epoch 100)</span>
+              </div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(total_rewards)}</div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded">
