@@ -13,7 +13,7 @@ import geoip2.database
 from collections import defaultdict
 from geoip2.errors import AddressNotFoundError
 from typing import Optional, List, Dict, Any
-from decimal import Decimal, getcontext
+from decimal import Decimal, getcontext, ROUND_CEILING
 from datetime import datetime, timezone, timedelta
 import importlib
 import pkgutil
@@ -63,7 +63,8 @@ from backend.models import (
     ProposalTransactions,
     OrderbookStats,
     TokenStats,
-    MarketStats
+    MarketStats,
+    CollateralStatus
 )
 
 getcontext().prec = 60
@@ -122,6 +123,49 @@ def _extract_ml_nodes_map(ml_nodes_data: List[Dict]) -> Dict[str, int]:
                 if poc_weight is not None:
                     result[node_id] = poc_weight
     return result
+
+def _decode_fixed_point(fp: Dict[str, Any]) -> Decimal:
+    """
+    将 {value: "42", exponent: -1} 还原为 Decimal("4.2")
+    """
+    v = Decimal(str(fp["value"]))
+    e = int(fp["exponent"])
+    return v * (Decimal(10) ** Decimal(e))
+
+def _calc_participant_collateral_status(
+    collateral_params: Dict[str, Any],
+    weight: Dict[str, Any],
+    collateral_resp: Dict[str, Any],
+) -> CollateralStatus:
+    potential_weight = int(weight)
+
+    base_ratio = _decode_fixed_point(collateral_params["base_weight_ratio"])
+    per_weight = _decode_fixed_point(collateral_params["collateral_per_weight_unit"])
+
+    deposited = Decimal(str(collateral_resp["amount"]["amount"]))
+
+    one = Decimal(1)
+
+    eligible_weight = potential_weight * (one - base_ratio)
+
+    needed_collateral = eligible_weight * per_weight
+    needed_collateral = int(needed_collateral.to_integral_value(rounding=ROUND_CEILING))
+
+    if needed_collateral <= 0:
+        collateral_ratio = one
+    else:
+        collateral_ratio = deposited / needed_collateral
+        if collateral_ratio > one:
+            collateral_ratio = one
+
+    effective_weight = (potential_weight * base_ratio) + (eligible_weight * collateral_ratio)
+
+    return CollateralStatus(
+        potential_weight=potential_weight,
+        effective_weight=int(effective_weight),
+        collateral_ratio=float(collateral_ratio),
+        needed_ngonka=str(needed_collateral),
+    )
 
 
 class InferenceService:
@@ -261,10 +305,17 @@ class InferenceService:
                 return None
             
             logger.info(f"Loading cached epoch {epoch_id} from database: {len(cached_stats)} participants")
-            
+
+            params = await self.client.get_inference_params()
+            collateral_params = params["params"]["collateral_params"]
+
             participants_stats = []
             for stats_dict in cached_stats:
                 try:
+                    collateral_resp = await self.client.get_participant_collateral(stats_dict["index"])
+                    collateral = _calc_participant_collateral_status(collateral_params, 
+                        stats_dict.get("weight", 0), collateral_resp)
+                    
                     participant = ParticipantStats(
                         index=stats_dict["index"],
                         address=stats_dict["address"],
@@ -275,7 +326,8 @@ class InferenceService:
                         models=stats_dict.get("models", []),
                         current_epoch_stats=CurrentEpochStats(**stats_dict["current_epoch_stats"]),
                         seed_signature=stats_dict.get("_seed_signature"),
-                        ml_nodes_map=stats_dict.get("_ml_nodes_map", {})
+                        ml_nodes_map=stats_dict.get("_ml_nodes_map", {}),
+                        collateral_status = collateral
                     )
                     participants_stats.append(participant)
                 except Exception as e:
@@ -285,7 +337,7 @@ class InferenceService:
                 return None
             
             cached_height = cached_stats[0].get("_height", 0)
-            
+
             return InferenceResponse(
                 epoch_id=epoch_id,
                 height=cached_height,
@@ -350,12 +402,17 @@ class InferenceService:
             active_participants = [
                 p for p in participants_list if p["index"] in active_indices
             ]
-            
+
+            params = await self.client.get_inference_params()
+            collateral_params = params["params"]["collateral_params"]
             participants_stats = []
             stats_for_saving = []
             for p in active_participants:
                 try:
                     epoch_data_for_participant = epoch_participant_data.get(p["index"], {})
+                    collateral_resp = await self.client.get_participant_collateral(p["index"])
+                    collateral = _calc_participant_collateral_status(collateral_params, 
+                        epoch_data_for_participant.get("weight", 0), collateral_resp)
                     
                     participant = ParticipantStats(
                         index=p["index"],
@@ -367,7 +424,8 @@ class InferenceService:
                         models=epoch_data_for_participant.get("models", []),
                         current_epoch_stats=CurrentEpochStats(**p["current_epoch_stats"]),
                         seed_signature=epoch_data_for_participant.get("seed_signature"),
-                        ml_nodes_map=epoch_data_for_participant.get("ml_nodes_map", {})
+                        ml_nodes_map=epoch_data_for_participant.get("ml_nodes_map", {}),
+                        collateral_status = collateral
                     )
                     participants_stats.append(participant)
                     
@@ -412,7 +470,7 @@ class InferenceService:
                 current_block_timestamp = current_block_data["result"]["block"]["header"]["time"]
                 
                 avg_block_time = await self._calculate_avg_block_time(current_block_height)
-            
+
             response = InferenceResponse(
                 epoch_id=epoch_id,
                 height=height,
@@ -461,6 +519,9 @@ class InferenceService:
         except Exception as e:
             logger.error(f"Failed to determine target height for epoch {epoch_id}: {e}")
             raise
+
+        params = await self.client.get_inference_params()
+        collateral_params = params["params"]["collateral_params"]
         
         cached_stats = await self.cache_db.get_stats(epoch_id, height=target_height)
         if cached_stats:
@@ -469,6 +530,11 @@ class InferenceService:
             participants_stats = []
             for stats_dict in cached_stats:
                 try:
+                    collateral_resp = await self.client.get_participant_collateral(stats_dict["index"])
+                    collateral = _calc_participant_collateral_status(collateral_params, 
+                        stats_dict.get("weight", 0), collateral_resp)
+                    stats_dict["collateral_status"] = collateral
+
                     stats_copy = dict(stats_dict)
                     stats_copy.pop("_cached_at", None)
                     stats_copy.pop("_height", None)
@@ -495,7 +561,7 @@ class InferenceService:
                     total_rewards_gnk = await self.cache_db.get_epoch_total_rewards(epoch_id)
                 else:
                     asyncio.create_task(self._calculate_and_cache_total_rewards(epoch_id))
-            
+
             return InferenceResponse(
                 epoch_id=epoch_id,
                 height=target_height,
@@ -536,6 +602,9 @@ class InferenceService:
             for p in active_participants:
                 try:
                     epoch_data_for_participant = epoch_participant_data.get(p["index"], {})
+                    collateral_resp = await self.client.get_participant_collateral(p["index"])
+                    collateral = _calc_participant_collateral_status(collateral_params, 
+                        p.get("weight", 0), collateral_resp)
                     
                     participant = ParticipantStats(
                         index=p["index"],
@@ -547,7 +616,8 @@ class InferenceService:
                         models=epoch_data_for_participant.get("models", []),
                         current_epoch_stats=CurrentEpochStats(**p["current_epoch_stats"]),
                         seed_signature=epoch_data_for_participant.get("seed_signature"),
-                        ml_nodes_map=epoch_data_for_participant.get("ml_nodes_map", {})
+                        ml_nodes_map=epoch_data_for_participant.get("ml_nodes_map", {}),
+                        collateral_status = collateral
                     )
                     participants_stats.append(participant)
                     
@@ -578,7 +648,7 @@ class InferenceService:
             total_rewards_gnk = await self.cache_db.get_epoch_total_rewards(epoch_id)
             if total_rewards_gnk is None:
                 asyncio.create_task(self._calculate_and_cache_total_rewards(epoch_id))
-            
+
             response = InferenceResponse(
                 epoch_id=epoch_id,
                 height=target_height,
@@ -976,6 +1046,10 @@ class InferenceService:
                     poc_weight=poc_weight
                 ))
             
+            params = await self.client.get_inference_params()
+            collateral_resp = await self.client.get_participant_collateral(participant_id)
+            collateral = _calc_participant_collateral_status(params["params"]["collateral_params"], participant.weight, collateral_resp)
+            participant.collateral_status = collateral
             return ParticipantDetailsResponse(
                 participant=participant,
                 rewards=rewards,

@@ -512,6 +512,9 @@ class GonkaClient:
     
     async def get_balances(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/balances/{address}")
+    
+    async def get_participant_collateral(self, participant_id: str) -> Dict[str, Any]:
+        return await self._make_request(f"/chain-api/productscience/inference/collateral/collateral/{participant_id}")
 
     async def get_block_detail(self, height: str) -> Dict[str, Any]:
         block_path = f"/chain-api/cosmos/tx/v1beta1/txs/block/{height}"
@@ -541,6 +544,9 @@ class GonkaClient:
     
     async def get_vesting_schedule(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
+    
+    async def get_inference_params(self):
+        return await self._make_request("/chain-api/productscience/inference/inference/params")
     
     async def get_tallying(self):
         return await self._make_request("/chain-api/cosmos/gov/v1/params/tallying")

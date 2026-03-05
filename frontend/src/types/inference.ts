@@ -8,6 +8,13 @@ export interface CurrentEpochStats {
   invalidated_inferences: string;
 }
 
+export interface CollateralStatus {
+  potential_weight: number;
+  effective_weight: number;
+  collateral_ratio: number;
+  needed_ngonka: string,
+}
+
 export interface Participant {
   index: string;
   address: string;
@@ -35,6 +42,7 @@ export interface Participant {
   confirmation_weight?: number | null;
   confirmation_poc_ratio?: number | null;
   participant_status?: string | null;
+  collateral_status: CollateralStatus;
 }
 
 export interface InferenceResponse {

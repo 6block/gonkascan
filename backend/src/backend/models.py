@@ -12,6 +12,11 @@ class CurrentEpochStats(BaseModel):
     validated_inferences: str
     invalidated_inferences: str
 
+class CollateralStatus(BaseModel):
+    potential_weight: int
+    effective_weight: int
+    collateral_ratio: float
+    needed_ngonka: str
 
 class ParticipantStats(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -42,6 +47,7 @@ class ParticipantStats(BaseModel):
     confirmation_weight: Optional[int] = None
     confirmation_poc_ratio: Optional[float] = None
     participant_status: Optional[str] = None
+    collateral_status: CollateralStatus
     
     @computed_field
     @property
