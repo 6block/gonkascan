@@ -337,11 +337,13 @@ class InferenceService:
                 return None
             
             cached_height = cached_stats[0].get("_height", 0)
+            hardware = await self.cache_db.get_participants_hardware_map_by_epoch(epoch_id)
 
             return InferenceResponse(
                 epoch_id=epoch_id,
                 height=cached_height,
                 participants=participants_stats,
+                hardware=hardware,
                 cached_at=cached_stats[0].get("_cached_at", datetime.utcnow().isoformat()),
                 is_current=True
             )
@@ -471,10 +473,13 @@ class InferenceService:
                 
                 avg_block_time = await self._calculate_avg_block_time(current_block_height)
 
+            hardware = await self.cache_db.get_participants_hardware_map_by_epoch(epoch_id)
+
             response = InferenceResponse(
                 epoch_id=epoch_id,
                 height=height,
                 participants=participants_stats,
+                hardware=hardware,
                 cached_at=datetime.utcnow().isoformat(),
                 is_current=True,
                 current_block_height=current_block_height,
@@ -562,10 +567,12 @@ class InferenceService:
                 else:
                     asyncio.create_task(self._calculate_and_cache_total_rewards(epoch_id))
 
+            hardware = await self.cache_db.get_participants_hardware_map_by_epoch(epoch_id)
             return InferenceResponse(
                 epoch_id=epoch_id,
                 height=target_height,
                 participants=participants_stats,
+                hardware=hardware,
                 cached_at=cached_stats[0].get("_cached_at"),
                 is_current=False,
                 total_assigned_rewards_gnk=total_rewards_gnk
@@ -649,10 +656,13 @@ class InferenceService:
             if total_rewards_gnk is None:
                 asyncio.create_task(self._calculate_and_cache_total_rewards(epoch_id))
 
+            hardware = await self.cache_db.get_participants_hardware_map_by_epoch(epoch_id)
+            
             response = InferenceResponse(
                 epoch_id=epoch_id,
                 height=target_height,
                 participants=participants_stats,
+                hardware=hardware,
                 cached_at=datetime.utcnow().isoformat(),
                 is_current=False,
                 total_assigned_rewards_gnk=total_rewards_gnk

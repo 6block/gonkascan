@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Toaster, toast } from 'react-hot-toast'
 import { InferenceResponse } from './types/inference'
@@ -64,6 +64,7 @@ function App() {
   const [appReady, setAppReady] = useState(false)
   const [addressParticipantStatus, setAddressParticipantStatus] = useState<AddressParticipantStatus>(null)
   const [participantFilter, setParticipantFilter] = useState<string[] | null>(null)
+  const [selectedHardware, setSelectedHardware] = useState<string>('ALL')
 
   const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { prefetchAll } = usePrefetch()
@@ -224,6 +225,10 @@ function App() {
     }
   }, [currentPage, data, prefetchAll])
 
+  useEffect(() => {
+    setSelectedHardware('ALL')
+  }, [selectedEpochId])
+
   const handleRefresh = () => {
     refetch()
   }
@@ -314,16 +319,37 @@ function App() {
     toast.error('Invalid Address / Tx Hash / Height')
   }
 
-  const filteredParticipants = (() => {
+  const hardwareOptions = useMemo(() => {
+    if (!data?.hardware) return []
+    return Array.from(new Set(data.hardware.map(h => h.hardware))).sort()
+  }, [data?.hardware])
+  
+  const selectedHardwareParticipantSet = useMemo(() => {
+    if (selectedHardware === 'ALL') return null
+    const hardware_list = data?.hardware ?? []
+  
+    const item = hardware_list.find(h => h.hardware === selectedHardware)
+    return new Set(item?.participants ?? [])
+  }, [data?.hardware, selectedHardware])
+
+  const filteredParticipants = useMemo(() => {
     if (!data) return []
   
-    if (!participantFilter || participantFilter.length === 0) {
-      return data.participants
+    let participants_list = data.participants
+  
+    // 1) URL participants 过滤（如果有）
+    if (participantFilter && participantFilter.length > 0) {
+      const set = new Set(participantFilter)
+      participants_list = participants_list.filter(p => set.has(p.index))
     }
   
-    const set = new Set(participantFilter)
-    return data.participants.filter(p => set.has(p.index))
-  })()
+    // 2) Hardware 过滤（如果选择了具体硬件）
+    if (selectedHardwareParticipantSet) {
+      participants_list = participants_list.filter(p => selectedHardwareParticipantSet.has(p.index))
+    }
+  
+    return participants_list
+  }, [data, participantFilter, selectedHardwareParticipantSet])
 
   const searchParams = new URLSearchParams(window.location.search)
   const blockHeight = searchParams.get('height')
@@ -649,7 +675,7 @@ function App() {
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex items-center justify-between gap-4">
                     <div>
                       <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
                         Participant Statistics
@@ -657,6 +683,20 @@ function App() {
                       <p className="text-xs md:text-sm text-gray-500">
                         Rows with red background indicate missed rate or invalidation rate exceeding 10%
                       </p>
+                    </div>
+
+                    {/* 右侧 Hardware 选择框 */}
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedHardware}
+                        onChange={(e) => setSelectedHardware(e.target.value)}
+                        className="h-9 min-w-[260px] px-3 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        disabled={!data || hardwareOptions.length === 0}
+                      >
+                        <option value="ALL">All Hardware</option>
+                        {hardwareOptions.map(hardware => (<option key={hardware} value={hardware}>{hardware}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                   {participantFilter && filteredParticipants.length === 0 ? (

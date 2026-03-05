@@ -73,10 +73,16 @@ class ParticipantStats(BaseModel):
         return round(invalidated / inferences, 4)
 
 
+class HardwareParticipants(BaseModel):
+    hardware: str
+    participants: List[str]
+
+
 class InferenceResponse(BaseModel):
     epoch_id: int
     height: int
     participants: List[ParticipantStats]
+    hardware: Optional[List[HardwareParticipants]]
     cached_at: Optional[str] = None
     is_current: bool = False
     total_assigned_rewards_gnk: Optional[int] = None

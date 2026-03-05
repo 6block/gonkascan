@@ -1885,6 +1885,36 @@ class CacheDB:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
     
+    async def get_participants_hardware_map_by_epoch(self, epoch_id: int) -> dict[str, list[str]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT
+                    json_extract(j.value, '$.type') AS hardware_type,
+                    group_concat(DISTINCT n.participant_id) AS participants_csv
+                FROM participant_hardware_nodes AS n
+                JOIN json_each(n.hardware_json) AS j
+                WHERE n.epoch_id = ?
+                AND json_extract(j.value, '$.type') IS NOT NULL
+                GROUP BY hardware_type
+                ORDER BY hardware_type
+            """, (epoch_id,)) as cursor:
+
+                rows = await cursor.fetchall()
+
+                result: list[dict[str, list[str]]] = []
+
+                for r in rows:
+                    hardware = r["hardware_type"]
+                    participants = (r["participants_csv"] or "").split(",")
+
+                    result.append({
+                        "hardware": hardware,
+                        "participants": [p for p in participants if p]
+                    })
+
+                return result
+    
     async def save_epoch_participants_snapshot(self, epoch_id: int, epoch_data: dict, fetched_from: str | None = None):
         fetched_at = datetime.utcnow().isoformat()
         active = epoch_data.get("active_participants", {}) or {}

@@ -45,10 +45,16 @@ export interface Participant {
   collateral_status: CollateralStatus;
 }
 
+export interface HardwareParticipants {
+  hardware: string;
+  participants: string[];
+}
+
 export interface InferenceResponse {
   epoch_id: number;
   height: number;
   participants: Participant[];
+  hardware?: HardwareParticipants[];
   cached_at?: string;
   is_current: boolean;
   total_assigned_rewards_gnk?: number;
