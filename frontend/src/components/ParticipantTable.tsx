@@ -78,6 +78,8 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
     return missedTestFails || invalidTestFails || lowConfirmation
   }
 
+  const hasCollateral = participants.length > 0 && participants[0].collateral_status != null
+
   const handleRowClick = (participant: Participant) => {
     onParticipantSelect(participant.index)
   }
@@ -122,9 +124,11 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
             <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
               Invalid Rate
             </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Collateral
-            </th>
+            {hasCollateral && (
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                Collateral
+              </th>
+            )}
             <th className="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">
               Jail
             </th>
@@ -214,11 +218,17 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                     {(participant.invalidation_rate * 100).toFixed(2)}%
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                  <span className={`font-semibold ${participant.collateral_status.collateral_ratio < 0.90 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {(participant.collateral_status.collateral_ratio * 100).toFixed(2)}%
-                  </span>
-                </td>
+                {hasCollateral && participant.collateral_status && (
+                  <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
+                    <span 
+                      className={`font-semibold ${
+                        participant.collateral_status.collateral_ratio < 0.90 ? 'text-red-600' : 'text-gray-900'
+                      }`}
+                    >
+                      {(participant.collateral_status.collateral_ratio * 100).toFixed(2)}%
+                    </span>
+                  </td>
+                )}
                 <td className="px-2 py-3 text-center whitespace-nowrap">
                   <div className="flex justify-center">
                     {participant.participant_status === "INACTIVE" ? (

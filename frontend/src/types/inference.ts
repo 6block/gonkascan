@@ -42,7 +42,7 @@ export interface Participant {
   confirmation_weight?: number | null;
   confirmation_poc_ratio?: number | null;
   participant_status?: string | null;
-  collateral_status: CollateralStatus;
+  collateral_status?: CollateralStatus;
 }
 
 export interface HardwareParticipants {

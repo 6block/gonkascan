@@ -80,6 +80,8 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
     )
   }
 
+  const collateralStatus = participant?.collateral_status ?? null
+
   const handleBack = () => {
     const params = new URLSearchParams(window.location.search)
     params.delete('page')
@@ -404,33 +406,35 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             </div>
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
-            <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Collateral Status</h3>
-            
-            <div className="grid grid-cols-4 gap-8">
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Potential Weight</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">{participant.collateral_status.potential_weight.toLocaleString()}</div>
-              </div>
+          {collateralStatus && (
+            <div className="border-t border-gray-200 pt-6">
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Collateral Status</h3>
+              
+              <div className="grid grid-cols-4 gap-8">
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">Potential Weight</div>
+                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.potential_weight.toLocaleString()}</div>
+                </div>
 
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Effective Weight</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">{participant.collateral_status.effective_weight.toLocaleString()}</div>
-              </div>
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">Effective Weight</div>
+                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.effective_weight.toLocaleString()}</div>
+                </div>
 
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Collateral Rate</div>
-                <div className={`mt-1 text-2xl font-semibold ${participant.collateral_status.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}`}>
-                  {(participant.collateral_status.collateral_ratio * 100).toFixed(2)}%
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">Collateral Rate</div>
+                  <div className={`mt-1 text-2xl font-semibold ${collateralStatus.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}`}>
+                    {(collateralStatus.collateral_ratio * 100).toFixed(2)}%
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded">
+                  <div className="text-xs text-gray-500 uppercase tracking-wider">Needed Collateral</div>
+                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.needed_ngonka.toLocaleString()} ngonka</div>
                 </div>
               </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Needed Collateral</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">{participant.collateral_status.needed_ngonka.toLocaleString()} ngonka</div>
-              </div>
             </div>
-          </div>
+          )}
 
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Inference Statistics</h3>

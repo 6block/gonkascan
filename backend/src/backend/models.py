@@ -47,7 +47,7 @@ class ParticipantStats(BaseModel):
     confirmation_weight: Optional[int] = None
     confirmation_poc_ratio: Optional[float] = None
     participant_status: Optional[str] = None
-    collateral_status: CollateralStatus
+    collateral_status: Optional[CollateralStatus] = None
     
     @computed_field
     @property
