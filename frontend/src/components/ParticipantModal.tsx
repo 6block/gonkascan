@@ -106,7 +106,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   const vesting_gonka = assets?.total_vesting?.find(v => v.denom === 'ngonka')
     ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : 0 
   
-  const total_rewards = Number(assets?.total_rewarded?.amount) / NGONKA
+  const total_rewards = assets?.total_rewarded?.amount ? Number(assets?.total_rewarded?.amount) / NGONKA : 0 
 
   const vestingEpochData = assets?.epoch_amounts?.map((epoch, idx) => {
     const coin = epoch.coins.find(c => c.denom === 'ngonka')
@@ -117,14 +117,14 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   }) ?? []
 
   return (
-    <div className="w-full max-w-[1440px] mx-auto px-6 py-6">
+    <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
       <div className="bg-white rounded-lg shadow-sm">
 
-        <div className="border-b border-gray-200 px-6 py-4">
-          <nav className="flex items-center text-sm text-gray-500 mb-1">
+        <div className="border-b border-gray-200 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+          <nav className="flex flex-wrap sm:flex-nowrap items-center gap-y-1 text-sm text-gray-500 mb-1 min-w-0">
             <button
               onClick={handleBack}
-              className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
+              className="shrink-0 flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -132,44 +132,44 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               Dashboard
             </button>
 
-            <span className="mx-2">/</span>
-            <span className="text-gray-900 font-medium">{participant.index}</span>
+            <span className="mx-2 shrink-0">/</span>
+            <span className="block sm:inline min-w-0 text-gray-900 font-medium break-all sm:break-normal">{participant.index}</span>
           </nav>
         </div>
 
-        <div className="px-6 py-6">
-          <div className="grid grid-cols-4 gap-9">
+        <div className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka + vesting_gonka)}</div>
+              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(balance_gonka + vesting_gonka)}</div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(balance_gonka)}</div>
+              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(balance_gonka)}</div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded">
               <div className="flex items-baseline gap-2 mb-2">
-                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mined</span>
+                <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mined</span>
                 <span className="text-[11px] text-gray-400 normal-case">(Data since epoch 100)</span>
               </div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(total_rewards)}</div>
+              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(total_rewards)}</div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vesting</div>
-              <div className="mt-1 text-2xl font-semibold text-gray-900">{formatGNK(vesting_gonka)}</div>
+              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(vesting_gonka)}</div>
             </div>
           </div>
         </div>
 
-        <div className="px-6 py-2 flex gap-2">
+        <div className="px-3 sm:px-4 md:px-6 py-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['details', 'inferences', 'transactions'] as TabType[]).map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-3 py-1.5 text-sm rounded border transition
+              className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-sm rounded border transition
                 ${
                   activeTab === tab
                     ? 'border-gray-800 text-gray-900'
@@ -182,11 +182,11 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
         </div>
 
         {activeTab === 'details' && (
-          <div className="px-6 py-4 space-y-6">
+          <div className="px-3 sm:px-4 md:px-6 py-4 space-y-6">
             {vestingEpochData.length > 0 && (
               <div>
                   <div className="text-sm font-semibold text-gray-700">Next 180 Epochs Vesting Release</div>
-                  <div className="w-full h-[260px]">
+                  <div className="w-full h-[220px] sm:h-[260px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={vestingEpochData} barCategoryGap={1} margin={{top: 10, right: 10, bottom: 0, left: 0}}>
                         <XAxis dataKey="epoch" tick={{ fontSize: 10 }} ticks={[10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180]} tickFormatter={(v) => v.toString()}/>
@@ -295,15 +295,15 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             </div>
             
             <div className="border-t border-gray-200 pt-6">
-              <div className="grid grid-cols-6 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 sm:gap-4">
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight</label>
-                  <div className="text-lg font-semibold text-gray-900">{participant.weight.toLocaleString()}</div>
+                  <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{participant.weight.toLocaleString()}</div>
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight to Confirm</label>
-                  <div className="text-lg font-semibold text-gray-900">
+                  <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
                     {participant.weight_to_confirm !== null && participant.weight_to_confirm !== undefined
                       ? participant.weight_to_confirm.toLocaleString()
                       : '-'}
@@ -312,7 +312,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Confirmation Ratio</label>
-                  <div className={`text-lg font-semibold ${
+                  <div className={`text-base sm:text-lg font-semibold break-words${
                     participant.confirmation_poc_ratio !== null && 
                     participant.confirmation_poc_ratio !== undefined &&
                     participant.confirmation_poc_ratio < 0.5 
@@ -327,7 +327,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
                 <div className="bg-gray-50 p-4 rounded">
                   <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Node Health</label>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
                     {participant.node_healthy === true ? (
                       <>
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -410,27 +410,27 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             <div className="border-t border-gray-200 pt-6">
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Collateral Status</h3>
               
-              <div className="grid grid-cols-4 gap-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
                 <div className="bg-gray-50 p-4 rounded">
-                  <div className="text-xs text-gray-500 uppercase tracking-wider">Potential Weight</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.potential_weight.toLocaleString()}</div>
+                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Potential Weight</div>
+                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.potential_weight.toLocaleString()}</div>
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded">
-                  <div className="text-xs text-gray-500 uppercase tracking-wider">Effective Weight</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.effective_weight.toLocaleString()}</div>
+                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Effective Weight</div>
+                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.effective_weight.toLocaleString()}</div>
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded">
-                  <div className="text-xs text-gray-500 uppercase tracking-wider">Collateral Rate</div>
-                  <div className={`mt-1 text-2xl font-semibold ${collateralStatus.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}`}>
+                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Collateral Rate</div>
+                  <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${collateralStatus.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}`}>
                     {(collateralStatus.collateral_ratio * 100).toFixed(2)}%
                   </div>
                 </div>
 
                 <div className="bg-gray-50 p-4 rounded">
-                  <div className="text-xs text-gray-500 uppercase tracking-wider">Needed Collateral</div>
-                  <div className="mt-1 text-2xl font-semibold text-gray-900">{collateralStatus.needed_ngonka.toLocaleString()} ngonka</div>
+                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Needed Collateral</div>
+                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.needed_ngonka.toLocaleString()} ngonka</div>
                 </div>
               </div>
             </div>
@@ -439,43 +439,43 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Inference Statistics</h3>
             
-            <div className="grid grid-cols-6 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 sm:gap-4">
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Total Inferenced</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">{totalInferenced.toLocaleString()}</div>
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Inferenced</div>
+                <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{totalInferenced.toLocaleString()}</div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Missed Requests</div>
-                <div className={`mt-1 text-2xl font-semibold ${parseInt(participant.current_epoch_stats.missed_requests) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Missed Requests</div>
+                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${parseInt(participant.current_epoch_stats.missed_requests) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                   {parseInt(participant.current_epoch_stats.missed_requests).toLocaleString()}
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Validated Inferences</div>
-                <div className="mt-1 text-2xl font-semibold text-gray-900">
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Validated Inferences</div>
+                <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">
                   {parseInt(participant.current_epoch_stats.validated_inferences).toLocaleString()}
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Invalidated Inferences</div>
-                <div className={`mt-1 text-2xl font-semibold ${parseInt(participant.current_epoch_stats.invalidated_inferences) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Invalidated Inferences</div>
+                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${parseInt(participant.current_epoch_stats.invalidated_inferences) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                   {parseInt(participant.current_epoch_stats.invalidated_inferences).toLocaleString()}
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Missed Rate</div>
-                <div className={`mt-1 text-2xl font-semibold ${participant.missed_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Missed Rate</div>
+                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${participant.missed_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
                   {(participant.missed_rate * 100).toFixed(2)}%
                 </div>
               </div>
 
               <div className="bg-gray-50 p-4 rounded">
-                <div className="text-xs text-gray-500 uppercase tracking-wider">Invalidation Rate</div>
-                <div className={`mt-1 text-2xl font-semibold ${participant.invalidation_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
+                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Invalidation Rate</div>
+                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${participant.invalidation_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
                   {(participant.invalidation_rate * 100).toFixed(2)}%
                 </div>
               </div>
@@ -502,22 +502,22 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               <div className="text-gray-400 text-sm">Loading rewards...</div>
             ) : details && details.rewards && details.rewards.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+                <table className="min-w-[640px] w-full divide-y divide-gray-200">
                   <thead>
                     <tr className="bg-gray-50">
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Epoch</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Assigned Reward</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Claimed</th>
+                      <th className="px-3 sm:px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Epoch</th>
+                      <th className="px-3 sm:px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Assigned Reward</th>
+                      <th className="px-3 sm:px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">Claimed</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {details.rewards.map((reward) => (
                       <tr key={reward.epoch_id}>
-                        <td className="px-4 py-2 text-sm text-gray-900">{reward.epoch_id}</td>
-                        <td className="px-4 py-2 text-sm text-gray-900">
+                        <td className="px-3 sm:px-4 py-2 text-sm text-gray-900 whitespace-nowrap">{reward.epoch_id}</td>
+                        <td className="px-3 sm:px-4 py-2 text-sm text-gray-900 whitespace-nowrap">
                           {reward.assigned_reward_gnk > 0 ? `${reward.assigned_reward_gnk} GNK` : '-'}
                         </td>
-                        <td className="px-4 py-2 text-sm">
+                        <td className="px-3 sm:px-4 py-2 text-sm whitespace-nowrap">
                           {reward.claimed ? (
                             <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
                               YES
@@ -548,10 +548,10 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             ) : details && details.ml_nodes && details.ml_nodes.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {details.ml_nodes.map((node, idx) => (
-                  <div key={idx} className="bg-gray-50 border border-gray-200 rounded p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="font-semibold text-gray-900">{node.local_id}</div>
-                      <span className={`inline-block px-2 py-0.5 text-xs font-semibold rounded ${
+                  <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="min-w-0 font-semibold text-gray-900 break-all">{node.local_id}</div>
+                      <span className={`inline-block shrink-0 px-2 py-0.5 text-xs font-semibold rounded ${
                         node.status === 'FAILED' 
                           ? 'bg-red-100 text-red-700 border border-red-300' 
                           : 'bg-blue-100 text-blue-700 border border-blue-300'
@@ -577,7 +577,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                             node.models.map((model, modelIdx) => (
                               <span
                                 key={modelIdx}
-                                className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded"
+                                className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-md break-all"
                               >
                                 {model}
                               </span>
@@ -594,7 +594,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                           {node.hardware.length > 0 ? (
                             <div className="space-y-1">
                               {node.hardware.map((hw, hwIdx) => (
-                                <div key={hwIdx} className="text-xs text-gray-700">
+                                <div key={hwIdx} className="text-xs text-gray-700 break-words">
                                   {hw.count}x {hw.type}
                                 </div>
                               ))}
@@ -607,7 +607,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                       
                       <div>
                         <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Network</div>
-                        <div className="mt-1 text-xs font-mono text-gray-700">
+                        <div className="mt-1 text-xs font-mono text-gray-700 break-all">
                           {node.host}:{node.port}
                         </div>
                       </div>
@@ -623,7 +623,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
         )}
 
         {activeTab === 'inferences' && (
-          <div className="px-6 py-4 space-y-6">
+          <div className="px-3 sm:px-4 md:px-6 py-4 space-y-6">
             {(!currentEpochId || epochId < currentEpochId - 1) ? (
               <div className="text-center py-12 text-gray-500">
                 <p className="text-base font-medium">Data not available for older epochs</p>
@@ -764,7 +764,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
         )}
 
         {activeTab === 'transactions' && (
-          <div className="px-6 py-4 space-y-4">
+          <div className="px-3 sm:px-4 md:px-6 py-4 space-y-6">
             <AddressTransactionsTable
               transactions={transactions}
               isLoading={transactionsLoading}

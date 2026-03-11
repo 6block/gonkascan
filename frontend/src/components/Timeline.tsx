@@ -132,7 +132,7 @@ export function Timeline() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
           <p className="mt-4 text-gray-600">Loading timeline...</p>
@@ -143,7 +143,7 @@ export function Timeline() {
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
           <p className="text-red-600">{error || 'No data available'}</p>
@@ -192,13 +192,13 @@ export function Timeline() {
   const epochData = getEpochData()
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
             <div className="flex items-center gap-2 min-h-[2rem]">
-              <span className="text-2xl font-bold text-gray-900 leading-none">
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.current_epoch_index}
               </span>
               <span className="px-2.5 py-0.5 text-xs font-semibold bg-gray-900 text-white rounded">
@@ -210,7 +210,7 @@ export function Timeline() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Current Block</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none break-words">
                 {getEstimatedCurrentBlock().toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
@@ -222,7 +222,7 @@ export function Timeline() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Avg Block Time</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none break-words">
                 {data.avg_block_time.toFixed(2)}s
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -246,7 +246,7 @@ export function Timeline() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
           <div className="flex-1 flex items-center justify-center sm:justify-start">
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 text-center sm:text-left">
               Auto-refreshing every 60s
               {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
             </span>
@@ -254,18 +254,18 @@ export function Timeline() {
           <button
             onClick={() => refetch()}
             disabled={loading}
-            className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+            className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>
 
-      <div ref={detailedTimelineRef} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-900">Next Epoch</h2>
+      <div ref={detailedTimelineRef} className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Next Epoch</h2>
           {(() => {
-            const detailedMinBlock = data.current_block.height
+            const detailedMinBlock = Math.max(0, data.current_block.height - 200)
             const detailedMaxBlock = data.current_block.height + data.epoch_length
             const blockToShow = targetHeight || urlBlock
             
@@ -277,7 +277,7 @@ export function Timeline() {
               
               if (blocksUntilTarget > 0) {
                 return (
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
                     <div className="text-gray-600">
                       Time to block <span className="font-semibold text-gray-900">{blockToShow.toLocaleString()}</span>:
                     </div>
@@ -291,7 +291,7 @@ export function Timeline() {
                 )
               } else {
                 return (
-                  <div className="text-sm text-gray-600">
+                  <div className="text-sm text-gray-600 break-words">
                     Block <span className="font-semibold text-gray-900">{blockToShow.toLocaleString()}</span> has passed
                   </div>
                 )
@@ -301,10 +301,10 @@ export function Timeline() {
           })()}
         </div>
         
-        <div className="relative mt-8">
+        <div className="relative mt-6 sm:mt-8 overflow-x-auto">
           {(() => {
-            const detailedMinBlock = data.current_block.height
-            const detailedMaxBlock = data.current_block.height + data.epoch_length + 300
+            const detailedMinBlock = Math.max(0, data.current_block.height - 200)
+            const detailedMaxBlock = data.current_block.height + data.epoch_length + 500
             const detailedBlockRange = detailedMaxBlock - detailedMinBlock
 
             const futureEvents: Array<{ block: number; label: string; fullLabel: string }> = []
@@ -386,9 +386,10 @@ export function Timeline() {
 
             return (
               <svg
-                width="100%"
+                width="1200"
                 height="280"
-                className="overflow-visible cursor-pointer"
+                viewBox="0 0 1200 280"
+                className="min-w-[1000px] sm:min-w-[1200px] overflow-visible cursor-pointer"
                 onMouseMove={(e) => {
                   const rect = e.currentTarget.getBoundingClientRect()
                   const x = e.clientX - rect.left
@@ -529,7 +530,7 @@ export function Timeline() {
                 <text
                   x={`${((data.current_block.height - detailedMinBlock) / detailedBlockRange) * 100}%`}
                   y="70"
-                  textAnchor="middle"
+                  textAnchor="start"
                   className="text-sm fill-gray-900 font-semibold"
                 >
                   Current
@@ -670,21 +671,22 @@ export function Timeline() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="mb-4">
-          <h2 className="text-xl font-bold text-gray-900 mb-1">2-Month Timeline</h2>
-          <div className="text-sm text-gray-600">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1">2-Month Timeline</h2>
+          <div className="text-sm text-gray-600 break-words">
             Range: {minBlock.toLocaleString()} - {maxBlock.toLocaleString()} 
-            <span className="text-gray-500 ml-2">
+            <span className="block sm:inline text-gray-500 sm:ml-2 mt-1 sm:mt-0">
               (~{Math.round(blocksInTwoMonths / (24 * 3600 / data.avg_block_time))} days range)
             </span>
           </div>
         </div>
-        <div className="relative mt-8">
+        <div className="relative mt-6 sm:mt-8 overflow-x-auto">
           <svg
-            width="100%"
+            width="1200"
             height="220"
-            className="overflow-visible cursor-pointer"
+            viewBox="0 0 1400 220"
+            className="min-w-[1100px] sm:min-w-[1400px] overflow-visible cursor-pointer"
             onMouseMove={(e) => {
               const rect = e.currentTarget.getBoundingClientRect()
               const x = e.clientX - rect.left
@@ -773,7 +775,7 @@ export function Timeline() {
             <text
               x={`${((data.current_block.height - minBlock) / blockRange) * 100}%`}
               y="170"
-              textAnchor="middle"
+              textAnchor="start"
               className="text-sm fill-gray-900 font-semibold"
             >
               Current
@@ -880,8 +882,8 @@ export function Timeline() {
         )}
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">Network Events</h2>
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
+        <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-4">Network Events</h2>
         
         {data.events.length === 0 ? (
           <p className="text-gray-500">No events scheduled</p>
@@ -894,7 +896,7 @@ export function Timeline() {
               return (
                 <div
                   key={index}
-                  className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                  className={`p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all ${
                     isPast
                       ? 'bg-gray-50 border-gray-300 hover:border-gray-400'
                       : 'bg-blue-50 border-blue-300 hover:border-blue-400'
@@ -903,8 +905,8 @@ export function Timeline() {
                 >
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-gray-900">{event.description}</span>
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="font-bold text-gray-900 break-words">{event.description}</span>
                         <span
                           className={`px-2 py-0.5 text-xs font-semibold rounded ${
                             isPast
@@ -919,7 +921,7 @@ export function Timeline() {
                         Block: {event.block_height.toLocaleString()}
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 md:text-right">
+                    <div className="text-sm text-gray-600 md:text-right break-words">
                       <div>{eventTime.utc}</div>
                       <div className="text-xs text-gray-500">{eventTime.local}</div>
                     </div>

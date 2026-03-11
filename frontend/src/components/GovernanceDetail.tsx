@@ -323,7 +323,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
   if (!metaLike || !candidates) return null
   if (isLoading) {
     return (
-      <section className="bg-white border rounded-lg p-6">
+      <section className="bg-white border rounded-lg p-4 sm:p-6">
         <div className="text-sm text-gray-500">Loading metadata…</div>
       </section>
     )
@@ -331,10 +331,10 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
   if (!data) return null
 
   return (
-    <section className="bg-white border rounded-lg p-6 space-y-4">
+    <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <h3 className="text-base font-semibold text-gray-900">METADATA</h3>
 
           {/* 来源标注 */}
@@ -356,7 +356,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
           href={data.blob}
           target="_blank"
           rel="noopener noreferrer"
-          className="text-sm text-blue-600 hover:underline"
+          className="text-sm text-blue-600 hover:underline break-all"
         >
           Open original ↗
         </a>
@@ -398,7 +398,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   })
 
   if (isLoading || !proposalData) {
-    return <div className="p-6 text-gray-500">Loading proposal…</div>
+    return <div className="p-4 sm:p-6 text-gray-500">Loading proposal…</div>
   }
 
   const proposal = proposalData.proposal
@@ -430,9 +430,9 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   )
 
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-6 space-y-6">
-      <div className="px-6 py-4">
-        <nav className="flex items-center text-sm text-gray-500 mb-1">
+    <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
+      <div className="px-0 sm:px-2 md:px-6 py-2 sm:py-4">
+        <nav className="flex flex-wrap items-center text-sm text-gray-500 mb-1 gap-y-1">
           <button
             onClick={() => window.history.back()}
             className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
@@ -453,15 +453,13 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
           </button>
 
           <span className="mx-2">/</span>
-          <span className="text-gray-900 font-medium">
-            {proposal.id}. {proposal.title}
-          </span>
+          <span className="text-gray-900 font-medium break-words">{proposal.id}. {proposal.title}</span>
         </nav>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 gap-6">
-        <section className="bg-white border rounded-lg p-6 flex flex-col">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        <section className="bg-white border rounded-lg p-4 sm:p-6 flex flex-col">
           {messageTypeTags.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {messageTypeTags.map((t) => (
@@ -475,33 +473,33 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               ))}
             </div>
           )}
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
             {proposal.id}. {proposal.title}
           </h2>
           {votingTimeText && (
-            <div className="mt-1 mb-5 text-sm text-gray-500">
+            <div className="mt-1 mb-5 text-sm text-gray-500 leading-relaxed break-words">
               Voting Time: {votingTimeText}
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-y-3 text-base mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-base mb-5">
             <div>
               <p className="text-xs text-gray-500 tracking-wide">STATUS</p>
-              <p className="font-semibold text-green-600 text-lg">
+              <p className="font-semibold text-green-600 text-base sm:text-lg break-words">
                 {proposal.status.replace('PROPOSAL_STATUS_', '')}
               </p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500 tracking-wide">EPOCH</p>
-              <p className="font-medium text-lg">{proposal.epoch_id}</p>
+              <p className="font-medium text-base sm:text-lg break-words">{proposal.epoch_id}</p>
             </div>
 
             <div>
               <p className="text-xs text-gray-500 tracking-wide">
                 TURNOUT / QUORUM
               </p>
-              <p className="font-medium text-lg">
+              <p className="font-medium text-base sm:text-lg break-words">
                 {proposal.total_weight > 0
                   ? (
                       (proposal.voted_weight / proposal.total_weight) *
@@ -515,10 +513,10 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
           </div>
 
           {/* Bottom metrics (compact) */}
-          <div className="grid grid-cols-3 gap-y-3 text-base">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-base">
             <div>
               <p className="text-xs text-gray-500">WEIGHT</p>
-              <p className="font-semibold">
+              <p className="font-semibold break-words">
                 {proposal.total_weight > 0 ? (
                   <>
                     {formatCompactNumber(proposal.voted_weight)}/
@@ -535,14 +533,14 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
             <div>
               <p className="text-xs text-gray-500">ADDRESS</p>
-              <p className="font-semibold">
+              <p className="font-semibold break-words">
                 {proposal.total_voters}/{proposal.total_participants}
               </p>
             </div>
           </div>
         </section>
 
-        <section className="bg-white border rounded-lg p-6">
+        <section className="bg-white border rounded-lg p-4 sm:p-6">
           <h3 className="font-semibold mb-4">Tally</h3>
 
           {(() => {
@@ -604,13 +602,13 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-3">
+      <div className="mt-1 sm:mt-2 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {['details', 'vote', 'json'].map((t) => (
           <button
             key={t}
             onClick={() => setTab(t as any)}
             className={[
-              'px-4 py-1.5 text-sm rounded border',
+              'whitespace-nowrap shrink-0 px-4 py-2 text-sm rounded-md border transition-colors',
               tab === t
                 ? 'border-gray-900 text-gray-900'
                 : 'border-gray-300 text-gray-500',
@@ -625,7 +623,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
       {tab === 'details' && (
         <div className="space-y-6">
           {/* Messages / Diff */}
-          <section className="bg-white border rounded-lg p-6 space-y-6">
+          <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-6">
             {Array.isArray(diff_params) && updateMsgs.length > 0 && (
               <>
                 {diff_params.map((msg: any, i: number) => (
@@ -649,7 +647,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
       {/* Vote */}
       {tab === 'vote' && txData && (
-        <section className="bg-white border rounded-lg p-6 space-y-6">
+        <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-6">
           {(() => {
             const rawVoteTxs: VoteTx[] = txData.vote?.txs ?? []
             const voteTxs: VoteTx[] = dedupeLatestVotesByVoter(rawVoteTxs)
@@ -774,10 +772,10 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
             return (
               <>
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
                   {/* Vote Distribution */}
-                  <div className="bg-[#1f2a44] rounded-xl p-6 h-[420px] overflow-hidden">
-                    <h4 className="text-center text-gray-200 font-semibold mb-3 shrink-0">
+                  <div className="bg-[#1f2a44] rounded-xl p-4 sm:p-6 h-[320px] sm:h-[420px] overflow-hidden">
+                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-3 shrink-0">
                       Vote Distribution
                     </h4>
 
@@ -787,16 +785,16 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                       ) : (
                         <VoteBubblePack
                           data={bubbleData}
-                          width={360}
-                          height={360}
+                          width={280}
+                          height={280}
                         />
                       )}
                     </div>
                   </div>
 
                   {/* Voting Power Timeline */}
-                  <div className="bg-[#1f2a44] rounded-xl p-6 h-[420px] flex flex-col">
-                    <h4 className="text-center text-gray-200 font-semibold mb-4 shrink-0">
+                  <div className="bg-[#1f2a44] rounded-xl p-4 sm:p-6 h-[320px] sm:h-[420px] flex flex-col">
+                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-4 shrink-0">
                       Voting Power Timeline
                     </h4>
                     <ResponsiveContainer width="100%" height="100%">
@@ -851,15 +849,15 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg border px-4 py-3 flex items-center justify-between">
-                  <div className="flex gap-3">
+                <div className="bg-white rounded-lg border px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex flex-wrap gap-2 sm:gap-3">
                     {(['ALL', 'YES', 'NO', 'VETO', 'ABSTAIN'] as const).map(
                       (f) => (
                         <button
                           key={f}
                           onClick={() => setVoteFilter(f)}
                           className={[
-                            'px-4 py-1.5 text-sm rounded-full font-medium transition',
+                            'px-4 py-2 text-sm rounded-full font-medium transition whitespace-nowrap',
                             voteFilter === f
                               ? 'bg-indigo-600 text-white shadow'
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
@@ -875,13 +873,13 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                     value={voterKeyword}
                     onChange={(e) => setVoterKeyword(e.target.value)}
                     placeholder="Search voter…"
-                    className="border rounded-md px-3 py-1.5 text-sm w-64"
+                    className="border rounded-md px-3 py-2 text-sm w-full sm:w-64"
                   />
                 </div>
 
                 {/* vote table */}
-                <div className="border rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-[3fr_1fr_1fr_1fr] bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600">
+                <div className="border rounded-lg overflow-hidden overflow-x-auto">
+                  <div className="grid min-w-[720px] grid-cols-[3fr_1fr_1fr_1fr] bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
                     <div>VOTER</div>
                     <div>OPTION</div>
                     <button
@@ -922,9 +920,9 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                     return (
                       <div
                         key={tx.txhash}
-                        className="grid grid-cols-[3fr_1fr_1fr_1fr] px-4 py-2 border-t text-sm hover:bg-gray-50 transition-colors"
+                        className="grid min-w-[720px] grid-cols-[3fr_1fr_1fr_1fr] px-4 py-3 border-t text-sm hover:bg-gray-50 transition-colors"
                       >
-                        <div className="font-mono truncate">
+                        <div className="font-mono truncate pr-4">
                           {msg?.voter || '-'}
                         </div>
                         <div
@@ -934,14 +932,14 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                           {option}
                         </div>
                         <div>{formatNumber(tx.height)}</div>
-                        <div className="font-mono truncate">
+                        <div className="font-mono truncate pr-2">
                           {formatNumber(getVoteWeight(tx))}
                         </div>
                       </div>
                     )
                   })}
                   {filteredVotes.length === 0 && (
-                    <div className="py-6 text-center text-sm text-gray-500">
+                    <div className="py-6 px-4 text-center text-sm text-gray-500">
                       No votes found in this category
                     </div>
                   )}
@@ -954,11 +952,11 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
       {/* JSON */}
       {tab === 'json' && (
-        <section className="bg-white rounded-lg border p-6">
-          <div className="flex items-center justify-between mb-2">
+        <section className="bg-white rounded-lg border p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2">
             <h4 className="font-semibold">JSON</h4>
 
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <button
                 onClick={async () => {
                   await navigator.clipboard.writeText(jsonString)
@@ -975,7 +973,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
             </div>
           </div>
 
-          <div className="bg-gray-900 rounded overflow-auto max-h-[600px]">
+          <div className="bg-gray-900 rounded overflow-auto max-h-[420px] sm:max-h-[600px]">
             <JsonViewer data={proposal} />
           </div>
         </section>

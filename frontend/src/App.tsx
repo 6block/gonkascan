@@ -392,26 +392,27 @@ function App() {
     <>
       <Toaster position="top-center" toastOptions={{duration: 3000,}}/>
       <div className="min-h-screen bg-gray-50 flex flex-col">
-        <div className="flex-1 mx-auto w-full max-w-[1400px] px-6 md:px-8 py-8">
+        <div className="flex-1 mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-8 py-4 sm:py-6 md:py-8">
         {shouldShowHeader  && (
           <header className="mb-6 md:mb-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 md:mb-6">
-              <img src="/gonka.svg" alt="Gonka" className="h-10 sm:h-12 w-auto" />
-              <div className="flex-1">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-1">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4">
+              <img src="/gonka.svg" alt="Gonka" className="h-9 sm:h-10 md:h-12 w-auto" />
+              <div className="flex-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-1 leading-tight">
                   Gonka Chain Inference Tracker
                 </h1>
-                <p className="text-sm sm:text-base text-gray-600">
+                <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
                   Real-time monitoring of participant performance and model availability
                 </p>
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-2 sm:gap-3 items-center">
-              <div className="flex gap-2 sm:gap-3 flex-wrap">
+          
+            <div className="flex flex-col gap-3">
+              {/* 导航按钮：移动端横向滚动 */}
+              <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <button
                   onClick={() => handlePageChange('dashboard')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'dashboard'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -419,9 +420,10 @@ function App() {
                 >
                   Host Dashboard
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('models')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'models'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -429,9 +431,10 @@ function App() {
                 >
                   Models
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('hardware')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'hardware'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -439,9 +442,10 @@ function App() {
                 >
                   Hardware
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('governance')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'governance'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -449,10 +453,10 @@ function App() {
                 >
                   Governance
                 </button>
-
+          
                 <button
                   onClick={() => handlePageChange('blocks')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'blocks'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -460,9 +464,10 @@ function App() {
                 >
                   Blocks
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('transactions')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'transactions'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -470,9 +475,10 @@ function App() {
                 >
                   Transactions
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('timeline')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'timeline'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -480,9 +486,10 @@ function App() {
                 >
                   Timeline
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('nodemap')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'nodemap'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -490,9 +497,10 @@ function App() {
                 >
                   Node Map
                 </button>
+          
                 <button
                   onClick={() => handlePageChange('resource')}
-                  className={`flex-1 sm:flex-none px-4 py-2 font-medium rounded-md transition-colors ${
+                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
                     currentPage === 'resource'
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -502,14 +510,15 @@ function App() {
                 </button>
               </div>
 
-              <div className="ml-auto relative">
+              {/* 搜索框 */}
+              <div className="w-full relative">
                 <input
                   type="text"
                   placeholder="Search Address / Tx Hash / Height"
                   value={globalSearch}
                   onChange={e => setGlobalSearch(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
-                  className="w-96 h-9 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
                 />
                 <svg
                   className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
@@ -568,12 +577,12 @@ function App() {
             data && (
               <>
                 <MarketStats />
-                <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6 border border-gray-200">
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4 mb-4">
+                <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mb-4">
                     <div className="col-span-2 sm:col-span-1">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
                       <div className="flex items-center gap-2 min-h-[2rem]">
-                        <span className="text-2xl font-bold text-gray-900 leading-none">
+                        <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {data.epoch_id}
                         </span>
                         {data.is_current && (
@@ -587,7 +596,7 @@ function App() {
                     <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Current Block</div>
                       <div>
-                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {shouldShowEstimatedBlock ? estimatedBlock.toLocaleString() : data.height.toLocaleString()}
                         </div>
                         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
@@ -601,7 +610,7 @@ function App() {
                     <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Participants</div>
                       <div>
-                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {data.participants.length}
                         </div>
                         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -611,7 +620,7 @@ function App() {
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Weight</div>
                       <div>
-                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {data.participants.reduce((sum, p) => sum + p.weight, 0).toLocaleString()}
                         </div>
                       </div>
@@ -620,7 +629,7 @@ function App() {
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Equivalent H100</div>
                       <div>
-                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {Math.round(weightToH100(data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id)).toLocaleString()} GPUs
                         </div>
                         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -630,7 +639,7 @@ function App() {
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6 col-span-2 sm:col-span-3 lg:col-span-1">
                       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Assigned Rewards</div>
                       <div>
-                        <div className="text-2xl font-bold text-gray-900 leading-none">
+                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                           {data.total_assigned_rewards_gnk !== undefined && data.total_assigned_rewards_gnk !== null && data.total_assigned_rewards_gnk > 0
                             ? `${data.total_assigned_rewards_gnk.toLocaleString()} GNK`
                             : '-'
@@ -650,23 +659,25 @@ function App() {
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
                     <div className="flex-1 flex items-center justify-center sm:justify-start">
                       {selectedEpochId === null && (
-                        <span className="text-xs text-gray-500">
+                        <span className="text-xs text-gray-500 text-center sm:text-left">
                           Auto-refreshing every 30s
                           {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
-                      <EpochSelector
-                        currentEpochId={currentEpochId || data.epoch_id}
-                        selectedEpochId={selectedEpochId}
-                        onSelectEpoch={handleEpochSelect}
-                        disabled={loading}
-                      />
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+                      <div className="w-full sm:w-auto">
+                        <EpochSelector
+                          currentEpochId={currentEpochId || data.epoch_id}
+                          selectedEpochId={selectedEpochId}
+                          onSelectEpoch={handleEpochSelect}
+                          disabled={loading}
+                        />
+                      </div>
                       <button
                         onClick={handleRefresh}
                         disabled={loading}
-                        className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                        className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                       >
                         {loading ? 'Refreshing...' : 'Refresh'}
                       </button>
@@ -675,7 +686,7 @@ function App() {
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
-                  <div className="mb-4 flex items-center justify-between gap-4">
+                  <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <div>
                       <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
                         Participant Statistics
@@ -686,11 +697,11 @@ function App() {
                     </div>
 
                     {/* 右侧 Hardware 选择框 */}
-                    <div className="flex items-center gap-2">
+                    <div className="w-full sm:w-auto flex items-center gap-2">
                       <select
                         value={selectedHardware}
                         onChange={(e) => setSelectedHardware(e.target.value)}
-                        className="h-9 min-w-[260px] px-3 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                        className="h-9 w-full sm:w-auto sm:min-w-[260px] px-3 text-sm bg-white border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
                         disabled={!data || hardwareOptions.length === 0}
                       >
                         <option value="ALL">All Hardware</option>
@@ -704,18 +715,20 @@ function App() {
                       No matching participants in this epoch
                     </div>
                     ) : (
-                    <ParticipantTable 
-                      participants={filteredParticipants} 
-                      epochId={data.epoch_id}
-                      isCurrentEpoch={data.is_current}
-                      currentEpochId={currentEpochId}
-                      selectedParticipantId={selectedAddress &&
-                        filteredParticipants.some(p => p.index === selectedAddress)
-                          ? selectedAddress
-                          : null
-                      }
-                      onParticipantSelect={handleParticipantSelect}
-                    />
+                    <div className="overflow-x-auto">
+                      <ParticipantTable
+                        participants={filteredParticipants}
+                        epochId={data.epoch_id}
+                        isCurrentEpoch={data.is_current}
+                        currentEpochId={currentEpochId}
+                        selectedParticipantId={selectedAddress &&
+                          filteredParticipants.some(p => p.index === selectedAddress)
+                            ? selectedAddress
+                            : null
+                        }
+                        onParticipantSelect={handleParticipantSelect}
+                      />
+                    </div>
                   )}
                 </div>
               </>
@@ -723,14 +736,14 @@ function App() {
           )}
         </div>
         
-        <footer className="bg-white border-t border-gray-200 py-6 mt-12">
-          <div className="container mx-auto px-4 max-w-[1600px]">
+        <footer className="bg-white border-t border-gray-200 py-5 sm:py-6 mt-8 sm:mt-12">
+          <div className="container mx-auto px-3 sm:px-4 max-w-[1600px]">
             <div className="flex items-center justify-center text-sm">
               <a 
                 href="https://github.com/gonka-ai/gonka-tracker" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2"
+                className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 text-center"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />

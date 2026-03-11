@@ -67,7 +67,6 @@ function extractCreatorsFromAny(anyMsg: any): string[] {
   if (typeof creator === 'string' && creator.length > 0) {
     creators.add(creator)
   }
-  console.log(creators)
 
   return Array.from(creators)
 }
@@ -109,17 +108,17 @@ function MsgSummaryRow({ node }: { node: MsgSummaryNode }) {
   return (
     <>
       <div
-        className="grid grid-cols-[1fr_260px_260px] px-4 py-3 border-b cursor-pointer hover:bg-gray-50 transition"
+        className="grid grid-cols-[1fr_220px_220px] sm:grid-cols-[1fr_260px_260px] px-3 sm:px-4 py-3 border-b cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition"
         onClick={() => setOpen(!open)}
       >
-        <div className="flex items-center gap-2 text-gray-800 font-medium">
+        <div className="flex items-center gap-2 text-gray-800 font-medium min-w-0">
           <span className="text-gray-400">{open ? '▾' : '▸'}</span>
-          <span>{node.key}</span>
+          <span className="truncate" title={node.key}>{node.key}</span>
         </div>
 
-        <div className="text-right text-gray-700">{node.totalCount} / {formatGas(node.totalGas)}</div>
+        <div className="text-right text-xs sm:text-sm text-gray-700">{node.totalCount} / {formatGas(node.totalGas)}</div>
 
-        <div className="text-right">
+        <div className="text-right text-xs sm:text-sm">
           {node.failedCount > 0 ? (
             <span className="text-red-600">{node.failedCount} / {formatGas(node.failedGas)}</span>
           ) : (
@@ -135,11 +134,11 @@ function MsgSummaryRow({ node }: { node: MsgSummaryNode }) {
             .map(([addr, creator]) => (
             <div
               key={addr}
-              className="grid grid-cols-[1fr_260px_260px] px-10 py-2 text-sm border-b bg-gray-50 hover:bg-gray-100 transition"
+              className="grid grid-cols-[1fr_220px_220px] sm:grid-cols-[1fr_260px_260px] px-6 sm:px-10 py-2 text-xs sm:text-sm border-b bg-gray-50 hover:bg-gray-100 transition"
             >
               <a
                 href={`/?page=address&address=${addr}`}
-                className="text-blue-600 hover:underline font-mono truncate"
+                className="text-blue-600 hover:underline font-mono truncate block min-w-0"
               >
                 {addr}
               </a>
@@ -162,26 +161,26 @@ function TxRow({ row }: { row: any }) {
         className="border-t"
         onMouseLeave={() => setShowError(false)}
       >
-        <td className="px-4 py-3 font-mono truncate">{row.msgType}</td>
+        <td className="px-3 sm:px-4 py-3 font-mono truncate" title={row.msgType}>{row.msgType}</td>
 
         {isFailed && showError ? (
-          <td colSpan={4} className="px-4 py-3">
+          <td colSpan={4} className="px-3 sm:px-4 py-3">
             <div className="flex gap-3">
               <div className="w-1 bg-red-500/70 rounded-sm" />
-              <pre className="text-xs text-red-600 font-mono whitespace-pre-wrap break-all leading-relaxed">Error: {row.errorLog}</pre>
+              <pre className="text-[11px] sm:text-xs text-red-600 font-mono whitespace-pre-wrap break-all leading-relaxed">Error: {row.errorLog}</pre>
             </div>
           </td>
           ) : (
             <>
-              <td className="px-4 py-3 whitespace-nowrap">
+              <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
                 {row.status === 'Success' && (
-                  <span className="inline-flex items-center gap-2 text-green-600 font-medium">
+                  <span className="inline-flex items-center gap-1.5 sm:gap-2 text-green-600 font-medium text-xs sm:text-sm">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white text-xs">✓</span>
                     Success
                   </span>)}
                 {row.status === 'Failed' && (
                   <span 
-                    className="inline-flex items-center gap-2 text-red-600 font-medium cursor-help" 
+                    className="inline-flex items-center gap-1.5 sm:gap-2 text-red-600 font-medium text-xs sm:text-sm cursor-help" 
                     onMouseEnter={() => setShowError(true)}
                   >
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs">✕</span>
@@ -189,23 +188,23 @@ function TxRow({ row }: { row: any }) {
                   </span>
                 )}
                 {row.status === 'Unknown' && (
-                  <span className="inline-flex items-center gap-2 text-gray-400 font-medium">
+                  <span className="inline-flex items-center gap-1.5 sm:gap-2 text-gray-400 font-medium text-xs sm:text-sm">
                     <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white text-xs">?</span>
                     Unknown
                   </span>
                 )}
               </td>
 
-              <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">{row.gasUsed} Used<br />{row.gasWanted} Wanted</td>
-              <td className="px-4 py-3 font-mono text-blue-600 truncate" title={row.creator}>
+              <td className="px-3 sm:px-4 py-3 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">{row.gasUsed} Used<br />{row.gasWanted} Wanted</td>
+              <td className="px-3 sm:px-4 py-3 font-mono text-blue-600 truncate" title={row.creator}>
                 <a
                     href={`/?page=address&address=${row.creator}`}
-                    className="text-blue-600 hover:underline font-mono truncate"
+                    className="text-blue-600 hover:underline font-mono truncate block"
                 >
                     {row.creator !== '-' ? shortHash(row.creator, 16) : '-'}
                 </a>
               </td>
-              <td className="px-4 py-3 font-mono text-blue-600">
+              <td className="px-3 sm:px-4 py-3 font-mono text-blue-600">
                 <a
                     href={`?page=transactions&tx=${row.txhash}`}
                     className="block w-full truncate hover:underline"
@@ -319,17 +318,17 @@ export function BlockDetail({ height }: {height: string }) {
   }, [txRows])
 
   if (isLoading) {
-    return <div className="text-sm text-gray-500">Loading block…</div>
+    return <div className="px-3 sm:px-4 md:px-6 text-sm text-gray-500">Loading block…</div>
   }
 
   if (error || !data) {
-    return <div className="text-sm text-red-600">Failed to load block</div>
+    return <div className="px-3 sm:px-4 md:px-6 text-sm text-red-600">Failed to load block</div>
   }
 
   return (
-    <div className="space-y-6">
-      <div className="px-6 py-4">
-        <nav className="flex items-center text-sm text-gray-500 mb-1">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+        <nav className="flex items-center text-xs sm:text-sm text-gray-500 mb-1 overflow-x-auto whitespace-nowrap">
         <button
             onClick={() => window.history.back()}
             className="flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
@@ -344,56 +343,61 @@ export function BlockDetail({ height }: {height: string }) {
         </nav>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
-        <div className="grid grid-cols-6 gap-8">
+      <div className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 md:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 sm:gap-6 md:gap-8">
           <div>
-            <div className="text-sm text-gray-500 mb-1">Height</div>
-            <div className="text-lg font-mono font-semibold">{data.header.height}</div>
+            <div className="text-xs sm:text-sm text-gray-500 mb-1">Height</div>
+            <div className="text-base sm:text-lg font-mono font-semibold break-all">{data.header.height}</div>
           </div>
           <div>
-            <div className="text-sm text-gray-500 mb-1">Time</div>
-            <div className="text-lg">{formatTime(data.header.time)}</div>
+            <div className="text-xs sm:text-sm text-gray-500 mb-1">Time</div>
+            <div className="text-sm sm:text-lg break-words">{formatTime(data.header.time)}</div>
           </div>
         </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[1fr_260px_260px] px-4 py-3 text-sm text-gray-500 font-medium border-b">
-            <div>MSG TYPE</div>
-            <div className="text-right">TOTAL (COUNT / GAS)</div>
-            <div className="text-right">FAILED (COUNT / GAS)</div>
-        </div>
-        {msgSummary
-          .slice()
-          .sort((a, b) => {
-            if (b.totalCount !== a.totalCount) {
-              return b.totalCount - a.totalCount
-            }
-            return a.key.localeCompare(b.key)
-          })
-          .map(node => (
-            <MsgSummaryRow key={node.key} node={node} />
-        ))}
-      </div>
-
-      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-        <table className="w-full text-sm table-fixed">
-          <thead className="bg-gray-50 text-gray-500">
-            <tr>
-                <th className="px-4 py-3 text-left w-[20%]">MSG TYPE</th>
-                <th className="px-4 py-3 text-left w-[10%]">STATUS</th>
-                <th className="px-4 py-3 text-left w-[15%]">GAS</th>
-                <th className="px-4 py-3 text-left w-[25%]">CREATOR</th>
-                <th className="px-4 py-3 text-left w-[25%]">TX HASH</th>
-            </tr>
-          </thead>
-          <tbody>
-            {txRows.map(row => (
-                <TxRow key={row.key} row={row} />
+        <div className="overflow-x-auto">
+          <div className="min-w-[720px]">
+            <div className="grid grid-cols-[1fr_220px_220px] sm:grid-cols-[1fr_260px_260px] px-3 sm:px-4 py-3 text-xs sm:text-sm text-gray-500 font-medium border-b">
+              <div>MSG TYPE</div>
+              <div className="text-right">TOTAL (COUNT / GAS)</div>
+              <div className="text-right">FAILED (COUNT / GAS)</div>
+            </div>
+            {msgSummary
+              .slice()
+              .sort((a, b) => {
+                if (b.totalCount !== a.totalCount) {
+                  return b.totalCount - a.totalCount
+                }
+                return a.key.localeCompare(b.key)
+              })
+              .map(node => (
+                <MsgSummaryRow key={node.key} node={node} />
             ))}
-          </tbody>
+          </div>
+        </div>
+      </div>
 
-        </table>
+      <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-xs sm:text-sm table-fixed">
+            <thead className="bg-gray-50 text-gray-500">
+              <tr>
+                <th className="px-3 sm:px-4 py-3 text-left w-[20%] whitespace-nowrap">MSG TYPE</th>
+                <th className="px-3 sm:px-4 py-3 text-left w-[10%] whitespace-nowrap">STATUS</th>
+                <th className="px-3 sm:px-4 py-3 text-left w-[15%] whitespace-nowrap">GAS</th>
+                <th className="px-3 sm:px-4 py-3 text-left w-[25%] whitespace-nowrap">CREATOR</th>
+                <th className="px-3 sm:px-4 py-3 text-left w-[25%] whitespace-nowrap">TX HASH</th>
+              </tr>
+            </thead>
+            <tbody>
+              {txRows.map(row => (
+                  <TxRow key={row.key} row={row} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   )

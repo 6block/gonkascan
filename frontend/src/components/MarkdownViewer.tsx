@@ -9,32 +9,32 @@ type Props = {
 export function MarkdownViewer({ content }: Props) {
   const components: Components = {
     h1: ({ children }) => (
-      <h1 className="text-2xl font-semibold mt-8 mb-4">{children}</h1>
+      <h1 className="text-xl sm:text-2xl font-semibold mt-6 sm:mt-8 mb-4 break-words">{children}</h1>
     ),
     h2: ({ children }) => (
-      <h2 className="text-xl font-semibold mt-7 mb-3">{children}</h2>
+      <h2 className="text-lg sm:text-xl font-semibold mt-6 sm:mt-7 mb-3 break-words">{children}</h2>
     ),
     h3: ({ children }) => (
-      <h3 className="text-lg font-semibold mt-6 mb-2">{children}</h3>
+      <h3 className="text-base sm:text-lg font-semibold mt-5 sm:mt-6 mb-2 break-words">{children}</h3>
     ),
 
     // ✅ 正文：对齐 GitHub README
     p: ({ children }) => (
-      <p className="text-base text-gray-800 leading-relaxed mb-4">{children}</p>
+      <p className="text-sm sm:text-base text-gray-800 leading-7 sm:leading-relaxed mb-4 break-words">{children}</p>
     ),
 
     ul: ({ children }) => (
-      <ul className="list-disc pl-6 mb-4 space-y-2 text-base">{children}</ul>
+      <ul className="list-disc pl-5 sm:pl-6 mb-4 space-y-2 text-sm sm:text-base">{children}</ul>
     ),
     ol: ({ children }) => (
-      <ol className="list-decimal pl-6 mb-4 space-y-2 text-base">{children}</ol>
+      <ol className="list-decimal pl-5 sm:pl-6 mb-4 space-y-2 text-sm sm:text-base">{children}</ol>
     ),
     li: ({ children }) => (
-      <li className="text-base text-gray-800">{children}</li>
+      <li className="text-sm sm:text-base text-gray-800 leading-7 break-words">{children}</li>
     ),
 
     blockquote: ({ children }) => (
-      <blockquote className="border-l-4 border-gray-300 pl-4 italic text-gray-600 my-5 text-base">
+      <blockquote className="border-l-4 border-gray-300 pl-3 sm:pl-4 italic text-gray-600 my-5 text-sm sm:text-base leading-7 break-words">
         {children}
       </blockquote>
     ),
@@ -46,7 +46,7 @@ export function MarkdownViewer({ content }: Props) {
       if (!isBlock) {
         return (
           <code
-            className="px-1 py-0.5 bg-gray-100 rounded text-[0.95em] font-mono"
+            className="px-1 py-0.5 bg-gray-100 rounded text-[0.9em] sm:text-[0.95em] font-mono break-words"
             {...props}
           >
             {children}
@@ -55,9 +55,9 @@ export function MarkdownViewer({ content }: Props) {
       }
 
       return (
-        <pre className="bg-[#f6f8fa] border rounded-md p-4 overflow-x-auto my-5">
+        <pre className="bg-[#f6f8fa] border rounded-md p-3 sm:p-4 overflow-x-auto my-5">
           <code
-            className={['text-sm font-mono', className]
+            className={['text-xs sm:text-sm font-mono', className]
               .filter(Boolean)
               .join(' ')}
             {...props}
@@ -70,18 +70,18 @@ export function MarkdownViewer({ content }: Props) {
 
     table: ({ children }) => (
       <div className="overflow-x-auto my-5">
-        <table className="border-collapse border border-gray-300 text-base">
+        <table className="min-w-[640px] border-collapse border border-gray-300 text-sm sm:text-base">
           {children}
         </table>
       </div>
     ),
     th: ({ children }) => (
-      <th className="border border-gray-300 bg-gray-100 px-3 py-2 text-left font-semibold">
+      <th className="border border-gray-300 bg-gray-100 px-2 sm:px-3 py-2 text-left font-semibold text-sm sm:text-base whitespace-nowrap">
         {children}
       </th>
     ),
     td: ({ children }) => (
-      <td className="border border-gray-300 px-3 py-2">{children}</td>
+      <td className="border border-gray-300 px-2 sm:px-3 py-2 text-sm sm:text-base break-words">{children}</td>
     ),
 
     a: ({ href, children }) => (
@@ -89,7 +89,7 @@ export function MarkdownViewer({ content }: Props) {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-blue-600 hover:underline"
+        className="text-blue-600 hover:underline break-all"
       >
         {children}
       </a>

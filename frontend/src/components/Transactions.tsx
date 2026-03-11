@@ -60,7 +60,7 @@ export function Transactions() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
+          <div className="inline-block h-10 w-10 sm:h-12 sm:w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
           <p className="mt-4 text-gray-600">Loading transactions...</p>
         </div>
       </div>
@@ -70,7 +70,7 @@ export function Transactions() {
   if (error && !data) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 max-w-md">
           <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
           <p className="text-red-600">{error}</p>
           <button
@@ -88,12 +88,12 @@ export function Transactions() {
 
   return (
     <div>
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="mb-4">
-            <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-4">
+            <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">
             Transactions
             </h2>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
                 Auto-refreshing every 10s
                 {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
             </p>
@@ -103,10 +103,10 @@ export function Transactions() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">HEIGHT</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[55%]">HASH</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[15%]">MESSAGES</th>
-                <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[20%]">TIME</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">HEIGHT</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[55%]">HASH</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[15%]">MESSAGES</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[20%]">TIME</th>
               </tr>
             </thead>
 
@@ -128,7 +128,7 @@ export function Transactions() {
                       : 'hover:bg-gray-50',
                   ].join(' ')}
                 >
-                  <td className="px-4 py-3 text-sm text-center text-gray-900 w-[10%]">
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[10%]">
                     <a
                       href={`?page=blocks&height=${tx.height}`}
                       onClick={(e) => e.stopPropagation()}
@@ -138,11 +138,15 @@ export function Transactions() {
                         {tx.height}
                       </a>
                   </td>
-                  <td className="px-4 py-3 text-sm text-center font-mono text-gray-900 w-[55%]">{tx.tx_hash}</td>
-                  <td className="px-4 py-3 text-sm text-center text-gray-900 w-[15%]">{tx.messages.join(", ")}</td>
-                  <td className="px-4 py-3 text-sm text-center text-gray-900 w-[20%]">
-                    <div className="flex items-center justify-center gap-1">
-                        <ClockIcon className="w-4 h-4 text-gray-500" />
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center font-mono text-gray-900 w-[55%]">
+                    <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>
+                      {tx.tx_hash}
+                    </div>
+                  </td>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[15%] break-words">{tx.messages.join(", ")}</td>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[20%]">
+                    <div className="flex items-center justify-center gap-1 whitespace-nowrap">
+                        <ClockIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
                         <span>
                         {tx.timestamp ? new Date(tx.timestamp).toLocaleString("en-CA", {
                             hour12: false,

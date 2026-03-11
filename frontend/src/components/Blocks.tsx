@@ -86,7 +86,7 @@ export function Blocks() {
 
   if (loading && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-[50vh] sm:min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
           <p className="mt-4 text-gray-600">Loading blocks...</p>
@@ -97,8 +97,8 @@ export function Blocks() {
 
   if (error && !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+      <div className="min-h-[50vh] sm:min-h-screen flex items-center justify-center bg-gray-50 px-3 sm:px-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 max-w-md w-full">
           <h2 className="text-red-800 text-lg font-semibold mb-2">Failed to load blocks</h2>
           <p className="text-red-600">{error}</p>
           <button
@@ -115,23 +115,25 @@ export function Blocks() {
   if (!data) return null
 
   return (
-    <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-gray-200 p-4 md:p-6">
-        <h2 className="text-sm font-medium text-gray-700 mb-4">Txs</h2>
+    <div className="space-y-4 sm:space-y-6">
+      <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4 md:p-6">
+        <h2 className="text-sm sm:text-base font-medium text-gray-700 mb-3 sm:mb-4">Txs</h2>
 
-        <div className="h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <XAxis dataKey="height" tick={{ fontSize: 11 }} tickFormatter={v => v.toString()}/>
-              <YAxis tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(v: number) => [`${v} txs`, 'Txs']} labelFormatter={l => `Height ${l}`}/>
-              <Bar dataKey="txs" fill="#16a34a" radius={[3, 3, 0, 0]}/>
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="w-full overflow-x-hidden">
+          <div className="h-[220px] sm:h-[240px] md:h-[260px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis dataKey="height" tick={{ fontSize: 11 }} tickFormatter={v => v.toString()} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip formatter={(v: number) => [`${v} txs`, 'Txs']} labelFormatter={l => `Height ${l}`}/>
+                <Bar dataKey="txs" fill="#16a34a" radius={[3, 3, 0, 0]}/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
         {latestBlocks.map(block => (
           <div
             key={block.height}
@@ -143,14 +145,14 @@ export function Blocks() {
                 params.set('height', height)
                 window.history.pushState({}, '', `?${params}`)
             }}
-            className="cursor-pointer rounded-lg border border-gray-200 p-4 transition hover:bg-blue-50 hover:ring-1 hover:ring-blue-300"       
+            className="cursor-pointer rounded-lg border border-gray-200 p-3 sm:p-4 transition hover:bg-blue-50 hover:ring-1 hover:ring-blue-300 active:bg-blue-100"       
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-lg font-mono font-semibold text-gray-900">{block.height}</div>
-              <div className="text-xs text-green-600">{timeAgo(block.timestamp)}</div>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="text-base sm:text-lg font-mono font-semibold text-gray-900 break-all">{block.height}</div>
+              <div className="text-[11px] sm:text-xs text-green-600 whitespace-nowrap">{timeAgo(block.timestamp)}</div>
             </div>
 
-            <div className="text-sm text-gray-600">{block.tx_count} txs</div>
+            <div className="text-xs sm:text-sm text-gray-600">{block.tx_count} txs</div>
           </div>
         ))}
       </div>

@@ -133,16 +133,16 @@ export function Governance() {
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-      <div className="flex items-start justify-between mb-6">
+    <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Proposals</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900">Proposals</h2>
+          <p className="text-sm text-gray-500 mt-1 leading-relaxed">
             Approved proposals are then executed to update the network
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(['voting', 'passed', 'rejected'] as Tab[]).map((t) => {
             return (
               <button
@@ -150,7 +150,7 @@ export function Governance() {
                 onClick={() => {
                   setTab(t), setPage(1)
                 }}
-                className={`px-4 py-1.5 rounded-md text-sm border ${
+                className={`whitespace-nowrap shrink-0 px-4 py-2 rounded-md text-sm border transition-colors ${
                   activeTab === t
                     ? 'bg-gray-900 text-white border-gray-900'
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
@@ -164,8 +164,8 @@ export function Governance() {
       </div>
 
       {activeTab === 'voting' && list.length === 0 ? (
-        <div className="py-16 text-center">
-          <div className="text-lg font-medium text-gray-700 mb-2">
+        <div className="py-12 sm:py-16 text-center px-4">
+          <div className="text-base sm:text-lg font-medium text-gray-700 mb-2">
             There are no active proposals right now.
           </div>
           <div className="text-sm text-gray-500">
@@ -174,8 +174,8 @@ export function Governance() {
         </div>
       ) : (
         <>
-          <div className="border rounded-lg overflow-hidden">
-            <div className="grid grid-cols-[3fr_1fr_3fr_1.5fr_1.5fr] bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600">
+          <div className="border rounded-lg overflow-hidden overflow-x-auto">
+            <div className="grid min-w-[900px] grid-cols-[3fr_1fr_3fr_1.5fr_1.5fr] bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
               <div>PROPOSALS</div>
               <div>EPOCH</div>
               <div>VOTES</div>
@@ -243,15 +243,14 @@ export function Governance() {
                     params.set('proposal_id', String(p.id))
                     window.history.pushState({}, '', `?${params.toString()}`)
                   }}
-                  className="group grid grid-cols-[3fr_1fr_3fr_1.5fr_1.5fr] px-4 py-4 border-t text-sm 
-                cursor-pointer hover:bg-gray-50 transition"
+                  className="group grid min-w-[900px] grid-cols-[3fr_1fr_3fr_1.5fr_1.5fr] px-4 py-4 border-t text-sm cursor-pointer hover:bg-gray-50 transition"
                 >
                   {/* Proposal */}
                   <div>
-                    <div className="font-semibold text-gray-900 group-hover:underline">
+                    <div className="font-semibold text-gray-900 group-hover:underline break-words">
                       #{p.id} {p.title}
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-medium ${
                           p.status.includes('PASSED')
@@ -268,7 +267,7 @@ export function Governance() {
                       </span>
                     </div>
                     {formatMessageTypes(p.messages) && (
-                      <div className="text-xs text-gray-500 mt-1">
+                      <div className="text-xs text-gray-500 mt-1 leading-relaxed break-words">
                         {formatMessageTypes(p.messages)}
                       </div>
                     )}
@@ -280,8 +279,8 @@ export function Governance() {
                   </div>
 
                   {/* Votes */}
-                  <div className="pr-6">
-                    <div className="flex text-xs gap-2 mb-1">
+                  <div className="pr-3 sm:pr-6">
+                    <div className="flex flex-wrap text-xs gap-2 mb-1 leading-relaxed">
                       {voteItems.map((item, idx) => (
                         <span key={idx} className="flex items-center">
                           <span className={item.color}>
@@ -323,8 +322,7 @@ export function Governance() {
                         className="
                             absolute left-1/2 -top-2 translate-x-[-50%] -translate-y-full
                             opacity-0 group-hover:opacity-100 transition
-                            rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg
-                            whitespace-nowrap z-10
+                            rounded bg-gray-900 px-3 py-2 text-xs text-white shadow-lg whitespace-nowrap z-10 hidden sm:block
                         "
                       >
                         {votes.map((v, _) => (
@@ -344,7 +342,7 @@ export function Governance() {
                   </div>
 
                   {/* Weight */}
-                  <div className="flex items-center justify-center text-center font-medium">
+                  <div className="flex items-center justify-center text-center font-medium break-words">
                     {p.total_weight > 0
                       ? `${formatCompactNumber(
                           p.voted_weight
@@ -357,7 +355,7 @@ export function Governance() {
                   </div>
 
                   {/* Address */}
-                  <div className="flex items-center justify-center text-center font-medium">
+                  <div className="flex items-center justify-center text-center font-medium break-words">
                     {p.total_voters}/{p.total_participants}
                   </div>
                 </div>
@@ -369,21 +367,21 @@ export function Governance() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-end gap-3 mt-4">
+        <div className="flex items-center justify-between sm:justify-end gap-3 mt-4">
           <button
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}
-            className="px-3 py-1.5 text-sm border rounded disabled:opacity-40"
+            className="px-3 py-2 text-sm border rounded-md disabled:opacity-40"
           >
             Prev
           </button>
-          <span className="h-[32px] flex items-center text-sm text-gray-600 leading-none">
+          <span className="min-h-[36px] flex items-center text-sm text-gray-600 leading-none whitespace-nowrap">
             {page} / {totalPages}
           </span>
           <button
             disabled={page === totalPages}
             onClick={() => setPage((p) => p + 1)}
-            className="px-3 py-1.5 text-sm border rounded disabled:opacity-40"
+            className="px-3 py-2 text-sm border rounded-md disabled:opacity-40"
           >
             Next
           </button>

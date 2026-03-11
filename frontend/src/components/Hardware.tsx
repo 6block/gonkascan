@@ -214,13 +214,13 @@ export function Hardware() {
     : null
   
   return (
-    <div>
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6 border border-gray-200">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+    <div className="space-y-6 md:space-y-8">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
             <div className="flex items-center gap-2 min-h-[2rem]">
-              <span className="text-2xl font-bold text-gray-900 leading-none">{data.epoch_id}
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{data.epoch_id}
               </span>
               {data.is_current && (
                 <span className="px-2.5 py-0.5 text-xs font-semibold bg-gray-900 text-white rounded">CURRENT</span>
@@ -231,7 +231,7 @@ export function Hardware() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Weight</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.total_weight.toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -241,7 +241,7 @@ export function Hardware() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Hardware</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.hardware.reduce((sum, hardware) => sum + hardware.amount, 0).toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -251,7 +251,7 @@ export function Hardware() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Supported Hardware Types</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.hardware.length}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -262,23 +262,25 @@ export function Hardware() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
           <div className="flex-1 flex items-center justify-center sm:justify-start">
             {selectedEpochId === null && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 text-center sm:text-left">
                 Auto-refreshing every 90s
                 {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <EpochSelector
-              currentEpochId={currentEpochId || data.epoch_id}
-              selectedEpochId={selectedEpochId}
-              onSelectEpoch={handleEpochSelect}
-              disabled={loading}
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="w-full sm:w-auto">
+              <EpochSelector
+                currentEpochId={currentEpochId || data.epoch_id}
+                selectedEpochId={selectedEpochId}
+                onSelectEpoch={handleEpochSelect}
+                disabled={loading}
+              />
+            </div>
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
@@ -286,42 +288,40 @@ export function Hardware() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200 mb-10">
-        <div className="flex items-center justify-between mb-4">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200 mb-8 md:mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">Hardware</h2>
-            <p className="text-xs md:text-sm text-gray-500">Click on a hardware to view detailed information</p>
+            <p className="text-xs md:text-sm text-gray-500 leading-relaxed">Click on a hardware to view detailed information</p>
           </div>
 
           <select
             value={selectedModel ?? ''}
             onChange={(e) => setSelectedModel(e.target.value || null)}
-            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white w-56 h-10 max-w-[14rem] truncate"
+            className="text-sm border border-gray-300 rounded-md px-3 py-2 bg-white w-full sm:w-56 h-10 sm:max-w-[14rem] truncate focus:outline-none focus:ring-2 focus:ring-gray-900"
           >
             <option className="text-sm" value="">Select Model</option>
             {allModels.map(model => (<option key={model} value={model}>{model}</option>))}
           </select>
-
-
         </div>
 
 
         <div className="overflow-x-auto border border-gray-200 rounded-md">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-[640px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Hardware</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Total Weight</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Hardware</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Total Weight</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Amount</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {displayHardwares.map((hardware) => {
                 return (
                   <tr key={hardware.id} onClick={() => handleRowClick(hardware)} className="cursor-pointer hover:bg-gray-50">
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900">{hardware.id}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">{hardware.total_weight.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">{hardware.amount}</td>
+                    <td className="px-3 sm:px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">{hardware.id}</td>
+                    <td className="px-3 sm:px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">{hardware.total_weight.toLocaleString()}</td>
+                    <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">{hardware.amount}</td>
                   </tr>
                 )
               })}
@@ -336,7 +336,7 @@ export function Hardware() {
                 setShowAll(!showAll)
                 setExtraHardwareId(null)
               }}
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition rounded-md"
             >
               <span className="text-lg leading-none">
                 {showAll ? '▲' : '▼'}
@@ -357,7 +357,7 @@ export function Hardware() {
       />
 
       {metricsData && !metricsLoading && (
-        <div className="flex flex-col gap-10 mb-10">
+        <div className="flex flex-col gap-6 sm:gap-8 md:gap-10 mb-8 md:mb-10">
           <EpochAreaChart title="Total Weight" data={totalWeightData} />
           <EpochAreaChart title="Amount" data={amountData} />
         </div>

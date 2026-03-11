@@ -17,8 +17,8 @@ export function EpochSelector({
   }
 
   return (
-    <div className="flex items-center gap-2">
-      <label htmlFor="epoch-select" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full sm:w-auto">
+      <label htmlFor="epoch-select" className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
         Epoch:
       </label>
       <select
@@ -30,7 +30,7 @@ export function EpochSelector({
           onSelectEpoch(epochId === currentEpochId ? null : epochId)
         }}
         disabled={disabled}
-        className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 bg-white"
+        className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-gray-500 disabled:bg-gray-100 disabled:cursor-not-allowed text-gray-900 bg-white"
       >
         {epochOptions.reverse().map((epoch) => (
           <option key={epoch} value={epoch}>

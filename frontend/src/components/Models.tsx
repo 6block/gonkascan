@@ -189,13 +189,13 @@ export function Models() {
   const selectedStats = selectedModelId ? statsMap.get(selectedModelId) || null : null
 
   return (
-    <div>
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 mb-6 border border-gray-200">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4">
+    <div className="space-y-6 md:space-y-8">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
             <div className="flex items-center gap-2 min-h-[2rem]">
-              <span className="text-2xl font-bold text-gray-900 leading-none">
+              <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.epoch_id}
               </span>
               {data.is_current && (
@@ -209,7 +209,7 @@ export function Models() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Block Height</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.height.toLocaleString()}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -219,7 +219,7 @@ export function Models() {
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
             <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Models</div>
             <div>
-              <div className="text-2xl font-bold text-gray-900 leading-none">
+              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
                 {data.models.length}
               </div>
               <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
@@ -230,23 +230,25 @@ export function Models() {
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
           <div className="flex-1 flex items-center justify-center sm:justify-start">
             {selectedEpochId === null && (
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-gray-500 text-center sm:text-left">
                 Auto-refreshing every 90s
                 {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-3">
-            <EpochSelector
-              currentEpochId={currentEpochId || data.epoch_id}
-              selectedEpochId={selectedEpochId}
-              onSelectEpoch={handleEpochSelect}
-              disabled={loading}
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="w-full sm:w-auto">
+              <EpochSelector
+                currentEpochId={currentEpochId || data.epoch_id}
+                selectedEpochId={selectedEpochId}
+                onSelectEpoch={handleEpochSelect}
+                disabled={loading}
+              />
+            </div>
             <button
               onClick={handleRefresh}
               disabled={loading}
-              className="flex-1 sm:flex-none px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+              className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Refreshing...' : 'Refresh'}
             </button>
@@ -254,33 +256,33 @@ export function Models() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200 mb-10">
+      <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="mb-4">
-          <h2 className="text-lg md:text-xl font-bold text-gray-900 mb-1">
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 leading-tight">
             Available Models
           </h2>
-          <p className="text-xs md:text-sm text-gray-500">
+          <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
             Click on a model to view detailed information
           </p>
         </div>
 
         <div className="overflow-x-auto border border-gray-200 rounded-md">
-          <table className="min-w-full divide-y divide-gray-200">
+          <table className="min-w-[720px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                   Model ID
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                   Total Weight
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                   Hosts
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                   Inferences
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
                   AI Tokens
                 </th>
               </tr>
@@ -293,21 +295,21 @@ export function Models() {
                   <tr
                     key={model.id}
                     onClick={() => handleRowClick(model)}
-                    className="cursor-pointer hover:bg-gray-50"
+                    className="cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   >
-                    <td className="px-4 py-3 text-sm font-mono text-gray-900">
+                    <td className="px-3 sm:px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
                       {model.id}
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
                       {model.total_weight.toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
                       {model.participant_count}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
                       {stats ? stats.inferences.toLocaleString() : '-'}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900 text-right">
+                    <td className="px-3 sm:px-4 py-3 text-sm text-gray-900 text-right whitespace-nowrap">
                       {stats ? parseInt(stats.ai_tokens).toLocaleString() : '-'}
                     </td>
                   </tr>
@@ -325,7 +327,7 @@ export function Models() {
       />
 
       {metricsData && !metricsLoading && (
-        <div className="flex flex-col gap-10 mb-10">
+        <div className="flex flex-col gap-6 md:gap-8">
           <EpochAreaChart title="Total Weight" data={totalWeightData} />
           <EpochAreaChart title="Hosts" data={hostsData} />
           <EpochAreaChart title="Inferences" data={inferencesData} />
