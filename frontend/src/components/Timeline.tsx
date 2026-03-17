@@ -4,6 +4,9 @@ import { TimelineResponse } from '../types/inference'
 import { apiFetch } from '../utils'
 import { useEstimatedBlock } from '../hooks/useEstimatedBlock'
 import { EpochTimer } from './EpochTimer'
+import { StatItem } from './common/StatItem'
+import { EpochIdDisplay } from './common/EpochIdDisplay'
+import { RefreshControlFooter } from './common/RefreshControlFooter'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
@@ -177,37 +180,17 @@ export function Timeline() {
       <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
-            <div className="flex items-center gap-2 min-h-[2rem]">
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                {data.current_epoch_index}
-              </span>
-              <span className="px-2.5 py-0.5 text-xs font-semibold bg-gray-900 text-white rounded">
-                CURRENT
-              </span>
-            </div>
+            <EpochIdDisplay epochId={data.current_epoch_index} isCurrent={true} />
           </div>
 
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Current Block</div>
-            <div>
-              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none break-words">
-                {getEstimatedCurrentBlock().toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
-                Last confirmed: {data.current_block.height.toLocaleString()}
-              </div>
-            </div>
+            <StatItem label="Current Block" subText={<>Last confirmed: {data.current_block.height.toLocaleString()}</>}>
+              {getEstimatedCurrentBlock().toLocaleString()}
+            </StatItem>
           </div>
 
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Avg Block Time</div>
-            <div>
-              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none break-words">
-                {data.avg_block_time.toFixed(2)}s
-              </div>
-              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-            </div>
+            <StatItem label="Avg Block Time" subText="">{data.avg_block_time.toFixed(2)}s</StatItem>
           </div>
 
           <EpochTimer 
@@ -225,21 +208,12 @@ export function Timeline() {
           />
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
-          <div className="flex-1 flex items-center justify-center sm:justify-start">
-            <span className="text-xs text-gray-500 text-center sm:text-left">
-              Auto-refreshing every 60s
-              {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
-            </span>
-          </div>
-          <button
-            onClick={() => refetch()}
-            disabled={isLoading}
-            className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-          >
-            {isLoading ? 'Refreshing...' : 'Refresh'}
-          </button>
-        </div>
+        <RefreshControlFooter
+          refreshInterval="60s"
+          dataUpdatedAt={dataUpdatedAt}
+          isLoading={isLoading}
+          onRefresh={() => refetch()}
+        />
       </div>
 
       <div ref={detailedTimelineRef} className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">

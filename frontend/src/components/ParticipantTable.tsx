@@ -1,4 +1,5 @@
 import { Participant } from '../types/inference'
+import { Badge } from './common/Badge'
 
 interface ParticipantTableProps {
   participants: Participant[]
@@ -164,12 +165,7 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                   {participant.models.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-xs">
                       {participant.models.slice(0, 3).map((model, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded whitespace-nowrap"
-                        >
-                          {model}
-                        </span>
+                        <Badge key={idx} variant="gray" className="font-medium whitespace-nowrap">{model}</Badge>
                       ))}
                       {participant.models.length > 3 && (
                         <span className="text-xs text-gray-500 whitespace-nowrap">

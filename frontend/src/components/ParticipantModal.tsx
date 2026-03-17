@@ -5,6 +5,11 @@ import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDet
 import { InferenceDetailModal } from './InferenceDetailModal'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
 import { formatGNK, apiFetch } from '../utils'
+import { StatCard } from './common/StatCard'
+import { Badge } from './common/Badge'
+import { MLNodeCard } from './common/MLNodeCard'
+import { InferenceTable } from './common/InferenceTable'
+import { BackNavigation } from './common/BackNavigation'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
@@ -105,46 +110,15 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
       <div className="bg-white rounded-lg shadow-sm">
 
         <div className="border-b border-gray-200 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-          <nav className="flex flex-wrap sm:flex-nowrap items-center gap-y-1 text-sm text-gray-500 mb-1 min-w-0">
-            <button
-              onClick={handleBack}
-              className="shrink-0 flex items-center gap-1 text-gray-500 hover:text-gray-900 transition"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-              </svg>
-              Dashboard
-            </button>
-
-            <span className="mx-2 shrink-0">/</span>
-            <span className="block sm:inline min-w-0 text-gray-900 font-medium break-all sm:break-normal">{participant.index}</span>
-          </nav>
+          <BackNavigation onBack={handleBack} backLabel="Dashboard" title={participant.index} />
         </div>
 
         <div className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-            <div className="bg-gray-50 p-4 rounded">
-              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</div>
-              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(balance_gonka + vesting_gonka)}</div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded">
-              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</div>
-              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(balance_gonka)}</div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded">
-              <div className="flex items-baseline gap-2 mb-2">
-                <span className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mined</span>
-                <span className="text-[11px] text-gray-400 normal-case">(Data since epoch 100)</span>
-              </div>
-              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(total_rewards)}</div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded">
-              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Vesting</div>
-              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{formatGNK(vesting_gonka)}</div>
-            </div>
+            <StatCard label="Total" size="lg">{formatGNK(balance_gonka + vesting_gonka)}</StatCard>
+            <StatCard label="Balance" size="lg">{formatGNK(balance_gonka)}</StatCard>
+            <StatCard label={<><span>Mined</span><span className="text-[11px] text-gray-400 normal-case ml-2">(Data since epoch 100)</span></>} size="lg">{formatGNK(total_rewards)}</StatCard>
+            <StatCard label="Vesting" size="lg">{formatGNK(vesting_gonka)}</StatCard>
           </div>
         </div>
 
@@ -280,38 +254,31 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             
             <div className="border-t border-gray-200 pt-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 sm:gap-4">
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight</label>
-                  <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{participant.weight.toLocaleString()}</div>
-                </div>
+                <StatCard label="Weight">{participant.weight.toLocaleString()}</StatCard>
 
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Weight to Confirm</label>
-                  <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-                    {participant.weight_to_confirm !== null && participant.weight_to_confirm !== undefined
-                      ? participant.weight_to_confirm.toLocaleString()
-                      : '-'}
-                  </div>
-                </div>
+                <StatCard label="Weight to Confirm">
+                  {participant.weight_to_confirm !== null && participant.weight_to_confirm !== undefined
+                    ? participant.weight_to_confirm.toLocaleString()
+                    : '-'}
+                </StatCard>
 
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Confirmation Ratio</label>
-                  <div className={`text-base sm:text-lg font-semibold break-words${
-                    participant.confirmation_poc_ratio !== null && 
+                <StatCard
+                  label="Confirmation Ratio"
+                  valueClassName={
+                    participant.confirmation_poc_ratio !== null &&
                     participant.confirmation_poc_ratio !== undefined &&
-                    participant.confirmation_poc_ratio < 0.5 
-                      ? 'text-red-600' 
-                      : 'text-gray-900'
-                  }`}>
-                    {participant.confirmation_poc_ratio !== null && participant.confirmation_poc_ratio !== undefined
-                      ? `${(participant.confirmation_poc_ratio * 100).toFixed(2)}%`
-                      : '-'}
-                  </div>
-                </div>
+                    participant.confirmation_poc_ratio < 0.5
+                      ? 'text-red-600'
+                      : undefined
+                  }
+                >
+                  {participant.confirmation_poc_ratio !== null && participant.confirmation_poc_ratio !== undefined
+                    ? `${(participant.confirmation_poc_ratio * 100).toFixed(2)}%`
+                    : '-'}
+                </StatCard>
 
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Node Health</label>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <StatCard label="Node Health">
+                  <div className="flex items-center gap-2 flex-wrap">
                     {participant.node_healthy === true ? (
                       <>
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
@@ -329,45 +296,29 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                       </>
                     )}
                   </div>
-                </div>
+                </StatCard>
 
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Validator Jail</label>
-                  <div className="mt-1">
-                    {participant.participant_status === "INACTIVE" ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-300 rounded">
-                        NOT VALIDATOR
-                      </span>
-                    ) : participant.is_jailed === true ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-300 rounded">
-                        JAILED
-                      </span>
-                    ) : participant.is_jailed === false ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
-                        NOT JAILED
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-sm">Unknown</span>
-                    )}
-                  </div>
-                </div>
+                <StatCard label="Validator Jail">
+                  {participant.participant_status === "INACTIVE" ? (
+                    <Badge variant="gray">NOT VALIDATOR</Badge>
+                  ) : participant.is_jailed === true ? (
+                    <Badge variant="red">JAILED</Badge>
+                  ) : participant.is_jailed === false ? (
+                    <Badge variant="green">NOT JAILED</Badge>
+                  ) : (
+                    <span className="text-gray-400 text-sm">Unknown</span>
+                  )}
+                </StatCard>
 
-                <div className="bg-gray-50 p-4 rounded">
-                  <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Host Status</label>
-                  <div className="mt-1">
-                    {participant.status === 'INACTIVE' ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-orange-100 text-orange-700 border border-orange-300 rounded">
-                        INACTIVE
-                      </span>
-                    ) : participant.status === 'ACTIVE' ? (
-                      <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
-                        ACTIVE
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 text-sm">Unknown</span>
-                    )}
-                  </div>
-                </div>
+                <StatCard label="Host Status">
+                  {participant.status === 'INACTIVE' ? (
+                    <Badge variant="orange">INACTIVE</Badge>
+                  ) : participant.status === 'ACTIVE' ? (
+                    <Badge variant="green">ACTIVE</Badge>
+                  ) : (
+                    <span className="text-gray-400 text-sm">Unknown</span>
+                  )}
+                </StatCard>
               </div>
             </div>
 
@@ -376,12 +327,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               <div className="mt-2 flex flex-wrap gap-2">
                 {participant.models.length > 0 ? (
                   participant.models.map((model, idx) => (
-                    <span
-                      key={idx}
-                      className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 border border-gray-300 rounded"
-                    >
-                      {model}
-                    </span>
+                    <Badge key={idx} variant="gray" className="py-1 font-medium">{model}</Badge>
                   ))
                 ) : (
                   <span className="text-gray-400 text-sm">No models</span>
@@ -395,27 +341,12 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Collateral Status</h3>
               
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Potential Weight</div>
-                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.potential_weight.toLocaleString()}</div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Effective Weight</div>
-                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.effective_weight.toLocaleString()}</div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Collateral Rate</div>
-                  <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${collateralStatus.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}`}>
-                    {(collateralStatus.collateral_ratio * 100).toFixed(2)}%
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded">
-                  <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Needed Collateral</div>
-                  <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{collateralStatus.needed_ngonka.toLocaleString()} ngonka</div>
-                </div>
+                <StatCard label="Potential Weight">{collateralStatus.potential_weight.toLocaleString()}</StatCard>
+                <StatCard label="Effective Weight">{collateralStatus.effective_weight.toLocaleString()}</StatCard>
+                <StatCard label="Collateral Rate" valueClassName={collateralStatus.collateral_ratio < 0.90 ? 'text-red-600' : 'text-green-500'}>
+                  {(collateralStatus.collateral_ratio * 100).toFixed(2)}%
+                </StatCard>
+                <StatCard label="Needed Collateral">{collateralStatus.needed_ngonka.toLocaleString()} ngonka</StatCard>
               </div>
             </div>
           )}
@@ -424,45 +355,22 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">Inference Statistics</h3>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-3 sm:gap-4">
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total Inferenced</div>
-                <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">{totalInferenced.toLocaleString()}</div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Missed Requests</div>
-                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${parseInt(participant.current_epoch_stats.missed_requests) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {parseInt(participant.current_epoch_stats.missed_requests).toLocaleString()}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Validated Inferences</div>
-                <div className="mt-1 text-base sm:text-lg font-semibold text-gray-900 break-words">
-                  {parseInt(participant.current_epoch_stats.validated_inferences).toLocaleString()}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Invalidated Inferences</div>
-                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${parseInt(participant.current_epoch_stats.invalidated_inferences) > 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {parseInt(participant.current_epoch_stats.invalidated_inferences).toLocaleString()}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Missed Rate</div>
-                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${participant.missed_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {(participant.missed_rate * 100).toFixed(2)}%
-                </div>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded">
-                <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Invalidation Rate</div>
-                <div className={`mt-1 text-base sm:text-lg font-semibold break-words ${participant.invalidation_rate > 0.10 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {(participant.invalidation_rate * 100).toFixed(2)}%
-                </div>
-              </div>
+              <StatCard label="Total Inferenced">{totalInferenced.toLocaleString()}</StatCard>
+              <StatCard label="Missed Requests" valueClassName={parseInt(participant.current_epoch_stats.missed_requests) > 0 ? 'text-red-600' : undefined}>
+                {parseInt(participant.current_epoch_stats.missed_requests).toLocaleString()}
+              </StatCard>
+              <StatCard label="Validated Inferences">
+                {parseInt(participant.current_epoch_stats.validated_inferences).toLocaleString()}
+              </StatCard>
+              <StatCard label="Invalidated Inferences" valueClassName={parseInt(participant.current_epoch_stats.invalidated_inferences) > 0 ? 'text-red-600' : undefined}>
+                {parseInt(participant.current_epoch_stats.invalidated_inferences).toLocaleString()}
+              </StatCard>
+              <StatCard label="Missed Rate" valueClassName={participant.missed_rate > 0.10 ? 'text-red-600' : undefined}>
+                {(participant.missed_rate * 100).toFixed(2)}%
+              </StatCard>
+              <StatCard label="Invalidation Rate" valueClassName={participant.invalidation_rate > 0.10 ? 'text-red-600' : undefined}>
+                {(participant.invalidation_rate * 100).toFixed(2)}%
+              </StatCard>
             </div>
           </div>
 
@@ -503,13 +411,9 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                         </td>
                         <td className="px-3 sm:px-4 py-2 text-sm whitespace-nowrap">
                           {reward.claimed ? (
-                            <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-green-100 text-green-700 border border-green-300 rounded">
-                              YES
-                            </span>
+                            <Badge variant="green">YES</Badge>
                           ) : (
-                            <span className="inline-block px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-700 border border-red-300 rounded">
-                              NO
-                            </span>
+                            <Badge variant="red">NO</Badge>
                           )}
                         </td>
                       </tr>
@@ -532,71 +436,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             ) : details && details.ml_nodes && details.ml_nodes.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 {details.ml_nodes.map((node, idx) => (
-                  <div key={idx} className="bg-gray-50 border border-gray-200 rounded-lg p-3 sm:p-4">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="min-w-0 font-semibold text-gray-900 break-all">{node.local_id}</div>
-                      <span className={`inline-block shrink-0 px-2 py-0.5 text-xs font-semibold rounded ${
-                        node.status === 'FAILED' 
-                          ? 'bg-red-100 text-red-700 border border-red-300' 
-                          : 'bg-blue-100 text-blue-700 border border-blue-300'
-                      }`}>
-                        {node.status}
-                      </span>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      {node.poc_weight !== undefined && node.poc_weight !== null && (
-                        <div>
-                          <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Weight</div>
-                          <div className="mt-1 text-xs text-gray-700">
-                            {node.poc_weight.toLocaleString()}
-                          </div>
-                        </div>
-                      )}
-                      
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Models</div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {node.models.length > 0 ? (
-                            node.models.map((model, modelIdx) => (
-                              <span
-                                key={modelIdx}
-                                className="inline-block px-2 py-0.5 text-xs font-medium bg-gray-200 text-gray-700 rounded-md break-all"
-                              >
-                                {model}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-xs text-gray-400">No models</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Hardware</div>
-                        <div className="mt-1">
-                          {node.hardware.length > 0 ? (
-                            <div className="space-y-1">
-                              {node.hardware.map((hw, hwIdx) => (
-                                <div key={hwIdx} className="text-xs text-gray-700 break-words">
-                                  {hw.count}x {hw.type}
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">Hardware not reported</span>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Network</div>
-                        <div className="mt-1 text-xs font-mono text-gray-700 break-all">
-                          {node.host}:{node.port}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <MLNodeCard key={idx} node={node} />
                 ))}
               </div>
             ) : (
@@ -626,113 +466,26 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               </div>
             ) : (
               <>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-                    Successful (Top 10)
-                  </h3>
-                  {inferences.successful.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Inference ID</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Block Height</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Validated By</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {inferences.successful.map((inf) => (
-                            <tr 
-                              key={inf.inference_id} 
-                              className="hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setSelectedInference(inf)}
-                            >
-                              <td className="px-4 py-2 text-sm font-mono text-gray-700 truncate max-w-xs">
-                                {inf.inference_id}
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.start_block_height}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.validated_by.length}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400 bg-gray-50 p-4 rounded">No successful inferences</div>
-                  )}
-                </div>
+                <InferenceTable
+                  title="Successful (Top 10)"
+                  data={inferences.successful}
+                  emptyText="No successful inferences"
+                  onSelect={setSelectedInference}
+                />
 
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-                    Expired (Top 10)
-                  </h3>
-                  {inferences.expired.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Inference ID</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Block Height</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Validated By</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {inferences.expired.map((inf) => (
-                            <tr 
-                              key={inf.inference_id} 
-                              className="hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setSelectedInference(inf)}
-                            >
-                              <td className="px-4 py-2 text-sm font-mono text-gray-700 truncate max-w-xs">
-                                {inf.inference_id}
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.start_block_height}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.validated_by.length}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400 bg-gray-50 p-4 rounded">No expired inferences</div>
-                  )}
-                </div>
+                <InferenceTable
+                  title="Expired (Top 10)"
+                  data={inferences.expired}
+                  emptyText="No expired inferences"
+                  onSelect={setSelectedInference}
+                />
 
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3">
-                    Invalidated (Top 10)
-                  </h3>
-                  {inferences.invalidated.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Inference ID</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Block Height</th>
-                            <th className="px-4 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Validated By</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {inferences.invalidated.map((inf) => (
-                            <tr 
-                              key={inf.inference_id} 
-                              className="hover:bg-gray-50 cursor-pointer"
-                              onClick={() => setSelectedInference(inf)}
-                            >
-                              <td className="px-4 py-2 text-sm font-mono text-gray-700 truncate max-w-xs">
-                                {inf.inference_id}
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.start_block_height}</td>
-                              <td className="px-4 py-2 text-sm text-gray-900">{inf.validated_by.length}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-400 bg-gray-50 p-4 rounded">No invalidated inferences</div>
-                  )}
-                </div>
+                <InferenceTable
+                  title="Invalidated (Top 10)"
+                  data={inferences.invalidated}
+                  emptyText="No invalidated inferences"
+                  onSelect={setSelectedInference}
+                />
 
                 {inferences.cached_at && (
                   <div className="text-xs text-gray-400 text-right pt-4 border-t border-gray-200">

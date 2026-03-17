@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { HardwaresResponse, HardwareStats, EpochSeriesPoint, HardwareEpochSeriesResponse, } from '../types/inference'
 import { apiFetch } from '../utils'
-import { EpochSelector } from './EpochSelector'
 import { HardwareModal } from './HardwareModal'
-import { EpochAreaChart } from "./ModelChart"
+import { EpochAreaChart } from "./common/EpochAreaChart"
+import { StatItem } from './common/StatItem'
+import { EpochIdDisplay } from './common/EpochIdDisplay'
+import { RefreshControlFooter } from './common/RefreshControlFooter'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
@@ -186,74 +188,31 @@ export function Hardware() {
       <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-4">
           <div className="col-span-2 sm:col-span-1">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
-            <div className="flex items-center gap-2 min-h-[2rem]">
-              <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">{data.epoch_id}
-              </span>
-              {data.is_current && (
-                <span className="px-2.5 py-0.5 text-xs font-semibold bg-gray-900 text-white rounded">CURRENT</span>
-              )}
-            </div>
+            <EpochIdDisplay epochId={data.epoch_id} isCurrent={data.is_current} />
           </div>
 
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Weight</div>
-            <div>
-              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                {data.total_weight.toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-            </div>
+            <StatItem label="Total Weight" subText="">{data.total_weight.toLocaleString()}</StatItem>
           </div>
 
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Hardware</div>
-            <div>
-              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                {data.hardware.reduce((sum, hardware) => sum + hardware.amount, 0).toLocaleString()}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-            </div>
+            <StatItem label="Total Hardware" subText="">{data.hardware.reduce((sum, hardware) => sum + hardware.amount, 0).toLocaleString()}</StatItem>
           </div>
 
           <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-            <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Supported Hardware Types</div>
-            <div>
-              <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                {data.hardware.length}
-              </div>
-              <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-            </div>
+            <StatItem label="Supported Hardware Types" subText="">{data.hardware.length}</StatItem>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
-          <div className="flex-1 flex items-center justify-center sm:justify-start">
-            {selectedEpochId === null && (
-              <span className="text-xs text-gray-500 text-center sm:text-left">
-                Auto-refreshing every 90s
-                {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-            <div className="w-full sm:w-auto">
-              <EpochSelector
-                currentEpochId={currentEpochId || data.epoch_id}
-                selectedEpochId={selectedEpochId}
-                onSelectEpoch={handleEpochSelect}
-                disabled={isLoading}
-              />
-            </div>
-            <button
-              onClick={handleRefresh}
-              disabled={isLoading}
-              className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? 'Refreshing...' : 'Refresh'}
-            </button>
-          </div>
-        </div>
+        <RefreshControlFooter
+          refreshInterval="90s"
+          selectedEpochId={selectedEpochId}
+          dataUpdatedAt={dataUpdatedAt}
+          currentEpochId={currentEpochId || data.epoch_id}
+          isLoading={isLoading}
+          onSelectEpoch={handleEpochSelect}
+          onRefresh={handleRefresh}
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200 mb-8 md:mb-10">

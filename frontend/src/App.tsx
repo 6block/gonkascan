@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { Toaster, toast } from 'react-hot-toast'
 import { InferenceResponse } from './types/inference'
 import { ParticipantTable } from './components/ParticipantTable'
-import { EpochSelector } from './components/EpochSelector'
 import { Timeline } from './components/Timeline'
 import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
@@ -20,6 +19,10 @@ import { Governance } from './components/Governance'
 import { GovernanceDetail } from './components/GovernanceDetail'
 import { MarketStats } from './components/MarketStats'
 import { Resource } from './components/Resource'
+import { StatItem } from './components/common/StatItem'
+import { EpochIdDisplay } from './components/common/EpochIdDisplay'
+import { RefreshControlFooter } from './components/common/RefreshControlFooter'
+import { NavTab } from './components/common/NavTab'
 import { isValidGonkaAddress, isHex64, isBlockHeight, apiFetch } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
@@ -381,104 +384,21 @@ function App() {
             <div className="flex flex-col gap-3">
               {/* 导航按钮：移动端横向滚动 */}
               <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <button
-                  onClick={() => handlePageChange('dashboard')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'dashboard'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Host Dashboard
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('models')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'models'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Models
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('hardware')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'hardware'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Hardware
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('governance')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'governance'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Governance
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('blocks')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'blocks'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Blocks
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('transactions')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'transactions'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Transactions
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('timeline')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'timeline'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Timeline
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('nodemap')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'nodemap'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Node Map
-                </button>
-          
-                <button
-                  onClick={() => handlePageChange('resource')}
-                  className={`whitespace-nowrap shrink-0 px-4 py-2 text-sm sm:text-base font-medium rounded-md transition-colors ${
-                    currentPage === 'resource'
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                  }`}
-                >
-                  Resource
-                </button>
+                {([
+                  ['dashboard', 'Host Dashboard'],
+                  ['models', 'Models'],
+                  ['hardware', 'Hardware'],
+                  ['governance', 'Governance'],
+                  ['blocks', 'Blocks'],
+                  ['transactions', 'Transactions'],
+                  ['timeline', 'Timeline'],
+                  ['nodemap', 'Node Map'],
+                  ['resource', 'Resource'],
+                ] as [Page, string][]).map(([page, label]) => (
+                  <NavTab key={page} active={currentPage === page} onClick={() => handlePageChange(page)}>
+                    {label}
+                  </NavTab>
+                ))}
               </div>
 
               {/* 搜索框 */}
@@ -551,109 +471,62 @@ function App() {
                 <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mb-4">
                     <div className="col-span-2 sm:col-span-1">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Epoch ID</div>
-                      <div className="flex items-center gap-2 min-h-[2rem]">
-                        <span className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {data.epoch_id}
-                        </span>
-                        {data.is_current && (
-                          <span className="px-2.5 py-0.5 text-xs font-semibold bg-gray-900 text-white rounded">
-                            CURRENT
-                          </span>
-                        )}
-                      </div>
+                      <EpochIdDisplay epochId={data.epoch_id} isCurrent={data.is_current} />
                     </div>
 
                     <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Current Block</div>
-                      <div>
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {shouldShowEstimatedBlock ? estimatedBlock.toLocaleString() : data.height.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
-                          {shouldShowEstimatedBlock && (
-                            <>Last confirmed: {data.height.toLocaleString()}</>
-                          )}
-                        </div>
-                      </div>
+                      <StatItem
+                        label="Current Block"
+                        subText={shouldShowEstimatedBlock ? <>Last confirmed: {data.height.toLocaleString()}</> : ''}
+                      >
+                        {shouldShowEstimatedBlock ? estimatedBlock.toLocaleString() : data.height.toLocaleString()}
+                      </StatItem>
                     </div>
 
                     <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-4 sm:pt-0 sm:pl-4 lg:pl-6">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Participants</div>
-                      <div>
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {data.participants.length}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-                      </div>
+                      <StatItem label="Total Participants" subText="">{data.participants.length}</StatItem>
                     </div>
 
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Weight</div>
-                      <div>
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {data.participants.reduce((sum, p) => sum + p.weight, 0).toLocaleString()}
-                        </div>
-                      </div>
+                      <StatItem label="Total Weight">
+                        {data.participants.reduce((sum, p) => sum + p.weight, 0).toLocaleString()}
+                      </StatItem>
                     </div>
 
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Equivalent H100</div>
-                      <div>
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {Math.round(weightToH100(data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id)).toLocaleString()} GPUs
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
-                      </div>
+                      <StatItem label="Equivalent H100" subText="">
+                        {Math.round(weightToH100(data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id)).toLocaleString()} GPUs
+                      </StatItem>
                     </div>
 
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6 col-span-2 sm:col-span-3 lg:col-span-1">
-                      <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Total Assigned Rewards</div>
-                      <div>
-                        <div className="text-xl sm:text-2xl font-bold text-gray-900 leading-none">
-                          {data.total_assigned_rewards_gnk !== undefined && data.total_assigned_rewards_gnk !== null && data.total_assigned_rewards_gnk > 0
-                            ? `${data.total_assigned_rewards_gnk.toLocaleString()} GNK`
-                            : '-'
-                          }
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
-                          {(data.total_assigned_rewards_gnk === undefined || data.total_assigned_rewards_gnk === null || data.total_assigned_rewards_gnk === 0) && (
-                            <>{isLoading ? 'Loading...' : data.is_current ? 'Pending settlement' : 'Calculating...'}</>
-                          )}
-                        </div>
-                      </div>
+                      <StatItem
+                        label="Total Assigned Rewards"
+                        subText={
+                          (data.total_assigned_rewards_gnk === undefined || data.total_assigned_rewards_gnk === null || data.total_assigned_rewards_gnk === 0)
+                            ? <>{isLoading ? 'Loading...' : data.is_current ? 'Pending settlement' : 'Calculating...'}</>
+                            : ''
+                        }
+                      >
+                        {data.total_assigned_rewards_gnk !== undefined && data.total_assigned_rewards_gnk !== null && data.total_assigned_rewards_gnk > 0
+                          ? `${data.total_assigned_rewards_gnk.toLocaleString()} GNK`
+                          : '-'
+                        }
+                      </StatItem>
                     </div>
 
                     <EpochTimer data={data} />
                   </div>
 
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-gray-200">
-                    <div className="flex-1 flex items-center justify-center sm:justify-start">
-                      {selectedEpochId === null && (
-                        <span className="text-xs text-gray-500 text-center sm:text-left">
-                          Auto-refreshing every 30s
-                          {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
-                      <div className="w-full sm:w-auto">
-                        <EpochSelector
-                          currentEpochId={currentEpochId || data.epoch_id}
-                          selectedEpochId={selectedEpochId}
-                          onSelectEpoch={handleEpochSelect}
-                          disabled={isLoading}
-                        />
-                      </div>
-                      <button
-                        onClick={handleRefresh}
-                        disabled={isLoading}
-                        className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {isLoading ? 'Refreshing...' : 'Refresh'}
-                      </button>
-                    </div>
-                  </div>
+                  <RefreshControlFooter
+                    refreshInterval="30s"
+                    selectedEpochId={selectedEpochId}
+                    dataUpdatedAt={dataUpdatedAt}
+                    currentEpochId={currentEpochId || data.epoch_id}
+                    isLoading={isLoading}
+                    onSelectEpoch={handleEpochSelect}
+                    onRefresh={handleRefresh}
+                  />
                 </div>
 
                 <div className="bg-white rounded-lg shadow-sm p-4 md:p-6 border border-gray-200">
