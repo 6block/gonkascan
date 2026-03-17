@@ -2,29 +2,21 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ClockIcon } from "@heroicons/react/24/outline";
 import { TransactionsResponse } from '../types/inference'
+import { apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 export function Transactions() {
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
   const [selectedTxHash, setSelectedTxHash] = useState<string | null>(null)
 
-  const fetchTransactions = async () => {
-    const endpoint = `${apiUrl}/v1/transactions`
-    const response = await fetch(endpoint)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading: loading, error: queryError, refetch, dataUpdatedAt } = useQuery<TransactionsResponse>({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<TransactionsResponse>({
     queryKey: ['transactions'],
-    queryFn: fetchTransactions,
+    queryFn: () => apiFetch('/v1/transactions'),
     staleTime: 10000,
     refetchInterval: 10000,
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
   })
-
-  const error = queryError ? (queryError as Error).message : ''
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -56,32 +48,12 @@ export function Transactions() {
     refetch()
   }
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block h-10 w-10 sm:h-12 sm:w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading transactions...</p>
-        </div>
-      </div>
-    )
+  if (isLoading && !data) {
+    return <LoadingScreen label="Loading transactions..." />
   }
 
   if (error && !data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 max-w-md">
-          <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorScreen error={error} onRetry={handleRefresh} />
   }
 
   if (!data) return null

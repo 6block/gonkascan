@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '../utils'
 
 type MarketResponse = {
   market_stats: {
@@ -42,15 +43,9 @@ const minutesAgo = (dateStr: string) => {
 }
 
 export function MarketStats() {
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
   const { data } = useQuery<MarketResponse>({
     queryKey: ['market-stats'],
-    queryFn: async () => {
-      const res = await fetch(`${apiUrl}/v1/stats/market`)
-      if (!res.ok) throw new Error('Failed to fetch')
-      return res.json()
-    },
+    queryFn: () => apiFetch('/v1/stats/market'),
     refetchInterval: 600000,
   })
 

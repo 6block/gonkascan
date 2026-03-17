@@ -1,9 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '../utils'
 import { useState, useMemo } from 'react'
 import { MessageBlock, JsonViewer } from './TransactionDetail'
 import { MarkdownViewer } from './MarkdownViewer'
 import { formatCompactNumber, formatMessageTypes } from './Governance'
 import { VoteBubblePack } from './VoteBubblePack'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 import {
   ResponsiveContainer,
   LineChart,
@@ -322,11 +325,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
 
   if (!metaLike || !candidates) return null
   if (isLoading) {
-    return (
-      <section className="bg-white border rounded-lg p-4 sm:p-6">
-        <div className="text-sm text-gray-500">Loading metadata…</div>
-      </section>
-    )
+    return <LoadingScreen label="Loading metadata..." className="py-10" />
   }
   if (!data) return null
 
@@ -369,7 +368,6 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
 
 export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   const [copied, setCopied] = useState(false)
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const [tab, setTab] = useState<'details' | 'vote' | 'json'>('details')
   const [voteFilter, setVoteFilter] = useState<
     'ALL' | 'YES' | 'NO' | 'VETO' | 'ABSTAIN'
@@ -378,27 +376,23 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   const [sortKey, setSortKey] = useState<'weight' | 'height'>('weight')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  const { data: proposalData, isLoading } = useQuery({
+  const { data: proposalData, isLoading, error: proposalError } = useQuery<{ proposal: any; diff_params: any[] }>({
     queryKey: ['proposal', proposalId],
-    queryFn: async () => {
-      const r = await fetch(`${apiUrl}/v1/proposals/${proposalId}`)
-      if (!r.ok) throw new Error('Failed to load proposal')
-      return r.json()
-    },
+    queryFn: () => apiFetch(`/v1/proposals/${proposalId}`),
   })
 
-  const { data: txData } = useQuery({
+  const { data: txData } = useQuery<{ vote: { txs: VoteTx[] } }>({
     queryKey: ['proposal-transactions', proposalId],
-    queryFn: async () => {
-      const r = await fetch(`${apiUrl}/v1/proposals/${proposalId}/transactions`)
-      if (!r.ok) throw new Error('Failed to load vote txs')
-      return r.json()
-    },
+    queryFn: () => apiFetch(`/v1/proposals/${proposalId}/transactions`),
     enabled: !!proposalId,
   })
 
-  if (isLoading || !proposalData) {
-    return <div className="p-4 sm:p-6 text-gray-500">Loading proposal…</div>
+  if (isLoading) {
+    return <LoadingScreen label="Loading proposal..." />
+  }
+
+  if (proposalError || !proposalData) {
+    return <ErrorScreen error={proposalError} title="Failed to load proposal" />
   }
 
   const proposal = proposalData.proposal

@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ModelsResponse, ModelInfo, EpochSeriesPoint, ModelEpochSeriesResponse } from '../types/inference'
+import { apiFetch } from '../utils'
 import { EpochSelector } from './EpochSelector'
 import { ModelModal } from './ModelModal'
 import { EpochAreaChart } from "./ModelChart"
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 type EpochRow = { epoch: number } & Record<string, number>
 
@@ -38,42 +41,22 @@ export function Models() {
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
-  const fetchModels = async (epochId: number | null) => {
-    const endpoint = epochId
-      ? `${apiUrl}/v1/models/epochs/${epochId}`
-      : `${apiUrl}/v1/models/current`
-    const response = await fetch(endpoint)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading: loading, error: queryError, refetch, dataUpdatedAt } = useQuery<ModelsResponse>({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<ModelsResponse>({
     queryKey: ['models', selectedEpochId === null ? 'current' : selectedEpochId],
-    queryFn: () => fetchModels(selectedEpochId),
+    queryFn: () => apiFetch(selectedEpochId ? `/v1/models/epochs/${selectedEpochId}` : '/v1/models/current'),
     staleTime: 90000,
     refetchInterval: 90000,
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
   })
 
-  const fetchModelsMetrics = async () => {
-    const endpoint = `${apiUrl}/v1/metrics/models`
-    const response = await fetch(endpoint)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-    return response.json()
-  }
-
   const { data: metricsData, isLoading: metricsLoading } = useQuery<ModelEpochSeriesResponse>({
     queryKey: ['models-metrics'],
-    queryFn: fetchModelsMetrics,
+    queryFn: () => apiFetch('/v1/metrics/models'),
     staleTime: 300000,
     refetchInterval: 300000,
     refetchOnMount: false,
   })
-  
-  const error = queryError ? (queryError as Error).message : ''
 
   useEffect(() => {
     if (data?.is_current) {
@@ -144,32 +127,12 @@ export function Models() {
     handleModelSelect(model.id)
   }
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading models...</p>
-        </div>
-      </div>
-    )
+  if (isLoading && !data) {
+    return <LoadingScreen label="Loading models..." />
   }
 
   if (error && !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorScreen error={error} onRetry={handleRefresh} />
   }
 
   if (!data) return null
@@ -242,15 +205,15 @@ export function Models() {
                 currentEpochId={currentEpochId || data.epoch_id}
                 selectedEpochId={selectedEpochId}
                 onSelectEpoch={handleEpochSelect}
-                disabled={loading}
+                disabled={isLoading}
               />
             </div>
             <button
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={isLoading}
               className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
             >
-              {loading ? 'Refreshing...' : 'Refresh'}
+              {isLoading ? 'Refreshing...' : 'Refresh'}
             </button>
           </div>
         </div>

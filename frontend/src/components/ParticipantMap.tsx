@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import * as d3 from "d3"
 import { ParticipantMapResponse } from '../types/inference'
+import { apiFetch } from '../utils'
 import type { Feature, FeatureCollection, Geometry } from "geojson"
 import countries from "i18n-iso-countries";
 import enLocale from "i18n-iso-countries/langs/en.json";
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 countries.registerLocale(enLocale);
 
@@ -15,33 +18,20 @@ type CountryStat = {
   }  
 
 export function ParticipantMap() {
-    const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
     const svgRef = useRef<SVGSVGElement | null>(null)
     const containerRef = useRef<HTMLDivElement | null>(null)
     const [geoData, setGeoData] = useState<FeatureCollection<Geometry> | null>(null)
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
     const [countryStats, setCountryStats] = useState<CountryStat[]>([])
 
-    const fetchParticipantsMap = async (): Promise<ParticipantMapResponse> => {
-        const endpoint = `${apiUrl}/v1/participants/map`
-        const response = await fetch(endpoint)
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        return response.json()
-    }
-
-    const { data, isLoading: loading, error: queryError, refetch } = useQuery<ParticipantMapResponse>({
+    const { data, isLoading, error, refetch } = useQuery<ParticipantMapResponse>({
         queryKey: ['participants-map'],
-        queryFn: fetchParticipantsMap,
+        queryFn: () => apiFetch('/v1/participants/map'),
         staleTime: 60000,
         refetchInterval: 60000,
         refetchOnMount: true,
         placeholderData: (previousData) => previousData,
     })
-
-    const error = queryError ? (queryError as Error).message : ''
 
     useEffect(() => {
         fetch('/world.geojson')
@@ -194,32 +184,12 @@ export function ParticipantMap() {
         refetch()
     }
 
-    if (loading && !data) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="text-center">
-                    <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
-                    <p className="mt-4 text-gray-600">Loading Participant Map...</p>
-                </div>
-            </div>
-        )
+    if (isLoading && !data) {
+        return <LoadingScreen label="Loading Participant Map..." />
     }
 
     if (error && !data) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-                    <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
-                    <p className="text-red-600">{error}</p>
-                    <button
-                        onClick={handleRefresh}
-                        className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-                    >
-                        Retry
-                    </button>
-                </div>
-            </div>
-        )
+        return <ErrorScreen error={error} onRetry={handleRefresh} />
     }
 
     return (

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { timeAgo } from '../utils'
+import { timeAgo, apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 
 type BlockItem = {
@@ -17,24 +19,13 @@ type BlocksResponse = {
 export function Blocks() {
   const [selectedHeight, setSelectedHeight] = useState<string | null>(null)
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
-  const fetchBlocks = async () => {
-    const endpoint = `${apiUrl}/v1/blocks/recent`
-    const response = await fetch(endpoint)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading: loading, error: queryError, refetch } = useQuery<BlocksResponse>({
+  const { data, isLoading, error, refetch } = useQuery<BlocksResponse>({
     queryKey: ['blocks', 'recent'],
-    queryFn: fetchBlocks,
+    queryFn: () => apiFetch('/v1/blocks/recent'),
     staleTime: 10000,
     refetchInterval: 10000,
     refetchOnMount: true,
   })
-
-  const error = queryError ? (queryError as Error).message : ''
 
   const blocks = useMemo(() => {
     if (!data?.blocks) return []
@@ -84,32 +75,12 @@ export function Blocks() {
     refetch()
   }
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-[50vh] sm:min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading blocks...</p>
-        </div>
-      </div>
-    )
+  if (isLoading && !data) {
+    return <LoadingScreen label="Loading blocks..." />
   }
 
   if (error && !data) {
-    return (
-      <div className="min-h-[50vh] sm:min-h-screen flex items-center justify-center bg-gray-50 px-3 sm:px-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 max-w-md w-full">
-          <h2 className="text-red-800 text-lg font-semibold mb-2">Failed to load blocks</h2>
-          <p className="text-red-600">{error}</p>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorScreen error={error} title="Failed to load blocks" onRetry={handleRefresh} />
   }
 
   if (!data) return null

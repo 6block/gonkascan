@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { formatGas } from '../utils'
+import { formatGas, apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 
 type BlockDetailResponse = {
@@ -220,18 +222,10 @@ function TxRow({ row }: { row: any }) {
 }
 
 export function BlockDetail({ height }: {height: string }) {
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
-  const fetchBlockDetail = async (): Promise<BlockDetailResponse> => {
-    const response = await fetch(`${apiUrl}/v1/block/${height}`)
-    if (!response.ok) throw new Error(`Failed to fetch block detail! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<BlockDetailResponse>({
     queryKey: ['block', height],
-    queryFn: fetchBlockDetail,
-    enabled: !!height
+    queryFn: () => apiFetch(`/v1/block/${height}`),
+    enabled: !!height,
   })
 
   const txRows = useMemo(() => {
@@ -318,11 +312,11 @@ export function BlockDetail({ height }: {height: string }) {
   }, [txRows])
 
   if (isLoading) {
-    return <div className="px-3 sm:px-4 md:px-6 text-sm text-gray-500">Loading block…</div>
+    return <LoadingScreen label="Loading block..." />
   }
 
   if (error || !data) {
-    return <div className="px-3 sm:px-4 md:px-6 text-sm text-red-600">Failed to load block</div>
+    return <ErrorScreen error={error} title="Failed to load block" />
   }
 
   return (

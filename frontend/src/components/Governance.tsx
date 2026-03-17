@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 type Proposal = any
 
@@ -65,14 +68,9 @@ export function Governance() {
   const [tab, setTab] = useState<Tab | null>(null)
   const [page, setPage] = useState(1)
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery<Record<Tab, Proposal[]>>({
     queryKey: ['governance-proposals'],
-    queryFn: async () => {
-      const res = await fetch(`${apiUrl}/v1/proposals`)
-      if (!res.ok) throw new Error('Failed to load proposals')
-      return res.json()
-    },
+    queryFn: () => apiFetch('/v1/proposals'),
   })
 
   const effectiveTab: Tab = useMemo(() => {
@@ -129,7 +127,11 @@ export function Governance() {
   }, [selectedProposalId])
 
   if (isLoading) {
-    return <div className="p-6 text-gray-500">Loading proposals…</div>
+    return <LoadingScreen label="Loading proposals..." />
+  }
+
+  if (error) {
+    return <ErrorScreen error={error} title="Failed to load proposals" />
   }
 
   return (

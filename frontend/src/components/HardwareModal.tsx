@@ -1,6 +1,9 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { HardwareDetailsResponse, HardwareStats } from '../types/inference'
+import { apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 interface HardwareModalProps {
   hardware: HardwareStats | null
@@ -10,17 +13,11 @@ interface HardwareModalProps {
 }
 
 export function HardwareModal({ hardware, epochId, currentEpochId, onClose }: HardwareModalProps) {
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const hardwareId = hardware?.id ?? ''
 
   const { data, isLoading, error } = useQuery<HardwareDetailsResponse>({
     queryKey: ['hardware-details', hardwareId, epochId],
-    queryFn: async () => {
-      const endpoint = `${apiUrl}/v1/hardware/${encodeURIComponent(hardwareId)}?epoch_id=${epochId}`
-      const response = await fetch(endpoint)
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-        return response.json()
-    },
+    queryFn: () => apiFetch(`/v1/hardware/${encodeURIComponent(hardwareId)}?epoch_id=${epochId}`),
     enabled: !!hardware && !!currentEpochId && epochId >= currentEpochId - 1,
     staleTime: 60000,
   })
@@ -63,9 +60,9 @@ export function HardwareModal({ hardware, epochId, currentEpochId, onClose }: Ha
 
         <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
         {isLoading ? (
-          <div className="text-sm text-gray-400">Loading hardware details...</div>
+          <LoadingScreen label="Loading hardware details..." className="py-10" />
         ) : error || !data ? (
-          <div className="text-sm text-red-600">Failed to load hardware details</div>
+          <ErrorScreen error={error} title="Failed to load hardware details" className="py-10" />
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-12 mb-6 sm:mb-8">

@@ -4,7 +4,9 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, AssetsResponse, AddressTransactionsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
-import { formatGNK } from '../utils'
+import { formatGNK, apiFetch } from '../utils'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 interface ParticipantModalProps {
   participantId: string
@@ -20,52 +22,36 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
   const { data: assets } = useQuery<AssetsResponse>({
     queryKey: ['participant-assets', participantId],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/address/assets/${participantId}?is_participant=true`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/address/assets/${participantId}?is_participant=true`),
     enabled: !!participantId,
   })
 
   const { data: transactions, isLoading: transactionsLoading, error: transactionsError} = useQuery<AddressTransactionsResponse>({
     queryKey: ['participant-transactions', participantId],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/transactions/${participantId}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/transactions/${participantId}`),
     enabled: !!participantId,
   })
 
-  const { data: details, isLoading: loading } = useQuery<ParticipantDetailsResponse>({
+  const { data: details, isLoading: detailsLoading } = useQuery<ParticipantDetailsResponse>({
     queryKey: ['participant', participantId, epochId],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/participants/${participantId}?epoch_id=${epochId}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/participants/${participantId}?epoch_id=${epochId}`),
     enabled: !!participantId && !!epochId,
     staleTime: 60000,
   })
 
-  const { 
-    data: inferences, 
-    isLoading: inferencesLoading, 
-    error: inferencesQueryError 
+  const {
+    data: inferences,
+    isLoading: inferencesLoading,
+    error: inferencesQueryError
   } = useQuery<ParticipantInferencesResponse>({
     queryKey: ['participant-inferences', participantId, epochId],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/participants/${participantId}/inferences?epoch_id=${epochId}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/participants/${participantId}/inferences?epoch_id=${epochId}`),
     enabled: !!participantId && !!currentEpochId && epochId >= currentEpochId - 1,
     staleTime: 60000,
     refetchInterval: false,
   })
 
-  const inferencesError = inferencesQueryError ? (inferencesQueryError as Error).message : null
+  const inferencesError = inferencesQueryError
 
   const participant = details?.participant
 
@@ -75,9 +61,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   }, [participantId])
 
   if (!participant) {
-    return (
-      <div className="p-8 text-gray-400">Loading participant...</div>
-    )
+    return <LoadingScreen label="Loading participant..." />
   }
 
   const collateralStatus = participant?.collateral_status ?? null
@@ -276,7 +260,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
             <div>
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Warm Keys</label>
-              {loading ? (
+              {detailsLoading ? (
                 <div className="mt-1 text-sm text-gray-400">Loading...</div>
               ) : details && details.warm_keys && details.warm_keys.length > 0 ? (
                 <div className="mt-2 space-y-2">
@@ -488,7 +472,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
             <div className="mb-4">
               <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Seed</label>
               <div className="mt-1 text-xs font-mono text-gray-700 break-all bg-gray-50 p-2 rounded">
-                {loading ? (
+                {detailsLoading ? (
                   <span className="text-gray-400">Loading...</span>
                 ) : details?.seed ? (
                   details.seed.signature
@@ -498,7 +482,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               </div>
             </div>
             
-            {loading ? (
+            {detailsLoading ? (
               <div className="text-gray-400 text-sm">Loading rewards...</div>
             ) : details && details.rewards && details.rewards.length > 0 ? (
               <div className="overflow-x-auto">
@@ -543,7 +527,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
           <div className="border-t border-gray-200 pt-6">
             <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-4">MLNodes</h3>
             
-            {loading ? (
+            {detailsLoading ? (
               <div className="text-gray-400 text-sm">Loading MLNodes...</div>
             ) : details && details.ml_nodes && details.ml_nodes.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -630,12 +614,9 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
                 <p className="text-sm text-gray-400 mt-2">Inference details are only available for current and previous epoch</p>
               </div>
             ) : inferencesLoading ? (
-              <div className="text-center py-8 text-gray-400">Loading inferences...</div>
+              <LoadingScreen label="Loading inferences..." className="py-10" />
             ) : inferencesError ? (
-              <div className="text-center py-8 text-red-500">
-                <p className="text-base font-medium">Failed to load inferences</p>
-                <p className="text-sm text-gray-400 mt-2">{inferencesError}</p>
-              </div>
+              <ErrorScreen error={inferencesError} title="Failed to load inferences" className="py-10" />
             ) : !inferences ? (
               <div className="text-center py-8 text-gray-400">No data available</div>
             ) : !inferences.cached_at ? (

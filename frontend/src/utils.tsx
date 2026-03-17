@@ -1,5 +1,13 @@
 import { bech32 } from 'bech32'
 
+const API_URL = import.meta.env.VITE_API_URL || '/api'
+
+export async function apiFetch<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
 export function isValidGonkaAddress(address: string): boolean {
   try {
     const decoded = bech32.decode(address)

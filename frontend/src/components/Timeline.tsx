@@ -1,8 +1,11 @@
 import { useEffect, useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { TimelineResponse } from '../types/inference'
+import { apiFetch } from '../utils'
 import { useEstimatedBlock } from '../hooks/useEstimatedBlock'
 import { EpochTimer } from './EpochTimer'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 export function Timeline() {
   const [hoveredBlock, setHoveredBlock] = useState<number | null>(null)
@@ -12,23 +15,15 @@ export function Timeline() {
   const [urlBlock, setUrlBlock] = useState<number | null>(null)
   const detailedTimelineRef = useRef<HTMLDivElement>(null)
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-
-  const { data, isLoading: loading, error: queryError, dataUpdatedAt, refetch } = useQuery<TimelineResponse>({
+  const { data, isLoading, error, dataUpdatedAt, refetch } = useQuery<TimelineResponse>({
     queryKey: ['timeline'],
-    queryFn: async () => {
-      const response = await fetch(`${apiUrl}/v1/timeline`)
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-      return response.json()
-    },
+    queryFn: () => apiFetch('/v1/timeline'),
     staleTime: 60000,
     refetchInterval: 60000,
     refetchIntervalInBackground: true,
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
   })
-
-  const error = queryError ? (queryError as Error).message : ''
 
   useEffect(() => {
     if (!data) return
@@ -130,26 +125,12 @@ export function Timeline() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading timeline...</p>
-        </div>
-      </div>
-    )
+  if (isLoading && !data) {
+    return <LoadingScreen label="Loading timeline..." />
   }
 
   if (error || !data) {
-    return (
-      <div className="min-h-[50vh] bg-gray-50 flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
-          <p className="text-red-600">{error || 'No data available'}</p>
-        </div>
-      </div>
-    )
+    return <ErrorScreen error={error || 'No data available'} />
   }
 
   const minBlock = data.reference_block.height
@@ -253,10 +234,10 @@ export function Timeline() {
           </div>
           <button
             onClick={() => refetch()}
-            disabled={loading}
+            disabled={isLoading}
             className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? 'Refreshing...' : 'Refresh'}
+            {isLoading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
       </div>

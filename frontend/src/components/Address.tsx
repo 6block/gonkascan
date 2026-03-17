@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransactionsResponse, AssetsResponse } from '../types/inference'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
-import { formatGNK } from '../utils'
+import { formatGNK, apiFetch } from '../utils'
 
 interface AddressProps {
   address: string
@@ -10,21 +10,13 @@ interface AddressProps {
 export function Address({ address }: AddressProps) {
   const { data: assets, isLoading: assetsLoading } = useQuery<AssetsResponse>({
     queryKey: ['address-assets', address],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/address/assets/${address}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/address/assets/${address}`),
     enabled: !!address,
   })
 
   const { data: transactions, isLoading: transactionsLoading, error: transactionsError} = useQuery<AddressTransactionsResponse>({
     queryKey: ['address-transactions', address],
-    queryFn: async () => {
-      const res = await fetch(`/api/v1/transactions/${address}`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/transactions/${address}`),
     enabled: !!address,
   })
 

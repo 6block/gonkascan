@@ -1,22 +1,20 @@
 import { AddressTransactionsResponse } from '../types/inference'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 interface AddressTransactionsTableProps {
   transactions?: AddressTransactionsResponse
   isLoading: boolean
-  error?: unknown
+  error?: Error | null
 }
 
 export function AddressTransactionsTable({transactions, isLoading, error,}: AddressTransactionsTableProps) {
   if (isLoading) {
-    return (
-      <div className="text-center py-6 sm:py-8 text-sm text-gray-400">Loading transactions...</div>
-    )
+    return <LoadingScreen label="Loading transactions..." className="py-10" />
   }
 
   if (error) {
-    return (
-      <div className="text-center py-6 sm:py-8 text-sm text-red-500">Failed to load transactions</div>
-    )
+    return <ErrorScreen error={error} title="Failed to load transactions" className="py-10" />
   }
 
   if (!transactions || transactions.transactions.length === 0) {

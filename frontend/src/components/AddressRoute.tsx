@@ -1,7 +1,10 @@
 import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { apiFetch } from '../utils'
 import { ParticipantModal } from './ParticipantModal'
 import { Address } from './Address'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 type AddressParticipantStatus = {
   isParticipant: boolean
@@ -25,16 +28,9 @@ export function AddressRoute({ address, status, onResolved }: AddressRouteProps)
   const epochFromUrl = searchParams.get('epoch')
   const epochIdFromUrl = epochFromUrl ? Number(epochFromUrl) : null   
 
-  const { data, isLoading } = useQuery<StatusResponse>({
+  const { data, isLoading, error } = useQuery<StatusResponse>({
     queryKey: ['participant-status', address, epochIdFromUrl],
-    queryFn: async () => {
-      const params = epochIdFromUrl ? `?epoch_id=${epochIdFromUrl}` : ''
-      const res = await fetch(
-        `/api/v1/participants/${address}/status${params}`
-      )
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res.json()
-    },
+    queryFn: () => apiFetch(`/v1/participants/${address}/status${epochIdFromUrl ? `?epoch_id=${epochIdFromUrl}` : ''}`),
     enabled: status === null,
     staleTime: 60_000,
   })
@@ -48,10 +44,12 @@ export function AddressRoute({ address, status, onResolved }: AddressRouteProps)
     }
   }, [data, status, onResolved, epochIdFromUrl])
 
+  if (status === null && error) {
+    return <ErrorScreen error={error} title="Failed to resolve address" />
+  }
+
   if (status === null) {
-    return (
-      <div className="p-8 text-gray-400">{isLoading ? 'Checking address type…' : 'Resolving address…'}</div>
-    )
+    return <LoadingScreen label={isLoading ? 'Checking address type...' : 'Resolving address...'} />
   }
 
   if (status.isParticipant) {

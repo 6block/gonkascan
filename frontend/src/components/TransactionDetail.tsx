@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { timeAgo } from '../utils'
+import { timeAgo, apiFetch } from '../utils'
 import { TransactionDetailResponse } from '../types/inference'
 import { useEffect, useMemo, useState } from 'react'
 import ReactJson from 'react-json-view'
+import LoadingScreen from './common/LoadingScreen'
+import ErrorScreen from './common/ErrorScreen'
 
 
 function isPrimitive(v: any) {
@@ -246,31 +248,18 @@ export function JsonViewer({ data }: { data: any }) {
 export function TransactionDetail({ txHash }: {txHash: string }) {
   const [copied, setCopied] = useState(false)
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
-  const fetchTransactionDetail = async (): Promise<TransactionDetailResponse> => {
-    const response = await fetch(`${apiUrl}/v1/transaction/${txHash}`)
-    if (!response.ok) throw new Error(`Failed to fetch transaction detail! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<TransactionDetailResponse>({
     queryKey: ['transaction', txHash],
-    queryFn: fetchTransactionDetail,
+    queryFn: () => apiFetch(`/v1/transaction/${txHash}`),
     enabled: !!txHash,
   })
 
   if (isLoading) {
-    return (
-      <div className="mt-4 md:mt-6 bg-white border rounded-lg p-4 md:p-6 text-sm text-gray-500">Loading transaction detail...</div>
-    )
+    return <LoadingScreen label="Loading transaction detail..." />
   }
 
   if (error || !data) {
-    return (
-      <div className="mt-4 md:mt-6 bg-white border rounded-lg p-4 md:p-6 text-sm text-red-600">
-        Failed to load transaction detail
-      </div>
-    )
+    return <ErrorScreen error={error} title="Failed to load transaction detail" />
   }
 
   const fee =

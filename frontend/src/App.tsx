@@ -8,6 +8,8 @@ import { Timeline } from './components/Timeline'
 import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
 import { Blocks } from './components/Blocks'
+import LoadingScreen from './components/common/LoadingScreen'
+import ErrorScreen from './components/common/ErrorScreen'
 import { BlockDetail } from './components/BlockDetail'
 import { Transactions } from './components/Transactions'
 import { TransactionDetail } from './components/TransactionDetail'
@@ -18,7 +20,7 @@ import { Governance } from './components/Governance'
 import { GovernanceDetail } from './components/GovernanceDetail'
 import { MarketStats } from './components/MarketStats'
 import { Resource } from './components/Resource'
-import { isValidGonkaAddress, isHex64, isBlockHeight } from './utils'
+import { isValidGonkaAddress, isHex64, isBlockHeight, apiFetch } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
 
@@ -66,21 +68,11 @@ function App() {
   const [participantFilter, setParticipantFilter] = useState<string[] | null>(null)
   const [selectedHardware, setSelectedHardware] = useState<string>('ALL')
 
-  const apiUrl = import.meta.env.VITE_API_URL || '/api'
   const { prefetchAll } = usePrefetch()
 
-  const fetchInference = async (epochId: number | null) => {
-    const endpoint = epochId
-      ? `${apiUrl}/v1/inference/epochs/${epochId}`
-      : `${apiUrl}/v1/inference/current`
-    const response = await fetch(endpoint)
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-    return response.json()
-  }
-
-  const { data, isLoading: loading, error: queryError, refetch, dataUpdatedAt } = useQuery<InferenceResponse>({
+  const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<InferenceResponse>({
     queryKey: ['inference', selectedEpochId === null ? 'current' : selectedEpochId],
-    queryFn: () => fetchInference(selectedEpochId),
+    queryFn: () => apiFetch(selectedEpochId ? `/v1/inference/epochs/${selectedEpochId}` : '/v1/inference/current'),
     staleTime: 0,
     refetchInterval: 30000,
     refetchOnMount: true,
@@ -89,10 +81,9 @@ function App() {
 
   const { data: currentData } = useQuery<InferenceResponse>({
     queryKey: ['inference', 'current'],
-    queryFn: () => fetchInference(null),
+    queryFn: () => apiFetch('/v1/inference/current'),
     staleTime: 30_000,
   })
-  const error = queryError ? (queryError as Error).message : ''
 
   const estimatedBlock = useEstimatedBlock(
     data?.current_block_height || 0,
@@ -360,32 +351,12 @@ function App() {
   const isGovernancenDetail = currentPage === 'governance' && searchParams.has('proposal_id')
   const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail && !isGovernancenDetail
 
-  if (loading && !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading inference statistics...</p>
-        </div>
-      </div>
-    )
+  if (isLoading && !data) {
+    return <LoadingScreen label="Loading inference statistics..." />
   }
 
   if (error && !data) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-          <h2 className="text-red-800 text-lg font-semibold mb-2">Error</h2>
-          <p className="text-red-600">{error}</p>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    )
+    return <ErrorScreen error={error} onRetry={handleRefresh} />
   }
 
   return (
@@ -647,7 +618,7 @@ function App() {
                         </div>
                         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
                           {(data.total_assigned_rewards_gnk === undefined || data.total_assigned_rewards_gnk === null || data.total_assigned_rewards_gnk === 0) && (
-                            <>{loading ? 'Loading...' : data.is_current ? 'Pending settlement' : 'Calculating...'}</>
+                            <>{isLoading ? 'Loading...' : data.is_current ? 'Pending settlement' : 'Calculating...'}</>
                           )}
                         </div>
                       </div>
@@ -671,15 +642,15 @@ function App() {
                           currentEpochId={currentEpochId || data.epoch_id}
                           selectedEpochId={selectedEpochId}
                           onSelectEpoch={handleEpochSelect}
-                          disabled={loading}
+                          disabled={isLoading}
                         />
                       </div>
                       <button
                         onClick={handleRefresh}
-                        disabled={loading}
+                        disabled={isLoading}
                         className="w-full sm:w-auto px-5 py-2.5 bg-gray-900 text-white font-medium rounded-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
                       >
-                        {loading ? 'Refreshing...' : 'Refresh'}
+                        {isLoading ? 'Refreshing...' : 'Refresh'}
                       </button>
                     </div>
                   </div>
