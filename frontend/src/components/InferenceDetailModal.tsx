@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { formatDateTime } from '../utils'
 import { InferenceDetail } from '../types/inference'
 import { Badge } from './common/Badge'
 import { BaseModal } from './common/BaseModal'
@@ -24,7 +25,7 @@ export function InferenceDetailModal({ inference, onClose }: InferenceDetailModa
 
   const formatTimestamp = (timestamp: string) => {
     const ts = parseInt(timestamp) / 1000
-    return new Date(ts * 1000).toLocaleString()
+    return formatDateTime(ts * 1000)
   }
 
   return (
@@ -51,8 +52,8 @@ export function InferenceDetailModal({ inference, onClose }: InferenceDetailModa
                 inference.status === 'FINISHED' || inference.status === 'VALIDATED'
                   ? 'green'
                   : inference.status === 'EXPIRED'
-                  ? 'yellow'
-                  : 'red'
+                    ? 'yellow'
+                    : 'red'
               }
               className="py-1"
             >
@@ -92,9 +93,7 @@ export function InferenceDetailModal({ inference, onClose }: InferenceDetailModa
         {inference.validated_by.length > 0 ? (
           <div className="mt-2 space-y-1">
             {inference.validated_by.map((validator, idx) => (
-              <div key={idx} className="text-sm font-mono text-gray-700 bg-gray-50 p-2 rounded break-all">
-                {validator}
-              </div>
+              <div key={idx} className="text-sm font-mono text-gray-700 bg-gray-50 p-2 rounded break-all">{validator}</div>
             ))}
           </div>
         ) : (

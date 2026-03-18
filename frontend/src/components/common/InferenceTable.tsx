@@ -28,9 +28,7 @@ export function InferenceTable({ title, data, emptyText, onSelect }: InferenceTa
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => onSelect(inf)}
                 >
-                  <td className="px-4 py-2 text-sm font-mono text-gray-700 truncate max-w-xs">
-                    {inf.inference_id}
-                  </td>
+                  <td className="px-4 py-2 text-sm font-mono text-gray-700 truncate max-w-xs">{inf.inference_id}</td>
                   <td className="px-4 py-2 text-sm text-gray-900">{inf.start_block_height}</td>
                   <td className="px-4 py-2 text-sm text-gray-900">{inf.validated_by.length}</td>
                 </tr>

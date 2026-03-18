@@ -32,7 +32,7 @@ export function AddressRoute({ address, status, onResolved }: AddressRouteProps)
     queryKey: ['participant-status', address, epochIdFromUrl],
     queryFn: () => apiFetch(`/v1/participants/${address}/status${epochIdFromUrl ? `?epoch_id=${epochIdFromUrl}` : ''}`),
     enabled: status === null,
-    staleTime: 60_000,
+    staleTime: 60000,
   })
   
   useEffect(() => {

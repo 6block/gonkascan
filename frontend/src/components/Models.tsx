@@ -1,42 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ModelsResponse, ModelInfo, EpochSeriesPoint, ModelEpochSeriesResponse } from '../types/inference'
-import { apiFetch } from '../utils'
+import { ModelsResponse, ModelInfo, ModelEpochSeriesResponse } from '../types/inference'
+import { apiFetch, buildEpochRows } from '../utils'
 import { ModelModal } from './ModelModal'
-import { EpochAreaChart } from "./common/EpochAreaChart"
+import { EpochAreaChart } from './common/EpochAreaChart'
 import { StatItem } from './common/StatItem'
 import { EpochIdDisplay } from './common/EpochIdDisplay'
 import { RefreshControlFooter } from './common/RefreshControlFooter'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
-
-type EpochRow = { epoch: number } & Record<string, number>
-
-function buildEpochRows(series: Record<string, EpochSeriesPoint[]>): EpochRow[] {
-  const epochMap = new Map<number, EpochRow>()
-  const models = Object.keys(series)
-
-  for (const [model, points] of Object.entries(series)) {
-    for (const p of points) {
-      if (!epochMap.has(p.epoch_id)) {
-        epochMap.set(p.epoch_id, { epoch: p.epoch_id })
-      }
-      epochMap.get(p.epoch_id)![model] = p.value
-    }
-  }
-
-  for (const row of epochMap.values()) {
-    for (const model of models) {
-      if (row[model] == null) {
-        row[model] = 0
-      }
-    }
-  }
-
-  return Array.from(epochMap.values()).sort(
-    (a, b) => a.epoch - b.epoch
-  )
-}
 
 export function Models() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
@@ -183,33 +155,19 @@ export function Models() {
 
       <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="mb-4">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 leading-tight">
-            Available Models
-          </h2>
-          <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
-            Click on a model to view detailed information
-          </p>
+          <h2 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 leading-tight">Available Models</h2>
+          <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">Click on a model to view detailed information</p>
         </div>
 
         <div className="overflow-x-auto border border-gray-200 rounded-md">
           <table className="min-w-[720px] w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                  Model ID
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                  Total Weight
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                  Hosts
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                  Inferences
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">
-                  AI Tokens
-                </th>
+                <th className="px-3 sm:px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Model ID</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Total Weight</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Hosts</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">Inferences</th>
+                <th className="px-3 sm:px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider whitespace-nowrap">AI Tokens</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -222,9 +180,7 @@ export function Models() {
                     onClick={() => handleRowClick(model)}
                     className="cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   >
-                    <td className="px-3 sm:px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">
-                      {model.id}
-                    </td>
+                    <td className="px-3 sm:px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap">{model.id}</td>
                     <td className="px-3 sm:px-4 py-3 text-sm font-semibold text-gray-900 text-right whitespace-nowrap">
                       {model.total_weight.toLocaleString()}
                     </td>

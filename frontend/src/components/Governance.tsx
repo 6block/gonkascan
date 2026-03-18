@@ -1,74 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useUrlParam } from '../hooks/useUrlParam'
 import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '../utils'
+import { GovernanceProposal } from '../types/inference'
+import { apiFetch, formatDateWithOrdinal, formatCompact, formatMessageTypes } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
-type Proposal = any
-
 type Tab = 'voting' | 'passed' | 'rejected'
-
-function formatDateWithOrdinal(dateStr: string) {
-  const date = new Date(dateStr)
-
-  const day = date.getUTCDate()
-  const year = date.getUTCFullYear()
-  const month = date.toLocaleString('en-US', {
-    month: 'short',
-    timeZone: 'UTC',
-  })
-
-  const suffix =
-    day % 10 === 1 && day !== 11
-      ? 'st'
-      : day % 10 === 2 && day !== 12
-      ? 'nd'
-      : day % 10 === 3 && day !== 13
-      ? 'rd'
-      : 'th'
-
-  return `${month} ${day}${suffix}, ${year}`
-}
-
-export function formatCompactNumber(n: number) {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`
-  return n.toString()
-}
-
-export function formatMessageTypes(messages?: { ['@type']?: string }[]) {
-  if (!messages || messages.length === 0) return null
-  const seen = new Set<string>()
-  const result: string[] = []
-
-  for (const m of messages) {
-    if (!m['@type']) return null
-    const type = m['@type'].startsWith('/') ? m['@type'].slice(1) : m['@type']
-    const last = type.split('.').pop() || type
-    const noMsg = last.replace(/^Msg/, '')
-    const spaced = noMsg.replace(/([A-Z])/g, ' $1').trim()
-    const typeUpperCase = spaced.toUpperCase()
-    if (!typeUpperCase) continue
-
-    if (!seen.has(typeUpperCase)) {
-      seen.add(typeUpperCase)
-      result.push(typeUpperCase)
-    }
-  }
-
-  return result.length > 0 ? result.join(', ') : null
-}
 
 const PAGE_SIZE = 20
 
 export function Governance() {
-  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(
-    null
-  )
+  const [, setSelectedProposalId] = useUrlParam('proposal_id')
   const [tab, setTab] = useState<Tab | null>(null)
   const [page, setPage] = useState(1)
 
-  const { data, isLoading, error } = useQuery<Record<Tab, Proposal[]>>({
+  const { data, isLoading, error } = useQuery<Record<Tab, GovernanceProposal[]>>({
     queryKey: ['governance-proposals'],
     queryFn: () => apiFetch('/v1/proposals'),
   })
@@ -92,7 +39,7 @@ export function Governance() {
 
   const activeTab = tab ?? effectiveTab
 
-  const list: Proposal[] = useMemo(() => {
+  const list: GovernanceProposal[] = useMemo(() => {
     if (!data) return []
     const raw = data[activeTab] || []
     return [...raw].sort((a, b) => b.id - a.id)
@@ -101,36 +48,11 @@ export function Governance() {
   const totalPages = Math.ceil(list.length / PAGE_SIZE)
   const paged = list.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const HeightParam = params.get('proposal_id')
-    if (HeightParam) {
-      setSelectedProposalId(HeightParam)
-    }
-  }, [])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', 'governance')
-
-    if (selectedProposalId) {
-      params.set('proposal_id', selectedProposalId)
-    } else {
-      params.delete('proposal_id')
-    }
-
-    const newUrl = params.toString()
-      ? `${window.location.pathname}?${params.toString()}`
-      : window.location.pathname
-
-    window.history.replaceState({}, '', newUrl)
-  }, [selectedProposalId])
-
   if (isLoading) {
     return <LoadingScreen label="Loading proposals..." />
   }
 
-  if (error) {
+  if (error || !data) {
     return <ErrorScreen error={error} title="Failed to load proposals" />
   }
 
@@ -139,9 +61,7 @@ export function Governance() {
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-gray-900">Proposals</h2>
-          <p className="text-sm text-gray-500 mt-1 leading-relaxed">
-            Approved proposals are then executed to update the network
-          </p>
+          <p className="text-sm text-gray-500 mt-1 leading-relaxed">Approved proposals are then executed to update the network</p>
         </div>
 
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -150,7 +70,7 @@ export function Governance() {
               <button
                 key={t}
                 onClick={() => {
-                  setTab(t), setPage(1)
+                  setTab(t); setPage(1)
                 }}
                 className={`whitespace-nowrap shrink-0 px-4 py-2 rounded-md text-sm border transition-colors ${
                   activeTab === t
@@ -167,12 +87,8 @@ export function Governance() {
 
       {activeTab === 'voting' && list.length === 0 ? (
         <div className="py-12 sm:py-16 text-center px-4">
-          <div className="text-base sm:text-lg font-medium text-gray-700 mb-2">
-            There are no active proposals right now.
-          </div>
-          <div className="text-sm text-gray-500">
-            Check back later to see what’s up for voting.
-          </div>
+          <div className="text-base sm:text-lg font-medium text-gray-700 mb-2">There are no active proposals right now.</div>
+          <div className="text-sm text-gray-500">Check back later to see what’s up for voting.</div>
         </div>
       ) : (
         <>
@@ -232,7 +148,7 @@ export function Governance() {
               const totalVotes = votes.reduce((s, v) => s + v.value, 0)
               const dominant = votes.reduce(
                 (a, b) => (b.value > a.value ? b : a),
-                votes[0]
+                votes[0],
               )
 
               return (
@@ -249,49 +165,37 @@ export function Governance() {
                 >
                   {/* Proposal */}
                   <div>
-                    <div className="font-semibold text-gray-900 group-hover:underline break-words">
-                      #{p.id} {p.title}
-                    </div>
+                    <div className="font-semibold text-gray-900 group-hover:underline break-words">#{p.id} {p.title}</div>
                     <div className="flex flex-wrap items-center gap-2 mt-1">
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-medium ${
                           p.status.includes('PASSED')
                             ? 'bg-green-100 text-green-700'
                             : p.status.includes('REJECTED')
-                            ? 'bg-red-100 text-red-700'
-                            : 'bg-yellow-100 text-yellow-700'
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-yellow-100 text-yellow-700'
                         }`}
                       >
                         {p.status.replace('PROPOSAL_STATUS_', '')}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {formatDateWithOrdinal(p.submit_time)}
-                      </span>
+                      <span className="text-xs text-gray-500">{formatDateWithOrdinal(p.submit_time)}</span>
                     </div>
                     {formatMessageTypes(p.messages) && (
-                      <div className="text-xs text-gray-500 mt-1 leading-relaxed break-words">
-                        {formatMessageTypes(p.messages)}
-                      </div>
+                      <div className="text-xs text-gray-500 mt-1 leading-relaxed break-words">{formatMessageTypes(p.messages)}</div>
                     )}
                   </div>
 
                   {/* Epoch */}
-                  <div className="flex items-center font-medium text-gray-900">
-                    {p.epoch_id}
-                  </div>
+                  <div className="flex items-center font-medium text-gray-900">{p.epoch_id}</div>
 
                   {/* Votes */}
                   <div className="pr-3 sm:pr-6">
                     <div className="flex flex-wrap text-xs gap-2 mb-1 leading-relaxed">
                       {voteItems.map((item, idx) => (
                         <span key={idx} className="flex items-center">
-                          <span className={item.color}>
-                            {formatCompactNumber(item.value)}
-                          </span>
+                          <span className={item.color}>{formatCompact(item.value)}</span>
                           {idx < voteItems.length - 1 && (
-                            <span className="mx-1.5 text-gray-300 text-sm leading-none relative -top-[1px]">
-                              ·
-                            </span>
+                            <span className="mx-1.5 text-gray-300 text-sm leading-none relative -top-[1px]">·</span>
                           )}
                         </span>
                       ))}
@@ -333,10 +237,7 @@ export function Governance() {
                             className={`flex items-center gap-2 ${v.text}`}
                           >
                             <span className="inline-block w-2 h-2 rounded-full bg-current" />
-                            <span>
-                              {v.label}: {formatCompactNumber(v.value)} (
-                              {((v.value / totalVotes) * 100).toFixed(2)}%)
-                            </span>
+                            <span>{v.label}: {formatCompact(v.value)} ({((v.value / totalVotes) * 100).toFixed(2)}%)</span>
                           </div>
                         ))}
                       </div>
@@ -346,14 +247,14 @@ export function Governance() {
                   {/* Weight */}
                   <div className="flex items-center justify-center text-center font-medium break-words">
                     {p.total_weight > 0
-                      ? `${formatCompactNumber(
-                          p.voted_weight
-                        ).toLocaleString()}/${formatCompactNumber(
-                          p.total_weight
-                        ).toLocaleString()}`
-                      : `${formatCompactNumber(
-                          p.voted_weight
-                        ).toLocaleString()}/ - `}
+                      ? `${formatCompact(
+                        p.voted_weight,
+                      ).toLocaleString()}/${formatCompact(
+                        p.total_weight,
+                      ).toLocaleString()}`
+                      : `${formatCompact(
+                        p.voted_weight,
+                      ).toLocaleString()}/ - `}
                   </div>
 
                   {/* Address */}
@@ -377,9 +278,7 @@ export function Governance() {
           >
             Prev
           </button>
-          <span className="min-h-[36px] flex items-center text-sm text-gray-600 leading-none whitespace-nowrap">
-            {page} / {totalPages}
-          </span>
+          <span className="min-h-[36px] flex items-center text-sm text-gray-600 leading-none whitespace-nowrap">{page} / {totalPages}</span>
           <button
             disabled={page === totalPages}
             onClick={() => setPage((p) => p + 1)}

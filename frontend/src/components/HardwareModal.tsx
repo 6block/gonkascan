@@ -56,9 +56,7 @@ export function HardwareModal({ hardware, epochId, currentEpochId, onClose }: Ha
               <div className="text-sm text-gray-400">No MLNodes reported for this hardware</div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
-                {data.ml_nodes.map((node, idx) => (
-                  <MLNodeCard key={idx} node={node} />
-                ))}
+                {data.ml_nodes.map((node, idx) => (<MLNodeCard key={idx} node={node} />))}
               </div>
             )}
           </div>

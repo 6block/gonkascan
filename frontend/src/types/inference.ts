@@ -1,3 +1,19 @@
+export interface ChartTooltipPayloadEntry {
+  dataKey: string
+  value: number
+  name: string
+  stroke?: string
+  fill?: string
+  color?: string
+  payload: Record<string, unknown>
+}
+
+export interface ChartTooltipProps {
+  active?: boolean
+  payload?: ChartTooltipPayloadEntry[]
+  label?: string | number
+}
+
 export interface CurrentEpochStats {
   inference_count: string;
   missed_requests: string;
@@ -127,11 +143,15 @@ export interface TimelineResponse {
   epoch_stages?: {
     inference_validation_cutoff: number;
     next_poc_start: number;
-    [key: string]: any;
+    set_new_validators: number;
+    [key: string]: unknown;
   };
   next_epoch_stages?: {
     set_new_validators: number;
-    [key: string]: any;
+    inference_validation_cutoff: number;
+    next_poc_start: number;
+    poc_start: number;
+    [key: string]: unknown;
   };
 }
 
@@ -214,21 +234,21 @@ export interface AddressTransactionsResponse {
 }
 
 export interface ParticipantMapItem{
-    index: string;
-    inference_url: string;
-    ip: string;
-    country_code?: string;
-    country?: string;
-    region?: string;
-    city?: string;
-    latitude: number;
-    longitude: number;
-    last_updated: string;
+  index: string;
+  inference_url: string;
+  ip: string;
+  country_code?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  latitude: number;
+  longitude: number;
+  last_updated: string;
 }  
 
 export interface ParticipantMapResponse {
-    total_participant: number;
-    participants: ParticipantMapItem[];
+  total_participant: number;
+  participants: ParticipantMapItem[];
 }
 
 export interface BalanceInfo {
@@ -315,6 +335,93 @@ export interface HardwareEpochSeriesResponse {
   series: HardwareSeries;
 }
 
+export interface CosmosMessage {
+  '@type': string
+  msgs?: CosmosMessage[]
+  creator?: string
+  sender?: string
+  voter?: string
+  option?: string
+  weight?: string
+  [key: string]: unknown
+}
+
+export interface TallyResult {
+  yes_count: string
+  no_count: string
+  abstain_count: string
+  no_with_veto_count: string
+}
+
+export interface GovernanceProposal {
+  id: number
+  title: string
+  summary: string
+  status: string
+  submit_time: string
+  voting_start_time?: string
+  voting_end_time?: string
+  messages: CosmosMessage[]
+  metadata: string
+  epoch_id: number
+  final_tally_result: TallyResult
+  tally_params?: { quorum?: string }
+  total_weight: number
+  voted_weight: number
+  total_voters: number
+  total_participants: number
+}
+
+export interface ProposalDetailResponse {
+  proposal: GovernanceProposal
+  diff_params: CosmosMessage[]
+}
+
+export interface TxResult {
+  code: number
+  gas_used: string
+  gas_wanted: string
+  log?: string
+}
+
+export interface BlockTx {
+  hash: string
+  body: {
+    messages: CosmosMessage[]
+  }
+  auth_info: {
+    fee?: {
+      gas_limit?: string
+    }
+  }
+}
+
+export interface BlockDetailResponse {
+  header: {
+    height: string
+    time: string
+  }
+  data: {
+    txs: BlockTx[]
+  }
+  result: {
+    txs_results: TxResult[]
+  }
+}
+
+export type TxStatus = 'Success' | 'Failed' | 'Unknown'
+
+export interface TxRowData {
+  key: string
+  txhash: string
+  msgType: string
+  creator: string
+  status: TxStatus
+  gasUsed: string
+  gasWanted: string
+  errorLog: string | null
+}
+
 export interface TransactionDetailResponse {
   height: string
   txhash: string
@@ -324,7 +431,7 @@ export interface TransactionDetailResponse {
   gas_used: string
   tx: {
     body: {
-      messages: any[]
+      messages: CosmosMessage[]
       memo: string
     }
     auth_info: {

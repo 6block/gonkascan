@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { timeAgo, apiFetch } from '../utils'
+import { timeAgo, apiFetch, toGonka, formatDateTime } from '../utils'
 import { TransactionDetailResponse } from '../types/inference'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
@@ -25,7 +25,7 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
   const fee =
     data.tx.auth_info.fee.amount.length > 0
       ? data.tx.auth_info.fee.amount
-        .map((a) => `${Number(a.amount) / 1e9} ${a.denom.replace(/^n/, '')}`)
+        .map((a) => `${toGonka(a.amount)} ${a.denom.replace(/^n/, '')}`)
         .join(', ')
       : '-'
 
@@ -60,22 +60,15 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
               <div>
                 <p className="text-gray-500 font-medium">Time</p>
                 <p className="break-words leading-relaxed">
-                  {new Date(data.timestamp).toLocaleString('en-CA', {
-                    hour12: false,
-                    timeZone: 'UTC',
-                  })}{' '}
-                  <span className="text-xs text-gray-500">
-                    ({timeAgo(data.timestamp)})
-                  </span>
+                  {formatDateTime(data.timestamp)}{' '}
+                  <span className="text-xs text-gray-500">({timeAgo(data.timestamp)})</span>
                 </p>
               </div>
 
 
               <div>
                 <p className="text-gray-500 font-medium">Gas</p>
-                <p className="break-all leading-relaxed">
-                  {data.gas_used} / {data.gas_wanted}
-                </p>
+                <p className="break-all leading-relaxed">{data.gas_used} / {data.gas_wanted}</p>
               </div>
 
               <div>

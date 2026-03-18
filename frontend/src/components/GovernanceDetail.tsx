@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '../utils'
 import { useState } from 'react'
+import { ProposalDetailResponse, CosmosMessage, ChartTooltipProps } from '../types/inference'
+import { apiFetch, formatCompact, formatMessageTypes, formatInt, formatDateTime } from '../utils'
 import { MessageBlock } from './common/StructRenderer'
 import { JsonSection } from './common/JsonViewer'
 import { ProposalMetadata } from './ProposalMetadata'
-import { formatCompactNumber, formatMessageTypes } from './Governance'
 import { VoteBubblePack } from './VoteBubblePack'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
@@ -44,16 +44,9 @@ function getVoteWeight(tx: VoteTx): number {
   return 0
 }
 
-function formatNumber(n: string | number | undefined): string {
-  if (n === undefined || n === null) return '-'
-  const num = typeof n === 'string' ? Number(n) : n
-  if (Number.isNaN(num)) return '-'
-  return num.toLocaleString('en-US')
-}
-
 type VoteType = 'YES' | 'NO' | 'VETO' | 'ABSTAIN' | 'UNKNOWN'
 
-function parseVoteType(tx: any): VoteType {
+function parseVoteType(tx: VoteTx): VoteType {
   const msg = tx?.tx?.body?.messages?.[0]
   const typeUrl = msg?.['@type'] as string | undefined
 
@@ -73,26 +66,17 @@ function parseVoteType(tx: any): VoteType {
   }
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CustomTooltip = ({ active, payload }: ChartTooltipProps) => {
   if (!active || !payload?.length) return null
 
-  const ts = payload[0]?.payload?.ts
-  const timeLabel = ts
-    ? new Date(ts).toLocaleString(undefined, {
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : ''
+  const ts = payload[0]?.payload?.ts as string | number | undefined
+  const timeLabel = ts ? formatDateTime(ts) : ''
 
   return (
     <div className="bg-white rounded-md shadow px-4 py-3 text-sm space-y-2">
-      {/* 时间标题 */}
       <div className="font-medium text-gray-800 border-b pb-1">{timeLabel}</div>
 
-      {/* 各投票类型 */}
-      {payload.map((p: any) => (
+      {payload.map((p) => (
         <div
           key={p.dataKey}
           style={{ color: p.stroke }}
@@ -108,18 +92,7 @@ const CustomTooltip = ({ active, payload }: any) => {
 
 function formatVotingTimeRange(start?: string, end?: string) {
   if (!start || !end) return null
-
-  const fmt = (iso: string) => {
-    const d = new Date(iso) // Z => 自动按本地时区展示
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    const hh = String(d.getHours()).padStart(2, '0')
-    const mi = String(d.getMinutes()).padStart(2, '0')
-    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`
-  }
-
-  return `${fmt(start)} ~ ${fmt(end)}`
+  return `${formatDateTime(start)} ~ ${formatDateTime(end)}`
 }
 
 function splitMessageTypeTags(label: string | null) {
@@ -164,7 +137,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   const [sortKey, setSortKey] = useState<'weight' | 'height'>('weight')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  const { data: proposalData, isLoading, error: proposalError } = useQuery<{ proposal: any; diff_params: any[] }>({
+  const { data: proposalData, isLoading, error: proposalError } = useQuery<ProposalDetailResponse>({
     queryKey: ['proposal', proposalId],
     queryFn: () => apiFetch(`/v1/proposals/${proposalId}`),
   })
@@ -185,12 +158,12 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
   const proposal = proposalData.proposal
   const diff_params = proposalData.diff_params || []
-  const messages = proposal.messages || []
-  const updateMsgs = messages.filter((m: any) =>
-    m['@type']?.endsWith('MsgUpdateParams')
+  const messages: CosmosMessage[] = proposal.messages || []
+  const updateMsgs = messages.filter((m) =>
+    m['@type']?.endsWith('MsgUpdateParams'),
   )
   const otherMsgs = messages.filter(
-    (m: any) => !m['@type']?.endsWith('MsgUpdateParams')
+    (m) => !m['@type']?.endsWith('MsgUpdateParams'),
   )
 
   const VOTE_COLOR_MAP: Record<VoteType, string> = {
@@ -206,7 +179,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
   const votingTimeText = formatVotingTimeRange(
     proposal.voting_start_time,
-    proposal.voting_end_time
+    proposal.voting_end_time,
   )
 
   return (
@@ -231,21 +204,15 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               ))}
             </div>
           )}
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {proposal.id}. {proposal.title}
-          </h2>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 break-words">{proposal.id}. {proposal.title}</h2>
           {votingTimeText && (
-            <div className="mt-1 mb-5 text-sm text-gray-500 leading-relaxed break-words">
-              Voting Time: {votingTimeText}
-            </div>
+            <div className="mt-1 mb-5 text-sm text-gray-500 leading-relaxed break-words">Voting Time: {votingTimeText}</div>
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-base mb-5">
             <div>
               <p className="text-xs text-gray-500 tracking-wide">STATUS</p>
-              <p className="font-semibold text-green-600 text-base sm:text-lg break-words">
-                {proposal.status.replace('PROPOSAL_STATUS_', '')}
-              </p>
+              <p className="font-semibold text-green-600 text-base sm:text-lg break-words">{proposal.status.replace('PROPOSAL_STATUS_', '')}</p>
             </div>
 
             <div>
@@ -254,15 +221,10 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
             </div>
 
             <div>
-              <p className="text-xs text-gray-500 tracking-wide">
-                TURNOUT / QUORUM
-              </p>
+              <p className="text-xs text-gray-500 tracking-wide">TURNOUT / QUORUM</p>
               <p className="font-medium text-base sm:text-lg break-words">
                 {proposal.total_weight > 0
-                  ? (
-                      (proposal.voted_weight / proposal.total_weight) *
-                      100
-                    ).toFixed(2)
+                  ? ((proposal.voted_weight / proposal.total_weight) * 100).toFixed(2)
                   : ' - '}
                 /{' '}
                 {(Number(proposal.tally_params?.quorum || 0) * 100).toFixed(2)}%
@@ -277,13 +239,11 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               <p className="font-semibold break-words">
                 {proposal.total_weight > 0 ? (
                   <>
-                    {formatCompactNumber(proposal.voted_weight)}/
-                    {formatCompactNumber(proposal.total_weight)}
+                    {formatCompact(proposal.voted_weight)}/{formatCompact(proposal.total_weight)}
                   </>
                 ) : (
                   <>
-                    {formatCompactNumber(proposal.voted_weight)}
-                    /-
+                    {formatCompact(proposal.voted_weight)}/-
                   </>
                 )}
               </p>
@@ -291,9 +251,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
             <div>
               <p className="text-xs text-gray-500">ADDRESS</p>
-              <p className="font-semibold break-words">
-                {proposal.total_voters}/{proposal.total_participants}
-              </p>
+              <p className="font-semibold break-words">{proposal.total_voters}/{proposal.total_participants}</p>
             </div>
           </div>
         </section>
@@ -319,9 +277,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                 <div>
                   <div className="flex justify-between mb-1">
                     <span className="font-medium text-gray-900">Yes</span>
-                    <span className="text-gray-500">
-                      {pct(yes).toFixed(2)}%
-                    </span>
+                    <span className="text-gray-500">{pct(yes).toFixed(2)}%</span>
                   </div>
                   <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -349,9 +305,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                 <div className="flex items-center gap-3">
                   <span className="w-4 h-4 rounded bg-yellow-400" />
                   <span className="flex-1 text-gray-900">Abstain</span>
-                  <span className="text-gray-500">
-                    {pct(abstain).toFixed(2)}%
-                  </span>
+                  <span className="text-gray-500">{pct(abstain).toFixed(2)}%</span>
                 </div>
               </div>
             )
@@ -364,7 +318,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
         {['details', 'vote', 'json'].map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t as any)}
+            onClick={() => setTab(t as 'details' | 'vote' | 'json')}
             className={[
               'whitespace-nowrap shrink-0 px-4 py-2 text-sm rounded-md border transition-colors',
               tab === t
@@ -384,13 +338,13 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
           <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-6">
             {Array.isArray(diff_params) && updateMsgs.length > 0 && (
               <>
-                {diff_params.map((msg: any, i: number) => (
+                {diff_params.map((msg, i) => (
                   <MessageBlock key={`diff-${i}`} msg={msg} />
                 ))}
               </>
             )}
 
-            {otherMsgs.map((msg: any, i: number) => (
+            {otherMsgs.map((msg, i) => (
               <MessageBlock key={i} msg={msg} />
             ))}
           </section>
@@ -428,12 +382,12 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               voteFilter === 'YES'
                 ? groups.YES
                 : voteFilter === 'NO'
-                ? groups.NO
-                : voteFilter === 'VETO'
-                ? groups.VETO
-                : voteFilter === 'ABSTAIN'
-                ? groups.ABSTAIN
-                : voteTxs
+                  ? groups.NO
+                  : voteFilter === 'VETO'
+                    ? groups.VETO
+                    : voteFilter === 'ABSTAIN'
+                      ? groups.ABSTAIN
+                      : voteTxs
 
             filteredVotes = [...filteredVotes].sort((a, b) => {
               if (sortKey === 'weight') {
@@ -451,7 +405,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               filteredVotes = filteredVotes.filter((tx) =>
                 tx.tx.body.messages[0]?.voter
                   ?.toLowerCase()
-                  .includes(voterKeyword.toLowerCase())
+                  .includes(voterKeyword.toLowerCase()),
               )
             }
 
@@ -476,17 +430,15 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
             if (voteTxs.length === 0) {
               return (
-                <div className="h-full flex items-center justify-center text-gray-400">
-                  No vote data
-                </div>
+                <div className="h-full flex items-center justify-center text-gray-400">No vote data</div>
               )
             }
 
-            // 按时间排序
+            // sort by time
             const sorted = [...voteTxs].sort(
               (a, b) =>
                 new Date(a.timestamp).getTime() -
-                new Date(b.timestamp).getTime()
+                new Date(b.timestamp).getTime(),
             )
 
             const cumulative = {
@@ -518,7 +470,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
             const minTs = Math.min(...allTs)
             const maxTs = Math.max(...allTs)
 
-            // 每 3 小时一个 tick
+            // one tick every 3 hours
             const HOUR = 60 * 60 * 1000
             const ticks: number[] = []
 
@@ -533,9 +485,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
                   {/* Vote Distribution */}
                   <div className="bg-[#1f2a44] rounded-xl p-4 sm:p-6 h-[320px] sm:h-[420px] overflow-hidden">
-                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-3 shrink-0">
-                      Vote Distribution
-                    </h4>
+                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-3 shrink-0">Vote Distribution</h4>
 
                     <div className="flex-1 flex items-center justify-center">
                       {bubbleData.length === 0 ? (
@@ -552,9 +502,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
 
                   {/* Voting Power Timeline */}
                   <div className="bg-[#1f2a44] rounded-xl p-4 sm:p-6 h-[320px] sm:h-[420px] flex flex-col">
-                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-4 shrink-0">
-                      Voting Power Timeline
-                    </h4>
+                    <h4 className="text-center text-sm sm:text-base text-gray-200 font-semibold mb-4 shrink-0">Voting Power Timeline</h4>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={data}>
                         <XAxis
@@ -623,7 +571,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                         >
                           {f}
                         </button>
-                      )
+                      ),
                     )}
                   </div>
 
@@ -680,26 +628,15 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                         key={tx.txhash}
                         className="grid min-w-[720px] grid-cols-[3fr_1fr_1fr_1fr] px-4 py-3 border-t text-sm hover:bg-gray-50 transition-colors"
                       >
-                        <div className="font-mono truncate pr-4">
-                          {msg?.voter || '-'}
-                        </div>
-                        <div
-                          className="font-semibold"
-                          style={{ color: VOTE_COLOR_MAP[option] }}
-                        >
-                          {option}
-                        </div>
-                        <div>{formatNumber(tx.height)}</div>
-                        <div className="font-mono truncate pr-2">
-                          {formatNumber(getVoteWeight(tx))}
-                        </div>
+                        <div className="font-mono truncate pr-4">{msg?.voter || '-'}</div>
+                        <div className="font-semibold" style={{ color: VOTE_COLOR_MAP[option] }}>{option}</div>
+                        <div>{formatInt(tx.height)}</div>
+                        <div className="font-mono truncate pr-2">{formatInt(getVoteWeight(tx))}</div>
                       </div>
                     )
                   })}
                   {filteredVotes.length === 0 && (
-                    <div className="py-6 px-4 text-center text-sm text-gray-500">
-                      No votes found in this category
-                    </div>
+                    <div className="py-6 px-4 text-center text-sm text-gray-500">No votes found in this category</div>
                   )}
                 </div>
               </>

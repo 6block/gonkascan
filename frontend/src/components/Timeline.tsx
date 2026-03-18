@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { TimelineResponse } from '../types/inference'
-import { apiFetch } from '../utils'
+import { apiFetch, formatCountdown } from '../utils'
 import { useEstimatedBlock } from '../hooks/useEstimatedBlock'
 import { EpochTimer } from './EpochTimer'
 import { StatItem } from './common/StatItem'
@@ -69,7 +69,7 @@ export function Timeline() {
   const estimatedCurrentBlock = useEstimatedBlock(
     data?.current_block.height || 0,
     data?.current_block.timestamp || new Date().toISOString(),
-    data?.avg_block_time || 6
+    data?.avg_block_time || 6,
   )
 
   const getEstimatedCurrentBlock = (): number => {
@@ -96,7 +96,7 @@ export function Timeline() {
       second: '2-digit',
       hour12: false
     }
-    
+
     return {
       utc: estimatedTime.toLocaleString('en-US', { ...options, timeZone: 'UTC' }) + ' UTC',
       local: estimatedTime.toLocaleString('en-US', { ...options, timeZoneName: 'short' })
@@ -110,31 +110,15 @@ export function Timeline() {
     window.history.replaceState({}, '', `?${params.toString()}`)
   }
 
-  const formatCountdownTime = (seconds: number): string => {
-    const totalSeconds = Math.floor(seconds)
-    const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor((totalSeconds % 86400) / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const secs = totalSeconds % 60
-
-    if (days > 0) {
-      return `${days}d ${hours}h ${minutes}m ${secs}s`
-    } else if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`
-    } else {
-      return `${secs}s`
-    }
-  }
-
   if (isLoading && !data) {
     return <LoadingScreen label="Loading timeline..." />
   }
 
-  if (error || !data) {
-    return <ErrorScreen error={error || 'No data available'} />
+  if (error && !data) {
+    return <ErrorScreen error={error} />
   }
+
+  if (!data) return null
 
   const minBlock = data.reference_block.height
   
@@ -236,12 +220,8 @@ export function Timeline() {
                     <div className="text-gray-600">
                       Time to block <span className="font-semibold text-gray-900">{blockToShow.toLocaleString()}</span>:
                     </div>
-                    <div className="font-bold text-blue-600">
-                      {formatCountdownTime(secondsUntilTarget)}
-                    </div>
-                    <div className="text-gray-500">
-                      (~{Math.ceil(secondsUntilTarget / data.avg_block_time).toLocaleString()} blocks)
-                    </div>
+                    <div className="font-bold text-blue-600">{formatCountdown(secondsUntilTarget)}</div>
+                    <div className="text-gray-500">(~{Math.ceil(secondsUntilTarget / data.avg_block_time).toLocaleString()} blocks)</div>
                   </div>
                 )
               } else {
@@ -263,32 +243,40 @@ export function Timeline() {
             const detailedBlockRange = detailedMaxBlock - detailedMinBlock
 
             const futureEvents: Array<{ block: number; label: string; fullLabel: string }> = []
-            if (data.epoch_stages?.set_new_validators && data.epoch_stages.set_new_validators > data.current_block.height && data.epoch_stages.set_new_validators <= detailedMaxBlock) {
+            if (data.epoch_stages?.set_new_validators
+              && data.epoch_stages.set_new_validators > data.current_block.height
+              && data.epoch_stages.set_new_validators <= detailedMaxBlock) {
               futureEvents.push({
                 block: data.epoch_stages.set_new_validators,
-                label: "New Validators",
-                fullLabel: "Set New Validators"
+                label: 'New Validators',
+                fullLabel: 'Set New Validators',
               })
             }
-            if (data.epoch_stages?.inference_validation_cutoff && data.epoch_stages.inference_validation_cutoff > data.current_block.height && data.epoch_stages.inference_validation_cutoff <= detailedMaxBlock) {
+            if (data.epoch_stages?.inference_validation_cutoff
+              && data.epoch_stages.inference_validation_cutoff > data.current_block.height
+              && data.epoch_stages.inference_validation_cutoff <= detailedMaxBlock) {
               futureEvents.push({
                 block: data.epoch_stages.inference_validation_cutoff,
-                label: "Val Cutoff",
-                fullLabel: "Inference Validation Cutoff"
+                label: 'Val Cutoff',
+                fullLabel: 'Inference Validation Cutoff',
               })
             }
-            if (data.epoch_stages?.next_poc_start && data.epoch_stages.next_poc_start > data.current_block.height && data.epoch_stages.next_poc_start <= detailedMaxBlock) {
+            if (data.epoch_stages?.next_poc_start
+              && data.epoch_stages.next_poc_start > data.current_block.height
+              && data.epoch_stages.next_poc_start <= detailedMaxBlock) {
               futureEvents.push({
                 block: data.epoch_stages.next_poc_start,
                 label: `PoC ${data.current_epoch_index + 1} Start`,
-                fullLabel: `PoC ${data.current_epoch_index + 1} Start`
+                fullLabel: `PoC ${data.current_epoch_index + 1} Start`,
               })
             }
-            if (data.next_epoch_stages?.set_new_validators && data.next_epoch_stages.set_new_validators > data.current_block.height && data.next_epoch_stages.set_new_validators <= detailedMaxBlock) {
+            if (data.next_epoch_stages?.set_new_validators
+              && data.next_epoch_stages.set_new_validators > data.current_block.height
+              && data.next_epoch_stages.set_new_validators <= detailedMaxBlock) {
               futureEvents.push({
                 block: data.next_epoch_stages.set_new_validators,
-                label: "New Validators",
-                fullLabel: "Set New Validators"
+                label: 'New Validators',
+                fullLabel: 'Set New Validators',
               })
             }
             
@@ -298,28 +286,32 @@ export function Timeline() {
                 futureEvents.push({
                   block: secondPocStart,
                   label: `PoC ${data.current_epoch_index + 2} Start`,
-                  fullLabel: `PoC ${data.current_epoch_index + 2} Start`
+                  fullLabel: `PoC ${data.current_epoch_index + 2} Start`,
                 })
               }
             }
             
-            if (data.next_epoch_stages?.set_new_validators && data.next_epoch_stages?.next_poc_start && data.next_epoch_stages?.poc_start) {
+            if (data.next_epoch_stages?.set_new_validators
+              && data.next_epoch_stages?.next_poc_start
+              && data.next_epoch_stages?.poc_start) {
               const offset = data.next_epoch_stages.set_new_validators - data.next_epoch_stages.poc_start
               const secondSetValidators = data.next_epoch_stages.next_poc_start + offset
               if (secondSetValidators > data.current_block.height && secondSetValidators <= detailedMaxBlock) {
                 futureEvents.push({
                   block: secondSetValidators,
-                  label: "New Validators",
-                  fullLabel: "Set New Validators (Epoch +2)"
+                  label: 'New Validators',
+                  fullLabel: 'Set New Validators (Epoch +2)',
                 })
               }
             }
             
-            if (data.next_epoch_stages?.inference_validation_cutoff && data.next_epoch_stages.inference_validation_cutoff > data.current_block.height && data.next_epoch_stages.inference_validation_cutoff <= detailedMaxBlock) {
+            if (data.next_epoch_stages?.inference_validation_cutoff
+              && data.next_epoch_stages.inference_validation_cutoff > data.current_block.height
+              && data.next_epoch_stages.inference_validation_cutoff <= detailedMaxBlock) {
               futureEvents.push({
                 block: data.next_epoch_stages.inference_validation_cutoff,
-                label: "Val Cutoff",
-                fullLabel: "Inference Validation Cutoff (Next Epoch)"
+                label: 'Val Cutoff',
+                fullLabel: 'Inference Validation Cutoff (Next Epoch)',
               })
             }
 
@@ -503,19 +495,19 @@ export function Timeline() {
                   const indexInRow = sameRowEvents.findIndex(e => e.block === event.block)
                   const totalInRow = sameRowEvents.length
                   
-                  let textAnchor: "start" | "middle" | "end" = "middle"
+                  let textAnchor: 'start' | 'middle' | 'end' = 'middle'
                   
                   if (totalInRow > 1) {
                     if (indexInRow === 0) {
-                      textAnchor = "end"
+                      textAnchor = 'end'
                     } else if (indexInRow === totalInRow - 1) {
-                      textAnchor = "start"
+                      textAnchor = 'start'
                     }
                   } else {
                     if (position < 20) {
-                      textAnchor = "start"
+                      textAnchor = 'start'
                     } else if (position > 80) {
-                      textAnchor = "end"
+                      textAnchor = 'end'
                     }
                   }
                   

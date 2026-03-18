@@ -1,4 +1,6 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { formatCompact } from '../utils'
+import { ChartTooltipProps } from '../types/inference'
 
 interface TokenUsageRow {
   epoch: number
@@ -6,18 +8,11 @@ interface TokenUsageRow {
   completion_token: number
 }
 
-function formatTokens(value: number) {
-  if (value >= 1e9) return `${(value / 1e9).toFixed(2)}B`
-  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`
-  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`
-  return value.toString()
-}
-
-function TokenUsageTooltip({ active, payload, label }: any) {
+function TokenUsageTooltip({ active, payload, label }: ChartTooltipProps) {
   if (!active || !payload || payload.length === 0) return null
 
-  const prompt = payload.find((p: any) => p.dataKey === 'prompt_token')?.value ?? 0
-  const completion = payload.find((p: any) => p.dataKey === 'completion_token')?.value ?? 0
+  const prompt = payload.find((p) => p.dataKey === 'prompt_token')?.value ?? 0
+  const completion = payload.find((p) => p.dataKey === 'completion_token')?.value ?? 0
   const total = prompt + completion
 
   return (
@@ -29,21 +24,21 @@ function TokenUsageTooltip({ active, payload, label }: any) {
           <div className="flex items-center gap-1.5 text-blue-600">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-600" />Prompt tokens
           </div>
-          <div className="font-medium">{formatTokens(prompt)}</div>
+          <div className="font-medium">{formatCompact(prompt)}</div>
         </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-green-600">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-600" />Completion tokens
           </div>
-          <div className="font-medium">{formatTokens(completion)}
+          <div className="font-medium">{formatCompact(completion)}
           </div>
         </div>
       </div>
 
       <div className="border-t border-gray-200 px-2 py-1.5 flex justify-between text-[11px] sm:text-[12px] font-semibold">
         <span>Total</span>
-        <span>{formatTokens(total)}</span>
+        <span>{formatCompact(total)}</span>
       </div>
     </div>
   )
@@ -60,7 +55,7 @@ export function ModelTokenUsageChart({ data }: { data: TokenUsageRow[] }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data}>
               <XAxis dataKey="epoch" tick={{ fontSize: 11 }} tickMargin={8} />
-              <YAxis tickFormatter={formatTokens} tick={{ fontSize: 11 }} width={48} />
+              <YAxis tickFormatter={formatCompact} tick={{ fontSize: 11 }} width={48} />
               <Tooltip content={<TokenUsageTooltip />} cursor={{ fillOpacity: 0.08 }} />
               <Bar dataKey="prompt_token" stackId="tokens" fill="#3b82f6" name="Prompt tokens"/>
               <Bar dataKey="completion_token" stackId="tokens" fill="#10b981" name="Completion tokens"/>

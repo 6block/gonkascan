@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { toGonka } from '../../utils'
 
-function isPrimitive(v: any) {
+function isPrimitive(v: unknown): v is string | number | boolean | null {
   return v === null || ['string', 'number', 'boolean'].includes(typeof v)
 }
 
-function displayPrimitive(v: any) {
+function displayPrimitive(v: unknown) {
   if (v === null) return 'null'
   if (typeof v === 'boolean') return v ? 'true' : 'false'
   return String(v)
@@ -18,7 +19,7 @@ function keyLabel(k: string) {
     .join(' ')
 }
 
-function VerticalTable({ data, level }: { data: Record<string, any>, level: number }) {
+function VerticalTable({ data, level }: { data: Record<string, unknown>, level: number }) {
   return (
     <div className="rounded-md">
       {Object.entries(data).map(([key, value]) => (
@@ -35,15 +36,17 @@ function VerticalTable({ data, level }: { data: Record<string, any>, level: numb
   )
 }
 
-function TabbedObject({ data, level, }: { data: Record<string, any>, level: number }) {
+function TabbedObject({ data, level }: { data: Record<string, unknown>, level: number }) {
   const keys = useMemo(() => Object.keys(data), [data])
   const [activeKey, setActiveKey] = useState<string>(() => keys[0] ?? '')
 
+  const keysKey = keys.join('|')
   useEffect(() => {
     if (!activeKey || !keys.includes(activeKey)) {
       setActiveKey(keys[0] ?? '')
     }
-  }, [keys.join('|')])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset tab when keys change
+  }, [keysKey])
 
   if (keys.length === 0) {
     return <span className="text-gray-400">{'{}'}</span>
@@ -131,7 +134,7 @@ export function StringArray({data, collapseCount = 30}: {
   )
 }
 
-function StructArray({ data, level }: { data: any[], level: number }) {
+function StructArray({ data, level }: { data: unknown[], level: number }) {
   if (data.length === 0) {
     return <span className="text-gray-500">[]</span>
   }
@@ -139,7 +142,8 @@ function StructArray({ data, level }: { data: any[], level: number }) {
   const first = data[0]
 
   if (typeof first === 'object' && first !== null && !Array.isArray(first)) {
-    const columns = Object.keys(first)
+    const columns = Object.keys(first as Record<string, unknown>)
+    const rows = data as Record<string, unknown>[]
 
     return (
       <div className="max-h-[360px] overflow-y-auto overflow-x-auto">
@@ -153,7 +157,7 @@ function StructArray({ data, level }: { data: any[], level: number }) {
           </thead>
 
           <tbody>
-            {data.map((row, rowIndex) => (
+            {rows.map((row, rowIndex) => (
               <tr key={rowIndex} className="border-t align-top">
                 {columns.map((col) => (
                   <td key={col} className="px-3 md:px-4 py-2 break-all align-middle">
@@ -161,7 +165,7 @@ function StructArray({ data, level }: { data: any[], level: number }) {
                       let value = row[col]
                       if (row?.denom === 'ngonka') {
                         if (col === 'amount') {
-                          value = row.amount + " ( " + (Number(row.amount) / 1e9).toString() + " gonka )"
+                          value = row.amount + ' ( ' + toGonka(row.amount as string).toString() + ' gonka )'
                         }
                       }
                       return <StructRenderer data={value} level={level + 1} />
@@ -187,7 +191,7 @@ function StructArray({ data, level }: { data: any[], level: number }) {
   )
 }
 
-export function StructRenderer({ data, level }: { data: any, level: number }) {
+export function StructRenderer({ data, level }: { data: unknown, level: number }) {
   if (data === null || typeof data !== 'object') {
     return (<span className="break-all font-normal text-sm leading-relaxed text-gray-500">{String(data)}</span>)
   }
@@ -198,12 +202,12 @@ export function StructRenderer({ data, level }: { data: any, level: number }) {
     return (<StructArray data={data} level={level} />)
   }
   if (level % 2 === 1) {
-    return <VerticalTable data={data} level={level} />
+    return <VerticalTable data={data as Record<string, unknown>} level={level} />
   }
-  return <TabbedObject data={data} level={level} />
+  return <TabbedObject data={data as Record<string, unknown>} level={level} />
 }
 
-export function MessageBlock({ msg }: { msg: any }) {
+export function MessageBlock({ msg }: { msg: Record<string, unknown> & { '@type'?: string } }) {
   return (
     <div className="border rounded-lg mb-4 md:mb-6 overflow-hidden">
       <div className="bg-gray-100 px-3 md:px-4 py-2 font-mono text-xs flex flex-wrap gap-2">

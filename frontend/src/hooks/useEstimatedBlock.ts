@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 export function useEstimatedBlock(
   confirmedHeight: number,
   confirmedTimestamp: string,
-  avgBlockTime: number
+  avgBlockTime: number,
 ): number {
   const [currentTime, setCurrentTime] = useState(Date.now())
 

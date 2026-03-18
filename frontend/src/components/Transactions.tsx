@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ClockIcon } from "@heroicons/react/24/outline";
+import { useUrlParam } from '../hooks/useUrlParam'
+import { ClockIcon } from '@heroicons/react/24/outline'
 import { TransactionsResponse } from '../types/inference'
-import { apiFetch } from '../utils'
+import { apiFetch, formatDateTime } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
 export function Transactions() {
-  const [selectedTxHash, setSelectedTxHash] = useState<string | null>(null)
+  const [selectedTxHash, setSelectedTxHash] = useUrlParam('tx')
 
   const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<TransactionsResponse>({
     queryKey: ['transactions'],
@@ -17,32 +17,6 @@ export function Transactions() {
     refetchOnMount: true,
     placeholderData: (previousData) => previousData,
   })
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-
-    const txParam = params.get('tx')
-    if (txParam) {
-      setSelectedTxHash(txParam)
-    }
-  }, [])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', 'transactions')
-
-    if (selectedTxHash) {
-      params.set('tx', selectedTxHash)
-    } else {
-      params.delete('tx')
-    }
-
-    const newUrl = params.toString()
-      ? `${window.location.pathname}?${params.toString()}`
-      : window.location.pathname
-
-    window.history.replaceState({}, '', newUrl)
-  }, [selectedTxHash])
 
   const handleRefresh = () => {
     refetch()
@@ -62,13 +36,11 @@ export function Transactions() {
     <div>
       <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 border border-gray-200">
         <div className="mb-4">
-            <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">
-            Transactions
-            </h2>
-            <p className="text-xs text-gray-500 mt-1 leading-relaxed">
-                Auto-refreshing every 10s
-                {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
-            </p>
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 mb-3 sm:mb-4">Transactions</h2>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Auto-refreshing every 10s
+            {dataUpdatedAt && ` (${Math.floor((Date.now() - dataUpdatedAt) / 1000)}s ago)`}
+          </p>
         </div>
 
         <div className="overflow-x-auto border border-gray-200 rounded-md">
@@ -106,27 +78,20 @@ export function Transactions() {
                       onClick={(e) => e.stopPropagation()}
                       className="block w-full truncate text-blue-600 hover:text-blue-800 hover:underline"
                       title={tx.height.toString()}
-                      >
-                        {tx.height}
-                      </a>
+                    >
+                      {tx.height}
+                    </a>
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center font-mono text-gray-900 w-[55%]">
-                    <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>
-                      {tx.tx_hash}
-                    </div>
+                    <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>{tx.tx_hash}</div>
                   </td>
-                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[15%] break-words">{tx.messages.join(", ")}</td>
+                  <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[15%] break-words">{tx.messages.join(', ')}</td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[20%]">
                     <div className="flex items-center justify-center gap-1 whitespace-nowrap">
-                        <ClockIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
-                        <span>
-                        {tx.timestamp ? new Date(tx.timestamp).toLocaleString("en-CA", {
-                            hour12: false,
-                            timeZone: "UTC"
-                        }) : "-" }
-                        </span>
+                      <ClockIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-gray-500" />
+                      <span>{tx.timestamp ? formatDateTime(tx.timestamp) : '-'}</span>
                     </div>
-                </td>
+                  </td>
                 </tr>
               ))}
             </tbody>

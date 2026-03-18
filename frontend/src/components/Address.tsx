@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransactionsResponse, AssetsResponse } from '../types/inference'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
-import { formatGNK, apiFetch } from '../utils'
+import { formatGNK, apiFetch, toGonka } from '../utils'
 import { BackNavigation } from './common/BackNavigation'
 
 interface AddressProps {
@@ -21,13 +21,11 @@ export function Address({ address }: AddressProps) {
     enabled: !!address,
   })
 
-  const NGONKA = 1e9
-
   const balance = assets?.balances?.find(b => b.denom === 'ngonka')
-    ? Number(assets.balances.find(b => b.denom === 'ngonka')!.amount) / NGONKA : 0
+    ? toGonka(assets.balances.find(b => b.denom === 'ngonka')!.amount) : 0
 
   const vesting = assets?.total_vesting?.find(v => v.denom === 'ngonka')
-    ? Number(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) / NGONKA : 0
+    ? toGonka(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) : 0
 
   const total = balance + vesting
 

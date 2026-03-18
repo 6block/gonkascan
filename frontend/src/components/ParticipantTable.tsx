@@ -28,7 +28,7 @@ const criticalThresholds = [
   { total: 700, critical: 84 },
   { total: 800, critical: 95 },
   { total: 900, critical: 106 },
-  { total: 990, critical: 116 }
+  { total: 990, critical: 116 },
 ]
 
 function missedStatTest(nMissed: number, nTotal: number): boolean {
@@ -85,57 +85,25 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
     onParticipantSelect(participant.index)
   }
 
-  // const handleCloseModal = () => {
-  //   onParticipantSelect(null)
-  // }
-  
-  // const selectedParticipant = selectedParticipantId 
-  //   ? participants.find(p => p.index === selectedParticipantId) || null
-  //   : null
-
   return (
     <div className="overflow-x-auto border border-gray-200 rounded-md">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Participant Index
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Weight
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Models
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Total
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Missed
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Validated
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Invalid
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Missed Rate
-            </th>
-            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-              Invalid Rate
-            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Participant Index</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Weight</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Models</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Total</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Missed</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Validated</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Invalid</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Missed Rate</th>
+            <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Invalid Rate</th>
             {hasCollateral && (
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                Collateral
-              </th>
+              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">Collateral</th>
             )}
-            <th className="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">
-              Jail
-            </th>
-            <th className="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">
-              Health
-            </th>
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Jail</th>
+            <th className="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-16">Health</th>
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
@@ -149,18 +117,14 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
               <tr
                 key={participant.index}
                 onClick={() => handleRowClick(participant)}
-                className={`cursor-pointer ${
-                  isHighlighted ? 'bg-red-50' : 'hover:bg-gray-50'
-                }`}
+                className={`cursor-pointer ${isHighlighted ? 'bg-red-50' : 'hover:bg-gray-50'}`}
               >
                 <td className={`px-4 py-3 text-sm font-mono text-gray-900 whitespace-nowrap ${
                   isHighlighted ? 'border-l-4 border-l-red-600' : ''
                 }`}>
                   {participant.index}
                 </td>
-                <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  {participant.weight.toLocaleString()}
-                </td>
+                <td className="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{participant.weight.toLocaleString()}</td>
                 <td className="px-4 py-3 text-sm">
                   {participant.models.length > 0 ? (
                     <div className="flex flex-wrap gap-1 max-w-xs">
@@ -168,18 +132,14 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                         <Badge key={idx} variant="gray" className="font-medium whitespace-nowrap">{model}</Badge>
                       ))}
                       {participant.models.length > 3 && (
-                        <span className="text-xs text-gray-500 whitespace-nowrap">
-                          +{participant.models.length - 3} more
-                        </span>
+                        <span className="text-xs text-gray-500 whitespace-nowrap">+{participant.models.length - 3} more</span>
                       )}
                     </div>
                   ) : (
                     <span className="text-gray-400 text-xs">-</span>
                   )}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium whitespace-nowrap">
-                  {totalInferenced.toLocaleString()}
-                </td>
+                <td className="px-4 py-3 text-sm text-gray-900 text-right font-medium whitespace-nowrap">{totalInferenced.toLocaleString()}</td>
                 <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
                   <span className={parseInt(participant.current_epoch_stats.missed_requests) > 0 ? 'text-red-600 font-semibold' : 'text-gray-600'}>
                     {parseInt(participant.current_epoch_stats.missed_requests).toLocaleString()}
@@ -197,7 +157,7 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                   <span className={`font-semibold ${
                     !missedStatTest(
                       parseInt(participant.current_epoch_stats.missed_requests),
-                      totalInferenced
+                      totalInferenced,
                     ) ? 'text-red-600' : 'text-gray-900'
                   }`}>
                     {(participant.missed_rate * 100).toFixed(2)}%
@@ -208,7 +168,7 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                     !missedStatTest(
                       parseInt(participant.current_epoch_stats.invalidated_inferences),
                       parseInt(participant.current_epoch_stats.validated_inferences) + 
-                      parseInt(participant.current_epoch_stats.invalidated_inferences)
+                      parseInt(participant.current_epoch_stats.invalidated_inferences),
                     ) ? 'text-red-600' : 'text-gray-900'
                   }`}>
                     {(participant.invalidation_rate * 100).toFixed(2)}%
@@ -227,7 +187,7 @@ export function ParticipantTable({ participants, onParticipantSelect }: Particip
                 )}
                 <td className="px-2 py-3 text-center whitespace-nowrap">
                   <div className="flex justify-center">
-                    {participant.participant_status === "INACTIVE" ? (
+                    {participant.participant_status === 'INACTIVE' ? (
                       <div className="w-3 h-3 bg-gray-300 rounded-full" title="Not a validator"></div>
                     ) : participant.is_jailed === true ? (
                       <div className="w-3 h-3 bg-red-600 rounded-full" title="Jailed"></div>

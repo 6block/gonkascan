@@ -1,19 +1,14 @@
 import { useState, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
+import { formatCompact } from '../../utils'
+import { ChartTooltipProps } from '../../types/inference'
 
 interface EpochAreaChartProps {
   title: string
-  data: any[]
+  data: Array<{ epoch: number; [key: string]: number }>
 }
 
 const COLORS = [ '#22C55E', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444']
-
-function formatTokens(value: number) {
-  if (value >= 1e9) return `${(value / 1e9).toFixed(2)}B`
-  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}M`
-  if (value >= 1e3) return `${(value / 1e3).toFixed(1)}K`
-  return value.toString()
-}
 
 function safeId(input: string) {
   return input.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -35,7 +30,7 @@ function buildStableColorMap(names: string[]) {
   return map
 }
 
-const AreaTooltip = ({ active, payload, label }: any) => {
+const AreaTooltip = ({ active, payload, label }: ChartTooltipProps) => {
   if (!active || !payload || !payload.length) return null
 
   const sorted = [...payload].sort((a, b) => {
@@ -70,13 +65,15 @@ export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set())
   const [activeEpoch, setActiveEpoch] = useState<number | null>(null)
 
-  if (!data.length) return null
-
-  const keys = Object.keys(data[0]).filter(k => k !== 'epoch')
+  const keys = data.length ? Object.keys(data[0]).filter(k => k !== 'epoch') : []
+  const keysKey = keys.join(',')
 
   const colorMap = useMemo(() => {
     return buildStableColorMap(keys)
-  }, [keys])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keys derived from keysKey
+  }, [keysKey])
+
+  if (!data.length) return null
 
   const toggleKeys = (key: string) => {
     setHiddenKeys(prev => {
@@ -124,7 +121,7 @@ export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
               >
                 <span
                   className="inline-block w-3 h-3 rounded"
-                  style={{backgroundColor: hidden ? '#D1D5DB' : color,}}
+                  style={{backgroundColor: hidden ? '#D1D5DB' : color}}
                 />
                 <span className="truncate max-w-[120px] sm:max-w-[180px]">{key}</span>
               </div>
@@ -136,16 +133,16 @@ export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
       <div className="h-72 sm:h-80 overflow-x-auto">
         <div className="h-full min-w-[640px] sm:min-w-0">
           <ResponsiveContainer width="100%" height="100%">
-          <AreaChart
-            data={data}
-            onMouseMove={(state) => {
-              if (state?.activeLabel != null) {
-                setActiveEpoch(Number(state.activeLabel))
-              }
-            }}
-            onMouseLeave={() => setActiveEpoch(null)}
-          >
-            <defs>
+            <AreaChart
+              data={data}
+              onMouseMove={(state) => {
+                if (state?.activeLabel != null) {
+                  setActiveEpoch(Number(state.activeLabel))
+                }
+              }}
+              onMouseLeave={() => setActiveEpoch(null)}
+            >
+              <defs>
                 {keys.map(key => {
                   const gid = safeId(key)
                   return (
@@ -161,11 +158,10 @@ export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
               <XAxis dataKey="epoch" tick={{ fontSize: 11 }} tickMargin={8} />
               <YAxis
                 domain={[0, 'dataMax * 1.1']}
-                tickFormatter={formatTokens}
+                tickFormatter={formatCompact}
                 tick={{ fontSize: 11 }}
                 width={48}
               />
-
 
               <Tooltip
                 content={<AreaTooltip />}

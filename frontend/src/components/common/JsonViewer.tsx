@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import ReactJson from 'react-json-view'
 
-export function JsonViewer({ data }: { data: any }) {
+export function JsonViewer({ data }: { data: object }) {
   return (
     <ReactJson
       src={data}
@@ -21,7 +21,7 @@ export function JsonViewer({ data }: { data: any }) {
   )
 }
 
-export function JsonSection({ data }: { data: any }) {
+export function JsonSection({ data }: { data: object }) {
   const [copied, setCopied] = useState(false)
   const jsonString = JSON.stringify(data, null, 2)
 
@@ -47,9 +47,7 @@ export function JsonSection({ data }: { data: any }) {
         </div>
       </div>
 
-      <div className="bg-gray-900 rounded overflow-auto max-h-[420px] sm:max-h-[600px]">
-        <JsonViewer data={data} />
-      </div>
+      <div className="bg-gray-900 rounded overflow-auto max-h-[420px] sm:max-h-[600px]"><JsonViewer data={data} /></div>
     </section>
   )
 }

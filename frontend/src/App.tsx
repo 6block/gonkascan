@@ -85,13 +85,14 @@ function App() {
   const { data: currentData } = useQuery<InferenceResponse>({
     queryKey: ['inference', 'current'],
     queryFn: () => apiFetch('/v1/inference/current'),
-    staleTime: 30_000,
+    staleTime: 30000,
+    enabled: currentPage === 'dashboard' && selectedEpochId !== null,
   })
 
   const estimatedBlock = useEstimatedBlock(
     data?.current_block_height || 0,
     data?.current_block_timestamp || new Date().toISOString(),
-    data?.avg_block_time || 6
+    data?.avg_block_time || 6,
   )
 
   const shouldShowEstimatedBlock = data?.current_block_height && data?.current_block_timestamp && data?.avg_block_time
@@ -331,13 +332,13 @@ function App() {
   
     let participants_list = data.participants
   
-    // 1) URL participants 过滤（如果有）
+    // 1) filter by URL participants (if any)
     if (participantFilter && participantFilter.length > 0) {
       const set = new Set(participantFilter)
       participants_list = participants_list.filter(p => set.has(p.index))
     }
-  
-    // 2) Hardware 过滤（如果选择了具体硬件）
+
+    // 2) filter by hardware (if selected)
     if (selectedHardwareParticipantSet) {
       participants_list = participants_list.filter(p => selectedHardwareParticipantSet.has(p.index))
     }
@@ -364,68 +365,66 @@ function App() {
 
   return (
     <>
-      <Toaster position="top-center" toastOptions={{duration: 3000,}}/>
+      <Toaster position="top-center" toastOptions={{duration: 3000}}/>
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <div className="flex-1 mx-auto w-full max-w-[1400px] px-3 sm:px-4 md:px-8 py-4 sm:py-6 md:py-8">
-        {shouldShowHeader  && (
-          <header className="mb-6 md:mb-8">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4">
-              <img src="/gonka.svg" alt="Gonka" className="h-9 sm:h-10 md:h-12 w-auto" />
-              <div className="flex-1 min-w-0">
-                <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-1 leading-tight">
-                  Gonka Chain Inference Tracker
-                </h1>
-                <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
-                  Real-time monitoring of participant performance and model availability
-                </p>
+          {shouldShowHeader  && (
+            <header className="mb-6 md:mb-8">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4">
+                <img src="/gonka.svg" alt="Gonka" className="h-9 sm:h-10 md:h-12 w-auto" />
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-1 leading-tight">
+                    Gonka Chain Inference Tracker
+                  </h1>
+                  <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
+                    Real-time monitoring of participant performance and model availability
+                  </p>
+                </div>
               </div>
-            </div>
           
-            <div className="flex flex-col gap-3">
-              {/* 导航按钮：移动端横向滚动 */}
-              <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {([
-                  ['dashboard', 'Host Dashboard'],
-                  ['models', 'Models'],
-                  ['hardware', 'Hardware'],
-                  ['governance', 'Governance'],
-                  ['blocks', 'Blocks'],
-                  ['transactions', 'Transactions'],
-                  ['timeline', 'Timeline'],
-                  ['nodemap', 'Node Map'],
-                  ['resource', 'Resource'],
-                ] as [Page, string][]).map(([page, label]) => (
-                  <NavTab key={page} active={currentPage === page} onClick={() => handlePageChange(page)}>
-                    {label}
-                  </NavTab>
-                ))}
-              </div>
+              <div className="flex flex-col gap-3">
+                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {([
+                    ['dashboard', 'Host Dashboard'],
+                    ['models', 'Models'],
+                    ['hardware', 'Hardware'],
+                    ['governance', 'Governance'],
+                    ['blocks', 'Blocks'],
+                    ['transactions', 'Transactions'],
+                    ['timeline', 'Timeline'],
+                    ['nodemap', 'Node Map'],
+                    ['resource', 'Resource'],
+                  ] as [Page, string][]).map(([page, label]) => (
+                    <NavTab key={page} active={currentPage === page} onClick={() => handlePageChange(page)}>
+                      {label}
+                    </NavTab>
+                  ))}
+                </div>
 
-              {/* 搜索框 */}
-              <div className="w-full relative">
-                <input
-                  type="text"
-                  placeholder="Search Address / Tx Hash / Height"
-                  value={globalSearch}
-                  onChange={e => setGlobalSearch(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
-                  className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
-                />
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <path d="M21 21l-4.35-4.35" />
-                </svg>
-              </div>
+                <div className="w-full relative">
+                  <input
+                    type="text"
+                    placeholder="Search Address / Tx Hash / Height"
+                    value={globalSearch}
+                    onChange={e => setGlobalSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
+                    className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                  />
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
+                  </svg>
+                </div>
 
-            </div>
-          </header>
-        )}
+              </div>
+            </header>
+          )}
 
           {currentPage === 'timeline' ? (
             <Timeline />
@@ -495,7 +494,9 @@ function App() {
 
                     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6">
                       <StatItem label="Equivalent H100" subText="">
-                        {Math.round(weightToH100(data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id)).toLocaleString()} GPUs
+                        {Math.round(weightToH100(
+                          data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id,
+                        )).toLocaleString()} GPUs
                       </StatItem>
                     </div>
 
@@ -503,12 +504,17 @@ function App() {
                       <StatItem
                         label="Total Assigned Rewards"
                         subText={
-                          (data.total_assigned_rewards_gnk === undefined || data.total_assigned_rewards_gnk === null || data.total_assigned_rewards_gnk === 0)
-                            ? <>{isLoading ? 'Loading...' : data.is_current ? 'Pending settlement' : 'Calculating...'}</>
+                          (data.total_assigned_rewards_gnk === undefined
+                            || data.total_assigned_rewards_gnk === null
+                            || data.total_assigned_rewards_gnk === 0)
+                            ? <>{isLoading ? 'Loading...' : data.is_current
+                              ? 'Pending settlement' : 'Calculating...'}</>
                             : ''
                         }
                       >
-                        {data.total_assigned_rewards_gnk !== undefined && data.total_assigned_rewards_gnk !== null && data.total_assigned_rewards_gnk > 0
+                        {data.total_assigned_rewards_gnk !== undefined
+                          && data.total_assigned_rewards_gnk !== null
+                          && data.total_assigned_rewards_gnk > 0
                           ? `${data.total_assigned_rewards_gnk.toLocaleString()} GNK`
                           : '-'
                         }
@@ -540,7 +546,6 @@ function App() {
                       </p>
                     </div>
 
-                    {/* 右侧 Hardware 选择框 */}
                     <div className="w-full sm:w-auto flex items-center gap-2">
                       <select
                         value={selectedHardware}
@@ -558,7 +563,7 @@ function App() {
                     <div className="text-sm text-gray-500 py-8 text-center">
                       No matching participants in this epoch
                     </div>
-                    ) : (
+                  ) : (
                     <div className="overflow-x-auto">
                       <ParticipantTable
                         participants={filteredParticipants}
@@ -567,8 +572,8 @@ function App() {
                         currentEpochId={currentEpochId}
                         selectedParticipantId={selectedAddress &&
                           filteredParticipants.some(p => p.index === selectedAddress)
-                            ? selectedAddress
-                            : null
+                          ? selectedAddress
+                          : null
                         }
                         onParticipantSelect={handleParticipantSelect}
                       />

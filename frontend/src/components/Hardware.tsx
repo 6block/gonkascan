@@ -1,40 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { HardwaresResponse, HardwareStats, EpochSeriesPoint, HardwareEpochSeriesResponse, } from '../types/inference'
-import { apiFetch } from '../utils'
+import { HardwaresResponse, HardwareStats, HardwareEpochSeriesResponse } from '../types/inference'
+import { apiFetch, buildEpochRows } from '../utils'
 import { HardwareModal } from './HardwareModal'
-import { EpochAreaChart } from "./common/EpochAreaChart"
+import { EpochAreaChart } from './common/EpochAreaChart'
 import { StatItem } from './common/StatItem'
 import { EpochIdDisplay } from './common/EpochIdDisplay'
 import { RefreshControlFooter } from './common/RefreshControlFooter'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
-
-type EpochRow = { epoch: number } & Record<string, number>
-
-function buildEpochRows(series: Record<string, EpochSeriesPoint[]>): EpochRow[] {
-  const epochMap = new Map<number, EpochRow>()
-  const models = Object.keys(series)
-
-  for (const [model, points] of Object.entries(series)) {
-    for (const p of points) {
-      if (!epochMap.has(p.epoch_id)) {
-        epochMap.set(p.epoch_id, { epoch: p.epoch_id })
-      }
-      epochMap.get(p.epoch_id)![model] = p.value
-    }
-  }
-
-  for (const row of epochMap.values()) {
-    for (const model of models) {
-      if (row[model] == null) {
-        row[model] = 0
-      }
-    }
-  }
-
-  return Array.from(epochMap.values()).sort((a, b) => a.epoch - b.epoch)
-}
 
 export function Hardware() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
@@ -77,14 +51,14 @@ export function Hardware() {
       if (!isNaN(epochId)) {
         setSelectedEpochId(epochId)
         if (hardwareParam) {
-            setSelectedHardwareId(hardwareParam)
+          setSelectedHardwareId(hardwareParam)
         }
         return
       }
     }
     
     if (hardwareParam) {
-        setSelectedHardwareId(hardwareParam)
+      setSelectedHardwareId(hardwareParam)
     }
   }, [])
 
@@ -145,7 +119,7 @@ export function Hardware() {
 
   if (selectedModel) {
     filteredHardwares = filteredHardwares.filter(hw =>
-      hw.models.includes(selectedModel)
+      hw.models.includes(selectedModel),
     )
   }
   const canExpand = filteredHardwares.length > 5
@@ -162,20 +136,20 @@ export function Hardware() {
   } else {
     displayHardwares = [...top5ByWeight]
     if (
-        extraHardwareId &&
+      extraHardwareId &&
         !displayHardwares.some(h => h.id === extraHardwareId)
     ) {
-        const extra = data.hardware.find(h => h.id === extraHardwareId)
-        if (extra) {
+      const extra = data.hardware.find(h => h.id === extraHardwareId)
+      if (extra) {
         displayHardwares.push(extra)
-        }
+      }
     }
   }
   
   const top5WeightIds = top5ByWeight.map(h => h.id)
   const top5AmountIds = top5ByAmount.map(h => h.id)
   const totalWeightData = metricsData? buildEpochRows(
-        Object.fromEntries(Object.entries(metricsData.series.total_weight).filter(([k]) => top5WeightIds.includes(k)))): []
+    Object.fromEntries(Object.entries(metricsData.series.total_weight).filter(([k]) => top5WeightIds.includes(k)))): []
   const amountData = metricsData? buildEpochRows(
     Object.fromEntries(Object.entries(metricsData.series.amount).filter(([k]) => top5AmountIds.includes(k)))): []
 
@@ -265,12 +239,8 @@ export function Hardware() {
               }}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition rounded-md"
             >
-              <span className="text-lg leading-none">
-                {showAll ? '▲' : '▼'}
-              </span>
-              <span>
-                {showAll ? 'Collapse' : 'All Hardware'}
-              </span>
+              <span className="text-lg leading-none">{showAll ? '▲' : '▼'}</span>
+              <span>{showAll ? 'Collapse' : 'All Hardware'}</span>
             </button>
           </div>
         )}

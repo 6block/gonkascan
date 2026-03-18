@@ -21,4 +21,7 @@ cache/
 node_modules/
 *.local
 test_data/
-
+.env.local
+.env.*.local
+.vite/
+.idea/

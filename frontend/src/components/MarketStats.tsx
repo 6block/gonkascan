@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiFetch } from '../utils'
+import { apiFetch, formatDecimal, formatInt, timeAgo } from '../utils'
 
 type MarketResponse = {
   market_stats: {
@@ -18,28 +18,6 @@ type MarketResponse = {
     community_pool: number
     updated_at: string
   }
-}
-
-const formatNumber = (num: number, digits = 4) =>
-  num.toLocaleString(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })
-
-const formatInt = (num: number) => num.toLocaleString()
-
-const minutesAgo = (dateStr: string) => {
-  // 如果没有带 Z，强制补 Z（按 UTC 解析）
-  const utcString = dateStr.endsWith('Z') ? dateStr : `${dateStr}Z`
-
-  const serverTime = new Date(utcString).getTime()
-  const now = Date.now()
-
-  const diffMs = now - serverTime
-
-  if (diffMs <= 0) return 0
-
-  return Math.floor(diffMs / 60000)
 }
 
 export function MarketStats() {
@@ -73,40 +51,30 @@ export function MarketStats() {
         </a>
       </div>
 
-      {/* ===== Price + OrderBook 同一个框 ===== */}
+      {/* ===== Price + OrderBook ===== */}
       <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200 mb-6 sm:mb-8">
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          {/* 左边 Price */}
+          {/* Price */}
           <div className="shrink-0 sm:min-w-[220px]">
             <div className="flex items-center gap-3 text-sm mb-2">
               <span className="text-gray-600 font-medium">Price</span>
 
               <span className="flex items-center text-green-600 font-medium">
-                <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                Live
-              </span>
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>Live</span>
 
-              <span className="text-gray-400">
-                • {minutesAgo(market_stats.updated_at)}m ago
-              </span>
+              <span className="text-gray-400">• {timeAgo(market_stats.updated_at)}</span>
             </div>
 
-            <div className="text-2xl sm:text-3xl font-bold text-gray-900 break-words">
-              ${formatNumber(market_stats.price)}
-            </div>
+            <div className="text-2xl sm:text-3xl font-bold text-gray-900 break-words">${formatDecimal(market_stats.price)}</div>
           </div>
 
-          {/* 右边 Sell / Buy */}
+          {/* Sell / Buy */}
           <div className="flex-1">
             <div className="lg:col-span-2 bg-gray-100 rounded-lg p-4 sm:p-5 border border-gray-200">
               <div className="flex justify-between text-lg font-semibold mb-2">
-                <span className="text-red-600">
-                  Sell ${formatNumber(market_stats.best_ask)}
-                </span>
+                <span className="text-red-600">Sell ${formatDecimal(market_stats.best_ask)}</span>
 
-                <span className="text-green-600">
-                  Buy ${formatNumber(market_stats.best_bid)}
-                </span>
+                <span className="text-green-600">Buy ${formatDecimal(market_stats.best_bid)}</span>
               </div>
 
               <div className="relative h-2 bg-gray-200 rounded overflow-hidden mb-2">
@@ -120,56 +88,42 @@ export function MarketStats() {
                 />
               </div>
 
-              <div className="text-center text-xs text-gray-400">
-                {askRatio.toFixed(0)}% / {bidRatio.toFixed(0)}%
-              </div>
+              <div className="text-center text-xs text-gray-400">{askRatio.toFixed(0)}% / {bidRatio.toFixed(0)}%</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ===== 下半部分 Token 数据 ===== */}
+      {/* ===== Token ===== */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-6">
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">Circulating supply</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.user_circulating)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.user_circulating)}</div>
         </div>
 
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">Total supply</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.total_supply)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.total_supply)}</div>
         </div>
 
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">Mining rewards</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.total_mining_rewards)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.total_mining_rewards)}</div>
         </div>
 
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">Genesis Allocation</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.genesis_total)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.genesis_total)}</div>
         </div>
 
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">System Tokens</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.module_balance)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.module_balance)}</div>
         </div>
 
         <div>
           <div className="text-xs sm:text-sm text-gray-500 mb-1">Community pool</div>
-          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">
-            {formatInt(token_stats.community_pool)}
-          </div>
+          <div className="text-base sm:text-lg font-semibold text-gray-900 break-words">{formatInt(token_stats.community_pool)}</div>
         </div>
       </div>
     </div>

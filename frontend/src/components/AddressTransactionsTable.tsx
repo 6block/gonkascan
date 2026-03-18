@@ -8,7 +8,7 @@ interface AddressTransactionsTableProps {
   error?: Error | null
 }
 
-export function AddressTransactionsTable({transactions, isLoading, error,}: AddressTransactionsTableProps) {
+export function AddressTransactionsTable({transactions, isLoading, error}: AddressTransactionsTableProps) {
   if (isLoading) {
     return <LoadingScreen label="Loading transactions..." className="py-10" />
   }
@@ -42,9 +42,7 @@ export function AddressTransactionsTable({transactions, isLoading, error,}: Addr
               </td>
               <td className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm font-mono text-blue-600 break-all max-w-[180px] sm:max-w-md">
                 <a href={`?page=transactions&tx=${tx.tx_hash}`} rel="noopener noreferrer" className="hover:underline">
-                  <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>
-                    {tx.tx_hash}
-                  </div>
+                  <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>{tx.tx_hash}</div>
                 </a>
               </td>
               <td className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm text-gray-700 break-words">{tx.messages.join(', ')}</td>

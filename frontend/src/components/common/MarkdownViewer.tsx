@@ -18,7 +18,7 @@ export function MarkdownViewer({ content }: Props) {
       <h3 className="text-base sm:text-lg font-semibold mt-5 sm:mt-6 mb-2 break-words">{children}</h3>
     ),
 
-    // ✅ 正文：对齐 GitHub README
+    // body text: align with GitHub README style
     p: ({ children }) => (
       <p className="text-sm sm:text-base text-gray-800 leading-7 sm:leading-relaxed mb-4 break-words">{children}</p>
     ),
@@ -70,35 +70,22 @@ export function MarkdownViewer({ content }: Props) {
 
     table: ({ children }) => (
       <div className="overflow-x-auto my-5">
-        <table className="min-w-[640px] border-collapse border border-gray-300 text-sm sm:text-base">
-          {children}
-        </table>
+        <table className="min-w-[640px] border-collapse border border-gray-300 text-sm sm:text-base">{children}</table>
       </div>
     ),
     th: ({ children }) => (
-      <th className="border border-gray-300 bg-gray-100 px-2 sm:px-3 py-2 text-left font-semibold text-sm sm:text-base whitespace-nowrap">
-        {children}
-      </th>
+      <th className="border border-gray-300 bg-gray-100 px-2 sm:px-3 py-2 text-left font-semibold text-sm sm:text-base whitespace-nowrap">{children}</th>
     ),
     td: ({ children }) => (
       <td className="border border-gray-300 px-2 sm:px-3 py-2 text-sm sm:text-base break-words">{children}</td>
     ),
 
     a: ({ href, children }) => (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-blue-600 hover:underline break-all"
-      >
-        {children}
-      </a>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">{children}</a>
     ),
   }
 
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-      {content}
-    </ReactMarkdown>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>{content}</ReactMarkdown>
   )
 }

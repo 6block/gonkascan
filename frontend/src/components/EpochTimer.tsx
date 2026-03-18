@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { InferenceResponse } from '../types/inference'
+import { formatCountdown } from '../utils'
 
 interface EpochTimerProps {
   data: InferenceResponse
@@ -23,9 +24,7 @@ export function EpochTimer({ data }: EpochTimerProps) {
       <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6 col-span-2 sm:col-span-3 lg:col-span-1">
         <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Time To Next Epoch</div>
         <div>
-          <div className="text-2xl font-bold text-gray-900 leading-none">
-            -
-          </div>
+          <div className="text-2xl font-bold text-gray-900 leading-none">-</div>
           <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]"></div>
         </div>
       </div>
@@ -61,31 +60,11 @@ export function EpochTimer({ data }: EpochTimerProps) {
   const secondsRemaining = Math.max(0, secondsUntilNextEpochFromServer - elapsedSeconds)
   const blocksRemaining = Math.ceil(secondsRemaining / data.avg_block_time)
 
-  const formatTime = (seconds: number): string => {
-    const totalSeconds = Math.floor(seconds)
-    const days = Math.floor(totalSeconds / 86400)
-    const hours = Math.floor((totalSeconds % 86400) / 3600)
-    const minutes = Math.floor((totalSeconds % 3600) / 60)
-    const secs = totalSeconds % 60
-
-    if (days > 0) {
-      return `${days}d ${hours}h ${minutes}m ${secs}s`
-    } else if (hours > 0) {
-      return `${hours}h ${minutes}m ${secs}s`
-    } else if (minutes > 0) {
-      return `${minutes}m ${secs}s`
-    } else {
-      return `${secs}s`
-    }
-  }
-
   return (
     <div className="border-t lg:border-t-0 lg:border-l border-gray-200 pt-4 lg:pt-0 lg:pl-6 col-span-2 sm:col-span-3 lg:col-span-1">
       <div className="text-sm font-medium text-gray-500 mb-1 leading-tight">Time To Next Epoch</div>
       <div>
-        <div className="text-2xl font-bold text-gray-900 leading-none">
-          {formatTime(secondsRemaining)}
-        </div>
+        <div className="text-2xl font-bold text-gray-900 leading-none">{formatCountdown(secondsRemaining)}</div>
         <div className="text-xs text-gray-500 mt-1 min-h-[1.25rem]">
           ~{blocksRemaining > 0 ? blocksRemaining.toLocaleString() : 0} blocks remaining
         </div>

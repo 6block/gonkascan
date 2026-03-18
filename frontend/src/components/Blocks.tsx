@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useUrlParam } from '../hooks/useUrlParam'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import { timeAgo, apiFetch } from '../utils'
@@ -17,7 +18,7 @@ type BlocksResponse = {
 }
 
 export function Blocks() {
-  const [selectedHeight, setSelectedHeight] = useState<string | null>(null)
+  const [, setSelectedHeight] = useUrlParam('height')
 
   const { data, isLoading, error, refetch } = useQuery<BlocksResponse>({
     queryKey: ['blocks', 'recent'],
@@ -45,31 +46,6 @@ export function Blocks() {
         txs: b.tx_count,
       }))
   }, [blocks])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const HeightParam = params.get('height')
-    if (HeightParam) {
-      setSelectedHeight(HeightParam)
-    }
-  }, [])
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    params.set('page', 'blocks')
-
-    if (selectedHeight) {
-      params.set('height', selectedHeight)
-    } else {
-      params.delete('height')
-    }
-
-    const newUrl = params.toString()
-      ? `${window.location.pathname}?${params.toString()}`
-      : window.location.pathname
-
-    window.history.replaceState({}, '', newUrl)
-  }, [selectedHeight])
 
   const handleRefresh = () => {
     refetch()
@@ -109,12 +85,12 @@ export function Blocks() {
           <div
             key={block.height}
             onClick={() => {
-                const height = block.height.toString()
-                setSelectedHeight(height)
-                const params = new URLSearchParams(window.location.search)
-                params.set('page', 'blocks')
-                params.set('height', height)
-                window.history.pushState({}, '', `?${params}`)
+              const height = block.height.toString()
+              setSelectedHeight(height)
+              const params = new URLSearchParams(window.location.search)
+              params.set('page', 'blocks')
+              params.set('height', height)
+              window.history.pushState({}, '', `?${params}`)
             }}
             className="cursor-pointer rounded-lg border border-gray-200 p-3 sm:p-4 transition hover:bg-blue-50 hover:ring-1 hover:ring-blue-300 active:bg-blue-100"       
           >

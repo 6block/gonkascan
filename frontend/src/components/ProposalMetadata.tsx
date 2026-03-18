@@ -12,7 +12,7 @@ type GithubMetadataCandidates = {
 
 function extractMetadataLikeUrl(
   metadata?: string | null,
-  summary?: string | null
+  summary?: string | null,
 ): { url: string; source: 'metadata' | 'summary' } | null {
   if (metadata && metadata.trim()) {
     return { url: metadata.trim(), source: 'metadata' }
@@ -43,7 +43,7 @@ function extractMetadataLikeUrl(
 }
 
 function normalizeGithubMetadataCandidates(
-  input: string
+  input: string,
 ): GithubMetadataCandidates | null {
   try {
     const u = new URL(input)
@@ -150,7 +150,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
           source: 'main',
           from: metaLike.source,
         }
-      } catch {}
+      } catch { /* fetch failed, try commit fallback */ }
 
       if (candidates.rawCommit && candidates.blobCommit) {
         try {
@@ -162,7 +162,7 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
             source: 'commit',
             from: metaLike.source,
           }
-        } catch {}
+        } catch { /* commit fetch failed */ }
       }
 
       return null
@@ -184,15 +184,11 @@ export function ProposalMetadata({ metadata, summary }: ProposalMetadataProps) {
           <h3 className="text-base font-semibold text-gray-900">METADATA</h3>
 
           {data.from === 'summary' && (
-            <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-              summary
-            </span>
+            <span className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">summary</span>
           )}
 
           {data.source === 'commit' && (
-            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">
-              commit
-            </span>
+            <span className="text-xs px-2 py-0.5 rounded bg-amber-100 text-amber-700">commit</span>
           )}
         </div>
 

@@ -39,9 +39,7 @@ export function BaseModal({ title, onClose, children }: BaseModalProps) {
           </button>
         </div>
 
-        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">
-          {children}
-        </div>
+        <div className="p-4 sm:p-6 space-y-5 sm:space-y-6">{children}</div>
       </div>
     </div>
   )

@@ -1,23 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { formatGas, apiFetch } from '../utils'
+import { BlockDetailResponse, CosmosMessage, TxRowData, TxStatus } from '../types/inference'
+import { formatCompact, apiFetch, shortHash, formatDateTime } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 import { BackNavigation } from './common/BackNavigation'
-
-
-type BlockDetailResponse = {
-  header: {
-    height: string
-    time: string
-  }
-  data: {
-    txs: any[]
-  },
-  result: {
-    txs_results: any[]
-  }
-}
 
 type MsgSummaryNode = {
   key: string
@@ -28,14 +15,6 @@ type MsgSummaryNode = {
   creators?: Record<string, {count: number, gas: number}>
 }
 
-function shortHash(hash: string, len = 10) {
-  return `${hash.slice(0, len)}…${hash.slice(-len)}`
-}
-
-function formatTime(ts: string) {
-  return new Date(ts).toLocaleString()
-}
-
 function typeTail(typeUrl: string) {
   const tail = typeUrl.split('/').pop() || typeUrl
   const dotTail = tail.split('.').pop() || tail  
@@ -43,10 +22,10 @@ function typeTail(typeUrl: string) {
   return cleaned
 }
 
-function extractCreatorsFromAny(anyMsg: any): string[] {
+function extractCreatorsFromAny(anyMsg: CosmosMessage): string[] {
   const creators = new Set<string>()
   if (!anyMsg || typeof anyMsg !== 'object') return []
-  const typeUrl = anyMsg["@type"]
+  const typeUrl = anyMsg['@type']
 
   if (typeUrl === '/cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)) {
     for (const inner of anyMsg.msgs) {
@@ -74,17 +53,17 @@ function extractCreatorsFromAny(anyMsg: any): string[] {
   return Array.from(creators)
 }
 
-function extractMsgTypeCountsFromAny(anyMsg: any): {isExec: boolean, counts: Map<string, number>} { 
+function extractMsgTypeCountsFromAny(anyMsg: CosmosMessage): {isExec: boolean, counts: Map<string, number>} { 
   const counts = new Map<string, number>()
 
   if (!anyMsg || typeof anyMsg !== 'object') {
     return { isExec: false, counts }
   }
 
-  const isExec = anyMsg["@type"] === '/cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)
-  if (isExec) {
+  const isExec = anyMsg['@type'] === '/cosmos.authz.v1beta1.MsgExec' && Array.isArray(anyMsg.msgs)
+  if (isExec && anyMsg.msgs) {
     for (const inner of anyMsg.msgs) {
-      const typeUrl = inner["@type"]
+      const typeUrl = inner['@type']
       if (!typeUrl || typeof typeUrl !== 'string') continue
       const type = typeTail(typeUrl)
       counts.set(type, (counts.get(type) || 0) + 1)
@@ -97,8 +76,8 @@ function extractMsgTypeCountsFromAny(anyMsg: any): {isExec: boolean, counts: Map
     return { isExec: true, counts }
   }
 
-  if (typeof anyMsg["@type"] === 'string') {
-    const type = typeTail(anyMsg["@type"])
+  if (typeof anyMsg['@type'] === 'string') {
+    const type = typeTail(anyMsg['@type'])
     counts.set(type, 1)
   }
 
@@ -119,11 +98,11 @@ function MsgSummaryRow({ node }: { node: MsgSummaryNode }) {
           <span className="truncate" title={node.key}>{node.key}</span>
         </div>
 
-        <div className="text-right text-xs sm:text-sm text-gray-700">{node.totalCount} / {formatGas(node.totalGas)}</div>
+        <div className="text-right text-xs sm:text-sm text-gray-700">{node.totalCount} / {formatCompact(node.totalGas, 2, false)}</div>
 
         <div className="text-right text-xs sm:text-sm">
           {node.failedCount > 0 ? (
-            <span className="text-red-600">{node.failedCount} / {formatGas(node.failedGas)}</span>
+            <span className="text-red-600">{node.failedCount} / {formatCompact(node.failedGas, 2, false)}</span>
           ) : (
             <span className="text-gray-400">– / –</span>
           )}
@@ -135,90 +114,90 @@ function MsgSummaryRow({ node }: { node: MsgSummaryNode }) {
           {Object.entries(node.creators)
             .sort(([, a], [, b]) => b.count - a.count)
             .map(([addr, creator]) => (
-            <div
-              key={addr}
-              className="grid grid-cols-[1fr_220px_220px] sm:grid-cols-[1fr_260px_260px] px-6 sm:px-10 py-2 text-xs sm:text-sm border-b bg-gray-50 hover:bg-gray-100 transition"
-            >
-              <a
-                href={`/?page=address&address=${addr}`}
-                className="text-blue-600 hover:underline font-mono truncate block min-w-0"
+              <div
+                key={addr}
+                className="grid grid-cols-[1fr_220px_220px] sm:grid-cols-[1fr_260px_260px] px-6 sm:px-10 py-2 text-xs sm:text-sm border-b bg-gray-50 hover:bg-gray-100 transition"
               >
-                {addr}
-              </a>
-              <div className="text-right text-gray-700">{creator.count} / {formatGas(creator.gas)}</div>
-              <div className="text-right text-gray-400">– / –</div>
-            </div>
-          ))}
+                <a
+                  href={`/?page=address&address=${addr}`}
+                  className="text-blue-600 hover:underline font-mono truncate block min-w-0"
+                >
+                  {addr}
+                </a>
+                <div className="text-right text-gray-700">{creator.count} / {formatCompact(creator.gas, 2, false)}</div>
+                <div className="text-right text-gray-400">– / –</div>
+              </div>
+            ))}
         </>
       )}
     </>
   )
 }
 
-function TxRow({ row }: { row: any }) {
+function TxRow({ row }: { row: TxRowData }) {
   const [showError, setShowError] = useState(false)
   const isFailed = row.status === 'Failed' && row.errorLog
 
   return (
-      <tr
-        className="border-t"
-        onMouseLeave={() => setShowError(false)}
-      >
-        <td className="px-3 sm:px-4 py-3 font-mono truncate" title={row.msgType}>{row.msgType}</td>
+    <tr
+      className="border-t"
+      onMouseLeave={() => setShowError(false)}
+    >
+      <td className="px-3 sm:px-4 py-3 font-mono truncate" title={row.msgType}>{row.msgType}</td>
 
-        {isFailed && showError ? (
-          <td colSpan={4} className="px-3 sm:px-4 py-3">
-            <div className="flex gap-3">
-              <div className="w-1 bg-red-500/70 rounded-sm" />
-              <pre className="text-[11px] sm:text-xs text-red-600 font-mono whitespace-pre-wrap break-all leading-relaxed">Error: {row.errorLog}</pre>
-            </div>
+      {isFailed && showError ? (
+        <td colSpan={4} className="px-3 sm:px-4 py-3">
+          <div className="flex gap-3">
+            <div className="w-1 bg-red-500/70 rounded-sm" />
+            <pre className="text-[11px] sm:text-xs text-red-600 font-mono whitespace-pre-wrap break-all leading-relaxed">Error: {row.errorLog}</pre>
+          </div>
+        </td>
+      ) : (
+        <>
+          <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
+            {row.status === 'Success' && (
+              <span className="inline-flex items-center gap-1.5 sm:gap-2 text-green-600 font-medium text-xs sm:text-sm">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white text-xs">✓</span>
+                Success
+              </span>)}
+            {row.status === 'Failed' && (
+              <span 
+                className="inline-flex items-center gap-1.5 sm:gap-2 text-red-600 font-medium text-xs sm:text-sm cursor-help" 
+                onMouseEnter={() => setShowError(true)}
+              >
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs">✕</span>
+                Failed
+              </span>
+            )}
+            {row.status === 'Unknown' && (
+              <span className="inline-flex items-center gap-1.5 sm:gap-2 text-gray-400 font-medium text-xs sm:text-sm">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white text-xs">?</span>
+                Unknown
+              </span>
+            )}
           </td>
-          ) : (
-            <>
-              <td className="px-3 sm:px-4 py-3 whitespace-nowrap">
-                {row.status === 'Success' && (
-                  <span className="inline-flex items-center gap-1.5 sm:gap-2 text-green-600 font-medium text-xs sm:text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white text-xs">✓</span>
-                    Success
-                  </span>)}
-                {row.status === 'Failed' && (
-                  <span 
-                    className="inline-flex items-center gap-1.5 sm:gap-2 text-red-600 font-medium text-xs sm:text-sm cursor-help" 
-                    onMouseEnter={() => setShowError(true)}
-                  >
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white text-xs">✕</span>
-                    Failed
-                  </span>
-                )}
-                {row.status === 'Unknown' && (
-                  <span className="inline-flex items-center gap-1.5 sm:gap-2 text-gray-400 font-medium text-xs sm:text-sm">
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-gray-300 text-white text-xs">?</span>
-                    Unknown
-                  </span>
-                )}
-              </td>
 
-              <td className="px-3 sm:px-4 py-3 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">{row.gasUsed} Used<br />{row.gasWanted} Wanted</td>
-              <td className="px-3 sm:px-4 py-3 font-mono text-blue-600 truncate" title={row.creator}>
-                <a
-                    href={`/?page=address&address=${row.creator}`}
-                    className="text-blue-600 hover:underline font-mono truncate block"
-                >
-                    {row.creator !== '-' ? shortHash(row.creator, 16) : '-'}
-                </a>
-              </td>
-              <td className="px-3 sm:px-4 py-3 font-mono text-blue-600">
-                <a
-                    href={`?page=transactions&tx=${row.txhash}`}
-                    className="block w-full truncate hover:underline"
-                    title={row.txhash}
-                >
-                    {row.txhash}
-                </a>
-              </td>
-            </>
-          )}
-      </tr>
+          <td className="px-3 sm:px-4 py-3 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">{row.gasUsed} Used<br />{row.gasWanted} Wanted</td>
+          <td className="px-3 sm:px-4 py-3 font-mono text-blue-600 truncate" title={row.creator}>
+            <a
+              href={`/?page=address&address=${row.creator}`}
+              className="text-blue-600 hover:underline font-mono truncate block"
+            >
+              {row.creator !== '-' ? shortHash(row.creator, 16) : '-'}
+            </a>
+          </td>
+          <td className="px-3 sm:px-4 py-3 font-mono text-blue-600">
+            <a
+              href={`?page=transactions&tx=${row.txhash}`}
+              className="block w-full truncate hover:underline"
+              title={row.txhash}
+            >
+              {row.txhash}
+            </a>
+          </td>
+        </>
+      )}
+    </tr>
   )
 }
 
@@ -236,37 +215,36 @@ export function BlockDetail({ height }: {height: string }) {
     const results = data.result?.txs_results || []
   
     return txs.flatMap((tx, txIndex) => {
-      const txhash = tx.hash || {}
+      const txhash = tx.hash || ''
       const body = tx.body || {}
       const auth = tx.auth_info || {}
       const gasLimit = auth.fee?.gas_limit?.toString?.() ?? '-'
   
       const result = results[txIndex]
-      const status = result?.code === 0 ? 'Success' : result?.code != null ? 'Failed': 'Unknown'
+      const status: TxStatus = result?.code === 0 ? 'Success' : result?.code != null ? 'Failed': 'Unknown'
       const gasUsed = result?.gas_used ?? '-'
       const gasWanted = result?.gas_wanted ?? gasLimit
 
       const messages = body?.messages ?? []
   
-      return messages.flatMap((anyMsg: any, msgIndex: number) => {
+      return messages.flatMap((anyMsg: CosmosMessage, msgIndex: number) => {
         const creators = extractCreatorsFromAny(anyMsg)
         const creator = 
             creators.length === 1 ? creators[0] : creators.length > 1
-            ? `${creators[0]} +${creators.length - 1}` : '-'
+              ? `${creators[0]} +${creators.length - 1}` : '-'
         const { isExec, counts } = extractMsgTypeCountsFromAny(anyMsg)
         const prefix = isExec ? 'Exec > ' : ''
             
         return Array.from(counts.entries()).map(([innerType, count], idx) => ({
-            key: `${txIndex}-${msgIndex}-${idx}`,
-            txhash,
-            msgType:
-              count > 1 ? `${prefix}${innerType} × ${count}` : `${prefix}${innerType}`,
-            creator,
-            status,
-            gasUsed,
-            gasWanted,
-            errorLog: result?.log ?? null, 
-          }))
+          key: `${txIndex}-${msgIndex}-${idx}`,
+          txhash,
+          msgType: count > 1 ? `${prefix}${innerType} × ${count}` : `${prefix}${innerType}`,
+          creator,
+          status,
+          gasUsed,
+          gasWanted,
+          errorLog: result?.log ?? null, 
+        }))
       })
     })
   }, [data])
@@ -334,7 +312,7 @@ export function BlockDetail({ height }: {height: string }) {
           </div>
           <div>
             <div className="text-xs sm:text-sm text-gray-500 mb-1">Time</div>
-            <div className="text-sm sm:text-lg break-words">{formatTime(data.header.time)}</div>
+            <div className="text-sm sm:text-lg break-words">{formatDateTime(data.header.time)}</div>
           </div>
         </div>
       </div>
@@ -357,7 +335,7 @@ export function BlockDetail({ height }: {height: string }) {
               })
               .map(node => (
                 <MsgSummaryRow key={node.key} node={node} />
-            ))}
+              ))}
           </div>
         </div>
       </div>
@@ -376,7 +354,7 @@ export function BlockDetail({ height }: {height: string }) {
             </thead>
             <tbody>
               {txRows.map(row => (
-                  <TxRow key={row.key} row={row} />
+                <TxRow key={row.key} row={row} />
               ))}
             </tbody>
           </table>
