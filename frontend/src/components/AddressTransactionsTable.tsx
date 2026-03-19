@@ -41,8 +41,8 @@ export function AddressTransactionsTable({transactions, isLoading, error}: Addre
                 <a href={`?page=blocks&height=${tx.height}`} rel="noopener noreferrer" className="hover:underline">{tx.height.toLocaleString()}</a>
               </td>
               <td className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm font-mono text-blue-600 break-all max-w-[180px] sm:max-w-md">
-                <a href={`?page=transactions&tx=${tx.tx_hash}`} rel="noopener noreferrer" className="hover:underline">
-                  <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>{tx.tx_hash}</div>
+                <a href={`?page=transactions&tx=${tx.tx_hash.toUpperCase()}`} rel="noopener noreferrer" className="hover:underline">
+                  <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash.toUpperCase()}>{tx.tx_hash.toUpperCase()}</div>
                 </a>
               </td>
               <td className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm text-gray-700 break-words">{tx.messages.join(', ')}</td>

@@ -22,7 +22,7 @@ services:
     env_file:
       - config.env
     volumes:
-      - /home/ps/share/gonka/cache:/app/cache:/app/cache
+      - /home/ps/share/gonka/cache:/app/cache
       - ./backend/data:/data
     labels:
       - "traefik.enable=true"

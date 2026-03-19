@@ -33,7 +33,7 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
     <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
       <div className="rounded-lg shadow-sm">
         <div className="px-3 sm:px-4 md:px-6 py-3 md:py-4">
-          <BackNavigation onBack={() => window.history.back()} title={data.txhash} />
+          <BackNavigation onBack={() => window.history.back()} title={data.txhash.toUpperCase()} />
         </div>
 
         <div className="space-y-6">
@@ -41,7 +41,7 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4 md:mb-6">
               <div>
                 <h3 className="text-base md:text-lg font-semibold text-gray-900 mb-1">Tx Hash</h3>
-                <p className="font-mono text-sm break-all leading-relaxed text-gray-700">{data.txhash}</p>
+                <p className="font-mono text-sm break-all leading-relaxed text-gray-700">{data.txhash.toUpperCase()}</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 md:gap-x-6 gap-y-4 text-sm">
@@ -67,8 +67,8 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
 
 
               <div>
-                <p className="text-gray-500 font-medium">Gas</p>
-                <p className="break-all leading-relaxed">{data.gas_used} / {data.gas_wanted}</p>
+                <p className="text-gray-500 font-medium">Gas(GNK)</p>
+                <p className="break-all leading-relaxed">{toGonka(data.gas_used)} / {toGonka(data.gas_wanted)}</p>
               </div>
 
               <div>

@@ -96,6 +96,10 @@ class CacheDB:
             """)
 
             await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transactions_height_index ON transactions(height DESC, transaction_index DESC)
+            """)
+
+            await db.execute("""
                 CREATE TABLE IF NOT EXISTS transaction_participants (
                     height BIGINT NOT NULL,
                     transaction_hash TEXT NOT NULL,
@@ -395,21 +399,6 @@ class CacheDB:
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_confirmation_participant 
                 ON confirmation_data(participant_index)
-            """)
-
-            await db.execute("""
-                CREATE TABLE IF NOT EXISTS transactions_old (
-                    height INTEGER NOT NULL,
-                    tx_hash TEXT NOT NULL,
-                    messages TEXT NOT NULL,
-                    timestamp TEXT NOT NULL,
-                    PRIMARY KEY (tx_hash)
-                )
-            """)
-
-            await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_transactions_height
-                ON transactions_old(height)
             """)
 
             await db.execute("""
@@ -1441,32 +1430,6 @@ class CacheDB:
                 
                 return [dict(row) for row in rows]
 
-    async def save_transactions_batch(self, tx_list: List[Dict[str, Any]]):
-        async with aiosqlite.connect(self.db_path) as db:
-            for tx in tx_list:
-                await db.execute("""
-                    INSERT OR REPLACE INTO transactions_old
-                    (height, tx_hash, messages, timestamp)
-                    VALUES (?, ?, ?, ?)
-                """, (
-                    tx["height"],
-                    tx["tx_hash"],
-                    json.dumps(tx["messages"]),
-                    tx["timestamp"]
-                ))
-        
-            await db.commit()
-            logger.info(f"Saved transactions data for {len(tx_list)}")
-
-    async def get_latest_tx_height(self) -> int:
-        async with aiosqlite.connect(self.db_path) as db:
-            db.row_factory = aiosqlite.Row
-            async with db.execute("""SELECT MAX(height) AS max_height FROM transactions_old;""") as cursor:
-                row = await cursor.fetchone()
-                if row is None or row["max_height"] is None:
-                    return 0
-                return int(row["max_height"])
-
     async def _save_blocks_batch(self, db, blocks: list[dict]):
         await db.executemany("""
             INSERT OR REPLACE INTO blocks (
@@ -1670,27 +1633,29 @@ class CacheDB:
     async def get_latest_transactions(self, limit: int = 50) -> Optional[List[Dict[str, Any]]]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
-            
+
             async with db.execute("""
-                SELECT height, tx_hash, messages, timestamp
-                FROM transactions_old
-                ORDER BY height DESC
+                SELECT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp
+                FROM transactions t
+                JOIN blocks b ON t.height = b.height
+                ORDER BY t.height DESC, t.transaction_index DESC
                 LIMIT ?
             """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
                 if not rows:
                     return None
                 return [dict(row) for row in rows]
-    
+
     async def get_recent_block_stats(self, limit: int = 100) -> list[dict]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
 
             async with db.execute("""
-                SELECT height, COUNT(*) AS tx_count, MAX(timestamp) AS timestamp FROM transactions_old
-                WHERE height IN (SELECT DISTINCT height FROM transactions_old ORDER BY height DESC LIMIT ?)
-                GROUP BY height ORDER BY height DESC
-            """,(limit,)) as cursor:
+                SELECT height, transaction_count AS tx_count, time AS timestamp
+                FROM blocks
+                ORDER BY height DESC
+                LIMIT ?
+            """, (limit,)) as cursor:
                 rows = await cursor.fetchall()
 
                 return [
@@ -1701,6 +1666,132 @@ class CacheDB:
                     }
                     for row in rows
                 ]
+
+    async def get_block_by_height(self, height: int) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM blocks WHERE height = ?
+            """, (height,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return dict(row)
+
+    async def get_block_commit_signatures(self, height: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM block_commit_signatures
+                WHERE block_height = ?
+                ORDER BY signature_index ASC
+            """, (height,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_block_result(self, height: int) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM block_results WHERE height = ?
+            """, (height,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return dict(row)
+
+    async def get_transactions_by_height(self, height: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM transactions
+                WHERE height = ?
+                ORDER BY transaction_index ASC
+            """, (height,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_transaction_by_hash(self, tx_hash: str) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT t.*, b.time AS timestamp, b.chain_id
+                FROM transactions t
+                JOIN blocks b ON t.height = b.height
+                WHERE t.hash = ?
+            """, (tx_hash,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return dict(row)
+
+    async def get_transaction_result_by_hash(self, tx_hash: str) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM transaction_results WHERE transaction_hash = ?
+            """, (tx_hash,)) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                return dict(row)
+
+    async def get_transaction_events_by_hash(self, tx_hash: str) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM transaction_events
+                WHERE transaction_hash = ?
+                ORDER BY id ASC
+            """, (tx_hash,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_transaction_results_by_height(self, height: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM transaction_results
+                WHERE height = ?
+            """, (height,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_transaction_events_by_height(self, height: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT * FROM transaction_events
+                WHERE height = ?
+                ORDER BY id ASC
+            """, (height,)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_transactions_by_address(self, address: str, limit: int = 50) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            async with db.execute("""
+                SELECT DISTINCT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp
+                FROM transaction_participants tp
+                JOIN transactions t ON tp.transaction_hash = t.hash
+                JOIN blocks b ON t.height = b.height
+                WHERE tp.address = ?
+                ORDER BY t.height DESC
+                LIMIT ?
+            """, (address, limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
 
     async def upsert_participant_node_geo(self,
         participant_index: str,

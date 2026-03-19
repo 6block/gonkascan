@@ -2039,50 +2039,6 @@ class InferenceService:
         except Exception as e:
             logger.error(f"Error polling models API cache: {e}")
 
-    async def fetch_and_cache_transactions(self):
-        max_blocks = 10
-        latest_db_height = await self.cache_db.get_latest_tx_height()
-        current_height = await self.client.get_latest_height()
-
-        if latest_db_height == 0:
-            start_height = current_height
-        else:
-            start_height = max(latest_db_height + 1, current_height - 10)
-
-        if start_height > current_height:
-            return
-        end_height = min(current_height + 1, start_height + max_blocks - 1)
-        logger.info(f"Syncing blocks from {start_height} to {end_height} (chain_height={current_height})")
-        transaction_batch = []
-
-        for height in range(start_height, end_height):
-            block_data = await self.client.get_block(height)
-            block_txs = block_data["result"]["block"]["data"].get("txs", [])
-            block_timestamp = block_data["result"]["block"]["header"]["time"]
-            for tx in block_txs:
-                tx_bytes = base64.b64decode(tx)
-                tx_hash = hashlib.sha256(tx_bytes).hexdigest().upper()
-                tx_raw = TxRaw()
-                tx_raw.ParseFromString(tx_bytes)
-                tx_body = TxBody()
-                tx_body.ParseFromString(tx_raw.body_bytes)
-                tx_messages = []
-                for msg in tx_body.messages:
-                    msg_type = msg.type_url.split(".")[-1]
-                    msg = msg_type.replace("Msg", "")
-                    if msg not in tx_messages:
-                        tx_messages.append(msg)
-                transaction_batch.append({
-                    "height": height,
-                    "tx_hash": tx_hash,
-                    "messages": tx_messages,
-                    "timestamp": block_timestamp,
-                })
-        
-        logger.info(f"Fetched {len(transaction_batch)} transactions for height {start_height} to {end_height}")
-        if transaction_batch:
-            await self.cache_db.save_transactions_batch(transaction_batch)
-
     def extract_gonka_addresses(self, obj, role_prefix=None):
         results = []
         if isinstance(obj, dict):
@@ -2271,21 +2227,25 @@ class InferenceService:
     
     async def get_transactions(self, limit: int = 100) -> TransactionResponse:
         try:
-            latest_info = await self.client.get_latest_epoch()
-            epoch_id = latest_info["latest_epoch"]["index"]
-            latest_height = await self.client.get_latest_height()
-            transactions = []
+            if self.current_epoch_id is None:
+                latest_info = await self.client.get_latest_epoch()
+                self.current_epoch_id = latest_info["latest_epoch"]["index"]
+            epoch_id = self.current_epoch_id
+
             transaction_rows = await self.cache_db.get_latest_transactions(limit=limit)
-            for tx in transaction_rows:
-                transactions.append(
-                    Transaction(
-                        height=tx["height"],
-                        tx_hash=tx["tx_hash"],
-                        messages=json.loads(tx["messages"]),
-                        timestamp=tx["timestamp"]
+            latest_height = transaction_rows[0]["height"] if transaction_rows else 0
+            transactions = []
+            if transaction_rows:
+                for tx in transaction_rows:
+                    transactions.append(
+                        Transaction(
+                            height=tx["height"],
+                            tx_hash=tx["tx_hash"],
+                            messages=json.loads(tx["messages"]),
+                            timestamp=tx["timestamp"]
+                        )
                     )
-                )
-            
+
             return TransactionResponse(
                 epoch_id=epoch_id,
                 height=latest_height,
@@ -2297,11 +2257,59 @@ class InferenceService:
     
     async def get_transaction(self, tx_hash: str):
         try:
-            transaction = await self.client.get_transaction(tx_hash)
-            if transaction:
-                return transaction
-            else:
+            tx_hash = tx_hash.lower()
+            tx_row = await self.cache_db.get_transaction_by_hash(tx_hash)
+            if not tx_row:
                 return None
+
+            tx_result = await self.cache_db.get_transaction_result_by_hash(tx_hash)
+            tx_events = await self.cache_db.get_transaction_events_by_hash(tx_hash)
+
+            events = []
+            current_event = None
+            for ev in tx_events:
+                if current_event is None or current_event["type"] != ev["type"]:
+                    current_event = {"type": ev["type"], "attributes": []}
+                    events.append(current_event)
+                current_event["attributes"].append({
+                    "key": ev["key"],
+                    "value": ev["value"],
+                    "index": ev["indexed"],
+                })
+
+            result = {
+                "height": str(tx_row["height"]),
+                "txhash": tx_row["hash"],
+                "timestamp": tx_row["timestamp"],
+                "tx": {
+                    "body": {
+                        "messages": json.loads(tx_row["messages_json"]) if tx_row["messages_json"] else [],
+                        "memo": tx_row["memo"],
+                    },
+                    "auth_info": {
+                        "signer_infos": json.loads(tx_row["signer_infos_json"]) if tx_row["signer_infos_json"] else [],
+                        "fee": {
+                            "amount": json.loads(tx_row["fee_amount_json"]) if tx_row["fee_amount_json"] else [],
+                            "gas_limit": tx_row["gas_limit"],
+                            "payer": tx_row["payer"],
+                            "granter": tx_row["granter"],
+                        },
+                    },
+                    "signatures": json.loads(tx_row["signatures"]) if tx_row["signatures"] else [],
+                },
+                "events": events,
+            }
+
+            if tx_result:
+                result["code"] = tx_result["code"]
+                result["codespace"] = tx_result["codespace"]
+                result["data"] = tx_result["data"]
+                result["gas_wanted"] = tx_result["gas_wanted"]
+                result["gas_used"] = tx_result["gas_used"]
+                result["info"] = tx_result["info"]
+                result["raw_log"] = tx_result["log"]
+
+            return result
         except Exception as e:
             raise Exception(f"Failed to fetch transaction: {e}")
     
@@ -2309,7 +2317,7 @@ class InferenceService:
         blocks = await self.cache_db.get_recent_block_stats(limit)
 
         if not blocks:
-            return []
+            return BlockStatsResponse(blocks=[])
 
         return BlockStatsResponse(
             blocks = [
@@ -2317,30 +2325,110 @@ class InferenceService:
                     height=row["height"],
                     tx_count=row["tx_count"],
                     timestamp=row["timestamp"],
-                ) 
+                )
                 for row in blocks
             ]
         )
 
     async def get_block_detail(self, height: str):
         try:
-            block = await self.client.get_block_detail(height)
-            if not block:
+            block_row = await self.cache_db.get_block_by_height(int(height))
+            if not block_row:
                 return None
 
-            txs = block.get("data", {}).get("txs", [])
-            decoded_txs = []
-            for tx_base64 in txs:
-                try:
-                    decoded_txs.append(self.decode_tx_base64(tx_base64))
-                except Exception as e:
-                    logger.error(e)
-                    decoded_txs.append({
-                        "error": str(e),
-                        "raw": tx_base64,
-                    })
+            signatures = await self.cache_db.get_block_commit_signatures(int(height))
+            block_result = await self.cache_db.get_block_result(int(height))
+            tx_rows = await self.cache_db.get_transactions_by_height(int(height))
+            tx_results = await self.cache_db.get_transaction_results_by_height(int(height))
+            tx_events = await self.cache_db.get_transaction_events_by_height(int(height))
 
-            block["data"]["txs"] = decoded_txs
+            tx_result_map = {r["transaction_hash"]: r for r in tx_results}
+            tx_events_map = {}
+            for ev in tx_events:
+                tx_events_map.setdefault(ev["transaction_hash"], []).append(ev)
+
+            decoded_txs = []
+            txs_results = []
+            for tx in tx_rows:
+                decoded_txs.append({
+                    "hash": tx["hash"],
+                    "body": {
+                        "messages": json.loads(tx["messages_json"]) if tx["messages_json"] else [],
+                        "memo": tx["memo"],
+                    },
+                    "auth_info": {
+                        "signer_infos": json.loads(tx["signer_infos_json"]) if tx["signer_infos_json"] else [],
+                        "fee": {
+                            "amount": json.loads(tx["fee_amount_json"]) if tx["fee_amount_json"] else [],
+                            "gas_limit": tx["gas_limit"],
+                            "payer": tx["payer"],
+                            "granter": tx["granter"],
+                        },
+                    },
+                    "signatures": json.loads(tx["signatures"]) if tx["signatures"] else [],
+                    "msg_types": json.loads(tx["msg_types"]) if tx["msg_types"] else [],
+                })
+
+                tx_res = tx_result_map.get(tx["hash"])
+                if tx_res:
+                    txs_results.append({
+                        "code": tx_res["code"],
+                        "codespace": tx_res["codespace"],
+                        "gas_wanted": tx_res["gas_wanted"],
+                        "gas_used": tx_res["gas_used"],
+                        "log": tx_res["log"],
+                        "data": tx_res["data"],
+                        "info": tx_res["info"],
+                    })
+                else:
+                    txs_results.append(None)
+
+            block = {
+                "header": {
+                    "height": str(block_row["height"]),
+                    "chain_id": block_row["chain_id"],
+                    "time": block_row["time"],
+                    "last_commit_hash": block_row["last_commit_hash"],
+                    "data_hash": block_row["data_hash"],
+                    "validators_hash": block_row["validators_hash"],
+                    "next_validators_hash": block_row["next_validators_hash"],
+                    "consensus_hash": block_row["consensus_hash"],
+                    "app_hash": block_row["app_hash"],
+                    "last_results_hash": block_row["last_results_hash"],
+                    "evidence_hash": block_row["evidence_hash"],
+                    "proposer_address": block_row["proposer_address"],
+                    "last_block_id": {
+                        "hash": block_row["last_block_id_hash"],
+                        "parts": {
+                            "total": block_row["last_block_id_parts_total"],
+                            "hash": block_row["last_block_id_parts_hash"],
+                        },
+                    },
+                },
+                "data": {
+                    "txs": decoded_txs,
+                },
+                "result": {
+                    "txs_results": txs_results,
+                },
+                "evidence": {
+                    "evidence": json.loads(block_row["evidence_json"]) if block_row["evidence_json"] else [],
+                },
+                "last_commit": {
+                    "height": str(block_row["last_commit_height"]),
+                    "round": block_row["last_commit_round"],
+                    "signatures": [
+                        {
+                            "block_id_flag": sig["block_id_flag"],
+                            "validator_address": sig["validator_address"],
+                            "timestamp": sig["timestamp"],
+                            "signature": sig["signature"],
+                        }
+                        for sig in signatures
+                    ],
+                },
+            }
+
             return block
         except Exception as e:
             raise Exception(f"Failed to fetch block: {e}")
@@ -2504,45 +2592,18 @@ class InferenceService:
             )
 
     async def get_transaction_by_address(self, address: str, limit: int = 50) -> AddressTransactionsResponse:
-        transactions = await self.client.query_transactions(
-            query=f"message.sender='{address}'",
-            per_page=limit,
-        )
-        received_transfers = await self.client.query_transactions(
-            query=f"transfer.recipient='{address}'",
-            per_page=limit,
-        )
-        sent_txs = transactions.get("result", {}).get("txs", []) or []
-        recv_txs = received_transfers.get("result", {}).get("txs", []) or []
+        tx_rows = await self.cache_db.get_transactions_by_address(address, limit=limit)
 
-        tx_map: dict[str, dict] = {}
-        for tx in sent_txs + recv_txs:
-            tx_hash = tx.get("hash")
-            if tx_hash not in tx_map:
-                tx_map[tx_hash] = tx
-
-        def parse_tx_from_tx_search(tx: dict) -> dict:
-            tx_hash = tx.get("hash")
-            height = int(tx["height"])
-            message_types = []
-            events = tx.get("tx_result", {}).get("events", [])
-            for event in events:
-                if event.get("type") != "message":
-                    continue
-                for attr in event.get("attributes", []):
-                    if attr.get("key") == "action":
-                        msg_type = attr.get("value").split(".")[-1]
-                        msg = msg_type.replace("Msg", "")
-                        if msg not in message_types:
-                            message_types.append(msg)
-            return Transaction(
-                tx_hash=tx_hash,
-                height=height,
-                messages=message_types,
+        transactions = []
+        for tx in tx_rows:
+            transactions.append(
+                Transaction(
+                    tx_hash=tx["tx_hash"],
+                    height=tx["height"],
+                    messages=json.loads(tx["messages"]) if tx["messages"] else [],
+                    timestamp=tx["timestamp"],
+                )
             )
-
-        transactions = [parse_tx_from_tx_search(tx) for tx in tx_map.values()]
-        transactions.sort(key=lambda t: t.height, reverse=True)
 
         return AddressTransactionsResponse(
             address=address,

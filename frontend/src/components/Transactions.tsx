@@ -59,17 +59,18 @@ export function Transactions() {
                 <tr
                   key={tx.tx_hash}
                   onClick={() => {
-                    setSelectedTxHash(tx.tx_hash)
+                    const hash = tx.tx_hash.toUpperCase()
+                    setSelectedTxHash(hash)
                     const params = new URLSearchParams(window.location.search)
                     params.set('page', 'transactions')
-                    params.set('tx', tx.tx_hash)
+                    params.set('tx', hash)
                     window.history.pushState({}, '', `?${params}`)
                   }}    
                   className={[
                     'cursor-pointer',
-                    selectedTxHash === tx.tx_hash
+                    selectedTxHash === tx.tx_hash.toUpperCase()
                       ? 'bg-blue-50 ring-1 ring-blue-200'
-                      : 'hover:bg-gray-50',
+                      : 'hover:bg-blue-50 hover:ring-1 hover:ring-blue-300 active:bg-blue-100',
                   ].join(' ')}
                 >
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[10%]">
@@ -83,7 +84,7 @@ export function Transactions() {
                     </a>
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center font-mono text-gray-900 w-[55%]">
-                    <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash}>{tx.tx_hash}</div>
+                    <div className="truncate max-w-[220px] sm:max-w-none mx-auto" title={tx.tx_hash.toUpperCase()}>{tx.tx_hash.toUpperCase()}</div>
                   </td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[15%] break-words">{tx.messages.join(', ')}</td>
                   <td className="px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-center text-gray-900 w-[20%]">

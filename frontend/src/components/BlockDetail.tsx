@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BlockDetailResponse, CosmosMessage, TxRowData, TxStatus } from '../types/inference'
-import { formatCompact, apiFetch, shortHash, formatDateTime } from '../utils'
+import { formatCompact, apiFetch, shortHash, formatDateTime, toGonka } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 import { BackNavigation } from './common/BackNavigation'
@@ -177,7 +177,7 @@ function TxRow({ row }: { row: TxRowData }) {
             )}
           </td>
 
-          <td className="px-3 sm:px-4 py-3 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">{row.gasUsed} Used<br />{row.gasWanted} Wanted</td>
+          <td className="px-3 sm:px-4 py-3 text-[11px] sm:text-xs text-gray-600 whitespace-nowrap">{toGonka(row.gasUsed)} Used<br />{toGonka(row.gasWanted)} Wanted</td>
           <td className="px-3 sm:px-4 py-3 font-mono text-blue-600 truncate" title={row.creator}>
             <a
               href={`/?page=address&address=${row.creator}`}
@@ -215,7 +215,7 @@ export function BlockDetail({ height }: {height: string }) {
     const results = data.result?.txs_results || []
   
     return txs.flatMap((tx, txIndex) => {
-      const txhash = tx.hash || ''
+      const txhash = (tx.hash || '').toUpperCase()
       const body = tx.body || {}
       const auth = tx.auth_info || {}
       const gasLimit = auth.fee?.gas_limit?.toString?.() ?? '-'
@@ -310,7 +310,7 @@ export function BlockDetail({ height }: {height: string }) {
             <div className="text-xs sm:text-sm text-gray-500 mb-1">Height</div>
             <div className="text-base sm:text-lg font-mono font-semibold break-all">{data.header.height}</div>
           </div>
-          <div>
+          <div className="lg:col-span-2">
             <div className="text-xs sm:text-sm text-gray-500 mb-1">Time</div>
             <div className="text-sm sm:text-lg break-words">{formatDateTime(data.header.time)}</div>
           </div>
@@ -347,7 +347,7 @@ export function BlockDetail({ height }: {height: string }) {
               <tr>
                 <th className="px-3 sm:px-4 py-3 text-left w-[20%] whitespace-nowrap">MSG TYPE</th>
                 <th className="px-3 sm:px-4 py-3 text-left w-[10%] whitespace-nowrap">STATUS</th>
-                <th className="px-3 sm:px-4 py-3 text-left w-[15%] whitespace-nowrap">GAS</th>
+                <th className="px-3 sm:px-4 py-3 text-left w-[15%] whitespace-nowrap">GAS(GNK)</th>
                 <th className="px-3 sm:px-4 py-3 text-left w-[25%] whitespace-nowrap">CREATOR</th>
                 <th className="px-3 sm:px-4 py-3 text-left w-[25%] whitespace-nowrap">TX HASH</th>
               </tr>

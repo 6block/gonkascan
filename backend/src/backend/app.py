@@ -28,7 +28,6 @@ POLL_PARTICIPANT_INFERENCES_INTERVAL = int(os.getenv("POLL_PARTICIPANT_INFERENCE
 POLL_MODELS_API_INTERVAL = int(os.getenv("POLL_MODELS_API_INTERVAL", "300"))
 POLL_TIMELINE_INTERVAL = int(os.getenv("POLL_TIMELINE_INTERVAL", "30"))
 POLL_CONFIRMATION_DATA_INTERVAL = int(os.getenv("POLL_CONFIRMATION_DATA_INTERVAL", "120"))
-POLL_TRANSACTIONS_INTERVAL = int(os.getenv("POLL_TRANSACTIONS_INTERVAL", "10"))
 POLL_BLOCKS_INTERVAL = int(os.getenv("POLL_BLOCKS_INTERVAL", "10"))
 POLL_PROPOSALS_INTERVAL = int(os.getenv("POLL_PROPOSALS_INTERVAL", "60"))
 POLL_MARKET_STATS_INTERVAL = int(os.getenv("POLL_MARKET_STATS_INTERVAL", "60"))
@@ -210,19 +209,6 @@ async def poll_confirmation_data():
         
         await asyncio.sleep(POLL_CONFIRMATION_DATA_INTERVAL)
 
-async def poll_transactions():
-    await asyncio.sleep(5)
-    
-    while True:
-        try:
-            if inference_service_instance:
-                await inference_service_instance.fetch_and_cache_transactions()
-                logger.info("Background polling: fetched and saved transactions")
-        except Exception as e:
-            logger.error(f"Transactions polling error: {e}")
-        
-        await asyncio.sleep(POLL_TRANSACTIONS_INTERVAL)
-
 async def poll_blocks():
     await asyncio.sleep(60)
 
@@ -300,7 +286,6 @@ async def lifespan(app: FastAPI):
     models_api_polling_task = asyncio.create_task(poll_models_api())
     timeline_polling_task = asyncio.create_task(poll_timeline())
     confirmation_polling_task = asyncio.create_task(poll_confirmation_data())
-    transactions_polling_task = asyncio.create_task(poll_transactions())
     blocks_polling_task = asyncio.create_task(poll_blocks())
     proposals_polling_task = asyncio.create_task(poll_proposals())
     market_stats_polling_task = asyncio.create_task(poll_market_stats())

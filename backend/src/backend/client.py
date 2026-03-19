@@ -516,31 +516,8 @@ class GonkaClient:
     async def get_participant_collateral(self, participant_id: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/collateral/collateral/{participant_id}")
 
-    async def get_block_detail(self, height: str) -> Dict[str, Any]:
-        block_path = f"/chain-api/cosmos/tx/v1beta1/txs/block/{height}"
-        result_path = f"/chain-rpc/block_results?height={height}"
-        try:
-            block_data = await self._make_request(block_path)
-            block = block_data.get("block", {})
-            result_data = await self._make_request(result_path)
-            block["result"] = result_data.get("result", {})
-            logger.info(f"Found block {height}")
-            return block
-        except Exception as e:
-            logger.warning(f"Failed to fetch hardware nodes for {height}: {e}")
-            return {}
-
     async def get_total_vesting(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/total_vesting/{address}")
-
-    async def query_transactions(self, query: str, page: int = 1, per_page: int = 50,) -> Dict[str, Any]:
-        params = {
-            "query": f'"{query}"',
-            "page": page,
-            "per_page": per_page,
-            "order_by": '"desc"',
-        }
-        return await self._make_request(f"/chain-rpc/tx_search", params=params)
     
     async def get_vesting_schedule(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
