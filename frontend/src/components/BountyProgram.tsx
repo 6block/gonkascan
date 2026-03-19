@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { FaGithub, FaDiscord } from 'react-icons/fa'
 import { FiExternalLink } from 'react-icons/fi'
 import { BackNavigation } from './common/BackNavigation'
+import { TabBar } from './common/TabBar'
 import { GITHUB_URL_OVERRIDES, REWARD_DATA, CONTRIBUTOR_SUMMARY } from '../data/bountyData'
 
 const DISCORD_INVITE_CODE = 'RADwCT2U6R'
@@ -182,18 +183,12 @@ export function BountyProgram() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(['records', 'rank'] as Tab[]).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-sm rounded border transition
-              ${activeTab === tab ? 'border-gray-800 text-gray-900' : 'border-gray-300 text-gray-400 hover:text-gray-600'}`}
-          >
-            {tab === 'records' ? 'Reward Records' : 'Rank'}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={['records', 'rank'] as Tab[]}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        label={(tab) => tab === 'records' ? 'Reward Records' : 'Rank'}
+      />
 
       {/* Tab Content */}
       {activeTab === 'records' ? (

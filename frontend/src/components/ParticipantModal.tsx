@@ -8,6 +8,7 @@ import { formatGNK, apiFetch, toGonka, formatDateTime } from '../utils'
 import { StatCard } from './common/StatCard'
 import { Badge } from './common/Badge'
 import { MLNodeCard } from './common/MLNodeCard'
+import { TabBar } from './common/TabBar'
 import { InferenceTable } from './common/InferenceTable'
 import { BackNavigation } from './common/BackNavigation'
 import LoadingScreen from './common/LoadingScreen'
@@ -121,21 +122,12 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
           </div>
         </div>
 
-        <div className="px-3 sm:px-4 md:px-6 py-2 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {(['details', 'inferences', 'transactions'] as TabType[]).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-sm rounded border transition
-                ${
-            activeTab === tab
-              ? 'border-gray-800 text-gray-900'
-              : 'border-gray-300 text-gray-400 hover:text-gray-600'
-            }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
+        <div className="px-3 sm:px-4 md:px-6 py-2">
+          <TabBar
+            tabs={['details', 'inferences', 'transactions'] as TabType[]}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+          />
         </div>
 
         {activeTab === 'details' && (

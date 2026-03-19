@@ -5,6 +5,7 @@ import { GovernanceProposal } from '../types/inference'
 import { apiFetch, formatDateWithOrdinal, formatCompact, formatMessageTypes } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
+import { TabBar } from './common/TabBar'
 
 type Tab = 'voting' | 'passed' | 'rejected'
 
@@ -64,25 +65,12 @@ export function Governance() {
           <p className="text-sm text-gray-500 mt-1 leading-relaxed">Approved proposals are then executed to update the network</p>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {(['voting', 'passed', 'rejected'] as Tab[]).map((t) => {
-            return (
-              <button
-                key={t}
-                onClick={() => {
-                  setTab(t); setPage(1)
-                }}
-                className={`whitespace-nowrap shrink-0 px-4 py-2 rounded-md text-sm border transition-colors ${
-                  activeTab === t
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                }`}
-              >
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            )
-          })}
-        </div>
+        <TabBar
+          tabs={['voting', 'passed', 'rejected'] as Tab[]}
+          activeTab={activeTab}
+          onChange={(t) => { setTab(t); setPage(1) }}
+          variant="solid"
+        />
       </div>
 
       {activeTab === 'voting' && list.length === 0 ? (
