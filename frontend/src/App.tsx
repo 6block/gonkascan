@@ -19,10 +19,11 @@ import { Governance } from './components/Governance'
 import { GovernanceDetail } from './components/GovernanceDetail'
 import { MarketStats } from './components/MarketStats'
 import { Resource } from './components/Resource'
+import { BountyProgram } from './components/BountyProgram'
 import { StatItem } from './components/common/StatItem'
 import { EpochIdDisplay } from './components/common/EpochIdDisplay'
 import { RefreshControlFooter } from './components/common/RefreshControlFooter'
-import { NavTab } from './components/common/NavTab'
+import { NavTab, NavDropdown } from './components/common/NavTab'
 import { isValidGonkaAddress, isHex64, isBlockHeight, apiFetch } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
@@ -38,6 +39,7 @@ type Page =
   | 'blocks'
   | 'governance'
   | 'resource'
+  | 'bounty'
 
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
@@ -177,7 +179,9 @@ function App() {
         pageParam === 'governance' ||
         pageParam === 'blocks' ||
         pageParam === 'transactions' ||
-        pageParam === 'nodemap'
+        pageParam === 'nodemap' ||
+        pageParam === 'bounty' ||
+        pageParam === 'resource'
       ) {
         setCurrentPage(pageParam)
         setSelectedAddress(null)
@@ -353,7 +357,8 @@ function App() {
   const isTransactionDetail = currentPage === 'transactions' && searchParams.has('tx')
   const isBlockDetail = currentPage === 'blocks' && searchParams.has('height')
   const isGovernancenDetail = currentPage === 'governance' && searchParams.has('proposal_id')
-  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail && !isGovernancenDetail
+  const isBountyPage = currentPage === 'bounty'
+  const shouldShowHeader = currentPage !== 'address' && !isTransactionDetail  && !isBlockDetail && !isGovernancenDetail && !isBountyPage
 
   if (isLoading && !data) {
     return <LoadingScreen label="Loading inference statistics..." />
@@ -382,33 +387,49 @@ function App() {
                 </div>
               </div>
           
-              <div className="flex flex-col gap-3">
-                <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {([
-                    ['dashboard', 'Host Dashboard'],
-                    ['models', 'Models'],
-                    ['hardware', 'Hardware'],
-                    ['governance', 'Governance'],
-                    ['blocks', 'Blocks'],
-                    ['transactions', 'Transactions'],
-                    ['timeline', 'Timeline'],
-                    ['nodemap', 'Node Map'],
-                    ['resource', 'Resource'],
-                  ] as [Page, string][]).map(([page, label]) => (
-                    <NavTab key={page} active={currentPage === page} onClick={() => handlePageChange(page)}>
-                      {label}
-                    </NavTab>
-                  ))}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap gap-2">
+                  <NavTab active={currentPage === 'dashboard'} onClick={() => handlePageChange('dashboard')}>
+                    Host Dashboard
+                  </NavTab>
+                  <NavDropdown
+                    label="Network"
+                    active={['blocks', 'transactions', 'timeline'].includes(currentPage)}
+                    items={[
+                      { page: 'blocks', label: 'Blocks' },
+                      { page: 'transactions', label: 'Transactions' },
+                      { page: 'timeline', label: 'Timeline' },
+                    ]}
+                    activePage={currentPage}
+                    onSelect={(page) => handlePageChange(page as Page)}
+                  />
+                  <NavDropdown
+                    label="Participants"
+                    active={['models', 'hardware', 'nodemap'].includes(currentPage)}
+                    items={[
+                      { page: 'models', label: 'Models' },
+                      { page: 'hardware', label: 'Hardware' },
+                      { page: 'nodemap', label: 'Node Map' },
+                    ]}
+                    activePage={currentPage}
+                    onSelect={(page) => handlePageChange(page as Page)}
+                  />
+                  <NavTab active={currentPage === 'governance'} onClick={() => handlePageChange('governance')}>
+                    Governance
+                  </NavTab>
+                  <NavTab active={currentPage === 'resource'} onClick={() => handlePageChange('resource')}>
+                    Resource
+                  </NavTab>
                 </div>
 
-                <div className="w-full relative">
+                <div className="relative w-full sm:w-auto sm:ml-auto">
                   <input
                     type="text"
                     placeholder="Search Address / Tx Hash / Height"
                     value={globalSearch}
                     onChange={e => setGlobalSearch(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleGlobalSearch()}
-                    className="w-full h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    className="w-full sm:w-72 h-10 pl-9 pr-3 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-900"
                   />
                   <svg
                     className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400"
@@ -421,7 +442,6 @@ function App() {
                     <path d="M21 21l-4.35-4.35" />
                   </svg>
                 </div>
-
               </div>
             </header>
           )}
@@ -453,7 +473,9 @@ function App() {
           ) : currentPage === 'nodemap' ? (
             <ParticipantMap />
           ) : currentPage === 'resource' ? (
-            <Resource />
+            <Resource onNavigate={(page) => handlePageChange(page as Page)} />
+          ) : currentPage === 'bounty' ? (
+            <BountyProgram />
           ) : currentPage === 'address' ? (
             selectedAddress ? (
               <AddressRoute

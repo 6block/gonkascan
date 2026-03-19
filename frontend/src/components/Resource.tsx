@@ -1,4 +1,4 @@
-export function Resource() {
+export function Resource({ onNavigate }: { onNavigate?: (page: string) => void }) {
   const Card = ({
     icon,
     title,
@@ -16,7 +16,7 @@ export function Resource() {
       rel="noopener noreferrer"
       className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-xl p-5 hover:bg-white hover:shadow-sm transition-all"
     >
-      <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-white border border-gray-200 text-xl">{icon}</div>
+      <div className="flex items-center justify-center w-12 h-12 shrink-0 rounded-lg bg-white border border-gray-200 text-xl">{icon}</div>
   
       <div>
         <div className="text-base font-semibold text-gray-900">{title}</div>
@@ -120,6 +120,17 @@ export function Resource() {
             description="Community gateway with free credits on signup and a Chat Playground to test models without code."
             href="https://gonkagate.com/"
           />
+
+          <button
+            onClick={() => onNavigate?.('bounty')}
+            className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-xl p-5 hover:bg-white hover:shadow-sm transition-all text-left"
+          >
+            <div className="flex items-center justify-center w-12 h-12 shrink-0 rounded-lg bg-white border border-gray-200 text-xl">💰</div>
+            <div>
+              <div className="text-base font-semibold text-gray-900">Bounty Program</div>
+              <div className="text-sm text-gray-500">An initiative to recognize developers who enhance Gonka network's performance, reliability, and security.</div>
+            </div>
+          </button>
         </div>
       </div>
     </div>

@@ -94,12 +94,12 @@ export function Timeline() {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
-      hour12: false
+      hour12: false,
     }
 
     return {
       utc: estimatedTime.toLocaleString('en-US', { ...options, timeZone: 'UTC' }) + ' UTC',
-      local: estimatedTime.toLocaleString('en-US', { ...options, timeZoneName: 'short' })
+      local: estimatedTime.toLocaleString('en-US', { ...options, timeZoneName: 'short' }),
     }
   }
 
