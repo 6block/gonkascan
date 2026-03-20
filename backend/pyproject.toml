@@ -1,10 +1,7 @@
 [project]
-name = "tracker"
+name = "gonkascan"
 version = "0.1.0"
-description = "Minimal FastAPI backend"
-authors = [
-    {name = "Gleb Morgachev", email = "morgachev.g@gmail.com"}
-]
+description = "Gonkascan - Gonka Chain Block Explorer"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.104.0",
@@ -20,7 +17,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/gonka-ai/gonka-tracker"
+Repository = "https://github.com/6block/gonkascan"
 
 [project.optional-dependencies]
 dev = [

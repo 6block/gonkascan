@@ -1,14 +1,10 @@
 {
-  "name": "tracker-frontend",
+  "name": "gonkascan-frontend",
   "version": "0.1.0",
   "type": "module",
-  "author": {
-    "name": "Gleb Morgachev",
-    "email": "morgachev.g@gmail.com"
-  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/gonka-ai/gonka-tracker"
+    "url": "https://github.com/6block/gonkascan"
   },
   "scripts": {
     "dev": "vite",

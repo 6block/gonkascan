@@ -1,6 +1,6 @@
-# Gonka Chain Inference Tracker
+# Gonkascan
 
-Professional full-stack monitoring application for Gonka Chain inference statistics tracking.
+Gonka Chain Block Explorer: [https://gonkascan.com](https://gonkascan.com/)
 
 ## Features
 
@@ -44,7 +44,6 @@ Professional full-stack monitoring application for Gonka Chain inference statist
 
 - `backend/` - FastAPI backend (Python 3.11)
 - `frontend/` - React + TypeScript frontend (Vite)
-- `planning/` - Task planning and specifications
 - `config.env` - Environment configuration
 - `Makefile` - Setup and run commands
 - `docker-compose.yaml` - Traefik reverse proxy + services
@@ -64,7 +63,6 @@ make run-app
 Application available at `http://localhost`:
 - Frontend: `http://localhost/`
 - Backend API: `http://localhost/api/v1/hello`
-- Inference Stats: `http://localhost/api/v1/inference/current`
 
 ## Test
 
@@ -90,7 +88,10 @@ cd frontend
 npm run dev
 ```
 
+## License
+
+This project is licensed under the [MIT License](LICENSE).
+
 ## Repository
 
-https://github.com/gonka-ai/gonka-tracker
-
+https://github.com/6block/gonkascan

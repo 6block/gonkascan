@@ -379,7 +379,7 @@ function App() {
                 <img src="/gonka.svg" alt="Gonka" className="h-9 sm:h-10 md:h-12 w-auto" />
                 <div className="flex-1 min-w-0">
                   <h1 className="text-xl sm:text-2xl md:text-4xl font-bold text-gray-900 mb-1 leading-tight">
-                    Gonka Chain Inference Tracker
+                    Gonkascan
                   </h1>
                   <p className="text-sm sm:text-base text-gray-600 leading-relaxed">
                     Real-time monitoring of participant performance and model availability
@@ -611,7 +611,7 @@ function App() {
           <div className="container mx-auto px-3 sm:px-4 max-w-[1600px]">
             <div className="flex items-center justify-center text-sm">
               <a 
-                href="https://github.com/gonka-ai/gonka-tracker" 
+                href="https://github.com/6block/gonkascan"
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="text-gray-600 hover:text-gray-900 transition-colors flex items-center gap-2 text-center"
