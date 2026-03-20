@@ -154,6 +154,10 @@ class CacheDB:
             """)
 
             await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_results_height ON transaction_results(height)
+            """)
+
+            await db.execute("""
                 CREATE TABLE IF NOT EXISTS transaction_events (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     height BIGINT NOT NULL,
@@ -180,6 +184,10 @@ class CacheDB:
 
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_transaction_events_type_key_value ON transaction_events (type, key, value)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_events_tx_hash ON transaction_events(transaction_hash)
             """)
 
             await db.execute("""
