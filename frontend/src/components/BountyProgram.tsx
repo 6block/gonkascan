@@ -46,11 +46,11 @@ function useDiscordStats() {
   return stats
 }
 
-// --- Discord ID map (single source of truth) ---
-// Parsed once from CONTRIBUTOR_SUMMARY entries like @Name["discordId"]
+// --- Discord ID map (built from CONTRIBUTOR_SUMMARY discord fields) ---
 const DISCORD_ID_MAP: Record<string, string> = {}
 for (const c of CONTRIBUTOR_SUMMARY) {
-  const m = c.name.match(/^(@[^"[]+)\["(\d+)"\]/)
+  if (!c.discord) continue
+  const m = c.discord.match(/^(@[^"[]+)\["(\d+)"\]/)
   if (m) DISCORD_ID_MAP[m[1]] = m[2]
 }
 
@@ -62,72 +62,26 @@ function resolveDiscordUrl(displayName: string): string | null {
 // --- Shared link style ---
 const linkClass = 'text-gray-900 hover:text-blue-600 underline decoration-gray-300 hover:decoration-blue-600 underline-offset-2'
 
-// --- Contributor name parsing for Rank table ---
+// --- Contributor field parsing ---
+// Fields use format: DisplayName["url_or_id"]
 
-type NamePart = { text: string; url?: string; type: 'discord' | 'github' | 'plain' }
-
-function parseContributorName(raw: string): NamePart[] {
-  const parts: NamePart[] = []
-  const tokenRe = /(\S+)\["([^"]+)"\]|(@[^\s,&)[\]]+)/g
-  let lastIndex = 0
+function parseGithubEntries(raw: string): { display: string; url: string }[] {
+  const tokenRe = /(\S+)\["(https:\/\/github\.com\/[^"]+)"\]/g
+  const entries: { display: string; url: string }[] = []
   let m
-
   while ((m = tokenRe.exec(raw)) !== null) {
-    if (m.index > lastIndex) {
-      const gap = raw.slice(lastIndex, m.index)
-      if (gap) parts.push({ text: gap, type: 'plain' })
-    }
-    if (m[1] && m[2]) {
-      const name = m[1]
-      const value = m[2]
-      if (name.startsWith('@') && /^\d+$/.test(value)) {
-        parts.push({ text: name, url: `https://discord.com/users/${value}`, type: 'discord' })
-      } else if (value.startsWith('https://github.com/')) {
-        parts.push({ text: name, url: value, type: 'github' })
-      } else {
-        parts.push({ text: name, type: 'plain' })
-      }
-    } else if (m[3]) {
-      parts.push({ text: m[3], url: resolveDiscordUrl(m[3]) ?? undefined, type: 'discord' })
-    }
-    lastIndex = m.index + m[0].length
+    entries.push({ display: m[1], url: m[2] })
   }
-
-  if (lastIndex < raw.length) {
-    const tail = raw.slice(lastIndex)
-    if (tail) parts.push({ text: tail, type: 'plain' })
+  if (entries.length === 0) {
+    return [{ display: raw, url: `https://github.com/${raw}` }]
   }
-
-  return parts.length > 0 ? parts : [{ text: raw, type: 'plain' }]
+  return entries
 }
 
-function ContributorNameCell({ name }: { name: string }) {
-  const parts = parseContributorName(name)
-
-  return (
-    <span className="inline-flex flex-wrap items-center gap-x-0">
-      {parts.map((p, i) => {
-        if (p.url && (p.type === 'github' || p.type === 'discord')) {
-          const Icon = p.type === 'github' ? GitHubSmallIcon : DiscordSmallIcon
-          return (
-            <a key={i} href={p.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-              {p.text}
-              <Icon />
-            </a>
-          )
-        }
-        return <span key={i} className="text-gray-900">{p.text}</span>
-      })}
-    </span>
-  )
-}
-
-/** Check if a CONTRIBUTOR_SUMMARY name is a discord user. Returns display name + url, or null. */
-function getDiscordInfo(name: string): { display: string; url: string | null } | null {
-  const m = name.match(/^(@[^"[]+)\["(\d+)"\]/)
+function parseDiscordField(raw: string): { display: string; url: string | null } {
+  const m = raw.match(/^(@[^"[]+)\["(\d+)"\]$/)
   if (m) return { display: m[1], url: `https://discord.com/users/${m[2]}` }
-  if (name.startsWith('@')) return { display: name, url: resolveDiscordUrl(name) }
-  return null
+  return { display: raw, url: null }
 }
 
 type Tab = 'records' | 'rank'
@@ -240,15 +194,34 @@ export function BountyProgram() {
                           </td>
                           <td className="py-2.5 px-4">
                             {r.githubUsername ? (
-                              <a
-                                href={GITHUB_URL_OVERRIDES[r.githubUsername] ?? `https://github.com/${r.githubUsername}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={linkClass}
-                              >
-                                {r.githubUsername}
-                                <GitHubSmallIcon />
-                              </a>
+                              r.githubUsername.includes(', ') ? (
+                                <span className="inline-flex flex-wrap items-center gap-x-1.5">
+                                  {r.githubUsername.split(', ').map((name, i, arr) => (
+                                    <span key={name} className="inline-flex items-center">
+                                      <a
+                                        href={GITHUB_URL_OVERRIDES[name] ?? `https://github.com/${name}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={linkClass}
+                                      >
+                                        {name}
+                                        <GitHubSmallIcon />
+                                      </a>
+                                      {i < arr.length - 1 && <span className="text-gray-400">,</span>}
+                                    </span>
+                                  ))}
+                                </span>
+                              ) : (
+                                <a
+                                  href={GITHUB_URL_OVERRIDES[r.githubUsername] ?? `https://github.com/${r.githubUsername}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={linkClass}
+                                >
+                                  {r.githubUsername}
+                                  <GitHubSmallIcon />
+                                </a>
+                              )
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
@@ -314,26 +287,40 @@ export function BountyProgram() {
               </thead>
               <tbody>
                 {CONTRIBUTOR_SUMMARY.map((c, i) => {
-                  const discord = getDiscordInfo(c.name)
+                  const ghEntries = c.github ? parseGithubEntries(c.github) : []
+                  const dc = c.discord ? parseDiscordField(c.discord) : null
                   return (
                     <tr key={i} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
                       <td className="py-2.5 px-4 text-gray-400">{i + 1}</td>
                       <td className="py-2.5 px-4 font-medium">
-                        {discord ? (
-                          <span className="text-gray-400">-</span>
+                        {ghEntries.length > 0 ? (
+                          <span className="inline-flex flex-wrap items-center gap-x-1">
+                            {c.name && <span className="text-gray-900">{c.name} </span>}
+                            {ghEntries.map((gh, gi) => (
+                              <span key={gi} className="inline-flex items-center">
+                                <a href={gh.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                                  {gh.display}
+                                  <GitHubSmallIcon />
+                                </a>
+                                {gi < ghEntries.length - 1 && <span className="text-gray-400">,</span>}
+                              </span>
+                            ))}
+                          </span>
+                        ) : c.name ? (
+                          <span className="text-gray-900">{c.name}</span>
                         ) : (
-                          <ContributorNameCell name={c.name} />
+                          <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="py-2.5 px-4 font-medium">
-                        {discord ? (
-                          discord.url ? (
-                            <a href={discord.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                              {discord.display}
+                        {dc ? (
+                          dc.url ? (
+                            <a href={dc.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                              {dc.display}
                               <DiscordSmallIcon />
                             </a>
                           ) : (
-                            <span className="text-gray-900">{discord.display}</span>
+                            <span className="text-gray-900">{dc.display}</span>
                           )
                         ) : (
                           <span className="text-gray-400">-</span>

@@ -15,7 +15,9 @@ export interface RewardGroup {
 }
 
 export interface ContributorRank {
-  name: string
+  name?: string
+  github?: string
+  discord?: string
   total: number
 }
 
@@ -28,6 +30,40 @@ export const GITHUB_URL_OVERRIDES: Record<string, string> = {
 }
 
 export const REWARD_DATA: RewardGroup[] = [
+  {
+    title: 'Upgrade v0.2.11, Bug bounty awards (pull requests review, security, and correctness fixes)',
+    time: '2026-03-21',
+    records: [
+      { githubUsername: 'Red-Caesar', address: 'gonka1yhdhp4vwsvdsplv4acksntx0zxh8saueq6lj9m', amount: 25000, task: 'PoC integration into vllm v0.11.1 report', taskUrl: 'https://github.com/gonka-ai/gonka/issues/628' },
+      { githubUsername: 'kaitakuai, clanster, baychak', address: 'gonka1x45hruazmcqxslj3g8a08988hr5fr3wx33drhp', amount: 22500, task: 'vLLM 0.15.1 Compatibility Experiments, basis for next ML node version', taskUrl: 'https://github.com/gonka-ai/gonka/issues/730' },
+      { githubUsername: 'qdanik', address: 'gonka1j3f2xkapx8cmczpjqcsrh7cc3peyj3ngkjv4p8', amount: 15000, task: 'vLLM 0.15.1 Compatibility Experiments, basis for next ML node version, covering simultaneous PoC and inference', taskUrl: 'https://github.com/qdanik/vllm/pull/6' },
+      { githubUsername: 'qdanik', address: 'gonka1j3f2xkapx8cmczpjqcsrh7cc3peyj3ngkjv4p8', amount: 12000, task: 'vLLM 0.15.1 Compatibility Experiments, basis for next ML node version', taskUrl: 'https://github.com/qdanik/vllm/pull/5' },
+      { githubUsername: 'blizko', address: 'gonka12jaf7m4eysyqt32mrgarum6z96vt55tckvcleq', amount: 10000, task: 'report of series of prompts resulting in vllm HTTP 502 response, significant impact, was already used for intentional griefing', discord: '@Blizko' },
+      { githubUsername: 'Lelouch33', address: 'gonka128nd36m2pz5qcs4q6rd69622flyls05nleazqq', amount: 7500, task: 'important issue that affected many participants, not a vulnerability, fairly easy fix; adding extra payment for fully testing and providing results of the test together with the fix', taskUrl: 'https://github.com/gonka-ai/gonka/issues/819', discord: '@Lelouch33' },
+      { githubUsername: 'akup', address: 'gonka1ejkupq3cy6p8xd64ew2wlzveml86ckpzn9dl56', amount: 7500, task: 'release management', discord: '@Alexander Kuprin' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 7500, task: 'release management', discord: '@x0152' },
+      { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 5000, task: 'report of Remote DoS of Validator PoC Software via dist Assertion', discord: '@Ouicate' },
+      { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 5000, task: 'report of State Bloat PoC and End-Block DoS via Unbounded Batch / Validation Payloads', discord: '@Ouicate' },
+      { githubUsername: 'qdanik', address: 'gonka1j3f2xkapx8cmczpjqcsrh7cc3peyj3ngkjv4p8', amount: 5000, task: 'report of wind down window vulnerability fixed in PR #767' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 5000, task: 'collective solving StartInference and FinishInference issue', taskUrl: 'https://github.com/gonka-ai/gonka/issues/781', discord: '@x0152' },
+      { githubUsername: 'akup', address: 'gonka1ejkupq3cy6p8xd64ew2wlzveml86ckpzn9dl56', amount: 5000, task: 'collective solving StartInference and FinishInference issue', taskUrl: 'https://github.com/gonka-ai/gonka/issues/781', discord: '@Alexander Kuprin' },
+
+      { githubUsername: 'huxuxuya', address: 'gonka100s7x2t0npruu9ta02306qfmaened3vg3a9dn6', amount: 5000, task: 'Batch Transfer With Vesting implementation, huge kudos for figuring out how to use testnet', taskUrl: 'https://github.com/gonka-ai/gonka/issues/834', discord: '@Huxuxuya' },
+      { githubUsername: 'qdanik', address: 'gonka1j3f2xkapx8cmczpjqcsrh7cc3peyj3ngkjv4p8', amount: 5000, task: 'collateral slashing vulnerability and fix; low severity: low risk, medium likelihood, organic', taskUrl: 'https://github.com/gonka-ai/gonka/pull/868' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 3000, task: 'collective solving of nodes unable to join from snapshots, found source problem', taskUrl: 'https://github.com/gonka-ai/gonka/issues/797', discord: '@x0152' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 2500, task: 'extra bounty for a comprehensive review of all cases where the data race conditions fix was needed', taskUrl: 'https://github.com/gonka-ai/gonka/pull/543', discord: '@x0152' },
+      { githubUsername: '0xMayoor', address: 'gonka1s8szs7n43jxgz4a4xaxmzh7fmjxhach7w8', amount: 2500, task: 'upgrade review', discord: '@yapion.' },
+      { githubUsername: 'blizko', address: 'gonka12jaf7m4eysyqt32mrgarum6z96vt55tckvcleq', amount: 2500, task: 'upgrade review', discord: '@Blizko' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 2500, task: 'upgrade review', discord: '@x0152' },
+
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 1250, task: 'Add a transaction for deleting the governance model. It needs to be added and verified to ensure it does not affect operations in the current epoch', taskUrl: 'https://github.com/gonka-ai/gonka/issues/465', discord: '@x0152' },
+      { githubUsername: 'blizko', address: 'gonka12jaf7m4eysyqt32mrgarum6z96vt55tckvcleq', amount: 1000, task: 'report of dust transaction vulnerability extending blocks', discord: '@Blizko' },
+      { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 1000, task: 'Slashed coins should not be burned', taskUrl: 'https://github.com/gonka-ai/gonka/issues/772', discord: '@x0152' },
+      { githubUsername: 'akup', address: 'gonka1ejkupq3cy6p8xd64ew2wlzveml86ckpzn9dl56', amount: 1000, task: 'collective solving of nodes unable to join from snapshots, proposed valuable hypothesis',taskUrl: 'https://github.com/gonka-ai/gonka/issues/797', discord: '@Alexander Kuprin' },
+      { githubUsername: 'hleb-albau', address: 'gonka17kmfwzthep3alxt57vqcqr48uv7swp0u63gcnj', amount: 750, task: 'collective solving StartInference and FinishInference issue', taskUrl: 'https://github.com/gonka-ai/gonka/issues/780' },
+      { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 750, task: 'report of Bridge Ethereum Address Parsing Silently Falls Back to Zero Bytes (Loss/Misdirection of Funds)', discord: '@Ouicate' },
+    ],
+  },
   {
     title: 'Upgrade v0.2.10, Bug bounty awards (security and correctness fixes)',
     time: '2026-03-05 08:27 UTC',
@@ -123,20 +159,25 @@ export const REWARD_DATA: RewardGroup[] = [
 ]
 
 export const CONTRIBUTOR_SUMMARY: ContributorRank[] = [
-  { name: '@Ouicate["1427291039949127690"]', total: 64500.00 },
-  { name: '@Eugene Maksimenkov["984962691502333993"]', total: 20000.00 },
-  { name: 'iamoeco["https://github.com/iamoeco"]', total: 18109.58 },
-  { name: '@yapion.["705885531174600845"]', total: 17700.00 },
-  { name: '@Blizko["770691223618453574"]', total: 15889.90 },
-  { name: '@Alexander Kuprin["1346953106365354035"]', total: 14500.00 },
-  { name: '6block team (scuwan["https://github.com/scuwan"] & Pegasus-starry["https://github.com/Pegasus-starry"])', total: 12993.37 },
-  { name: 'Axel-T', total: 10000.00 },
-  { name: '@x0152["782297186939568128"]', total: 8700.00 },
+  { discord: '@Ouicate["1427291039949127690"]', total: 75250.00 },
+  { github: 'Daniil Yankouski["https://github.com/qdanik"]', total: 37000.00 },
+  { github: 'Axel-T["https://github.com/Red-Caesar"]', total: 35000.00 },
+  { discord: '@x0152["782297186939568128"]', total: 31450.00 },
+  { discord: '@Blizko["770691223618453574"]', total: 29389.90 },
+  { discord: '@Alexander Kuprin["1346953106365354035"]', total: 28000.00 },
+  { github: 'kaitaku.ai["https://github.com/kaitakuai"]', total: 22500.00 },
+  { discord: '@yapion.["705885531174600845"]', total: 20200.00 },
+  { github: 'Eugene Maksimenkov["https://github.com/maksimenkoff"]', discord: '@Eugene Maksimenkov["984962691502333993"]', total: 20000.00 },
+  { github: 'Ilia Astafev["https://github.com/iamoeco"]', total: 18109.58 },
+  { name: '6block team', github: 'scuwan["https://github.com/scuwan"], Pegasus-starry["https://github.com/Pegasus-starry"]', total: 12993.37 },
+  { discord: '@Lelouch33["340894273379762177"]', total: 7500.00 },
   { name: 'PS', total: 5400.00 },
-  { name: '@Rufat["1197782508318756944"]', total: 5000.00 },
-  { name: 'VVSMEN["https://github.com/VVSMEN"]', total: 3500.00 },
-  { name: 'AnzeKovac["https://github.com/AnzeKovac"]', total: 2633.59 },
-  { name: '@AlexeySamosadov["1018163277706051595"]', total: 1800.00 },
-  { name: 'Mfursov["https://github.com/Mfursov"]', total: 500.00 },
-  { name: 'Pawel-TU["https://github.com/Pawel-TU"]', total: 473.56 },
+  { discord: '@Rufat["1197782508318756944"]', total: 5000.00 },
+  { discord: '@Huxuxuya["213375632808083467"]', total: 5000.00 },
+  { github: 'VVSMEN["https://github.com/VVSMEN"]', total: 3500.00 },
+  { github: 'AnzeKovac["https://github.com/AnzeKovac"]', total: 2633.59 },
+  { github: 'Alexey Samosadov["https://github.com/AlexeySamosadov"]', discord: '@AlexeySamosadov["1018163277706051595"]', total: 1800.00 },
+  { github: 'Hleb Albau["https://github.com/hleb-albau"]', total: 750.00 },
+  { github: 'Mikhail Fursov["https://github.com/mfursov"]', total: 500.00 },
+  { github: 'Pawel-TU["https://github.com/Pawel-TU"]', total: 473.56 },
 ]
