@@ -16,10 +16,11 @@ from amino import amino_pb2 as amino_dot_amino__pb2
 from cosmos.msg.v1 import msg_pb2 as cosmos_dot_msg_dot_v1_dot_msg__pb2
 from cosmos_proto import cosmos_pb2 as cosmos__proto_dot_cosmos__pb2
 from gogoproto import gogo_pb2 as gogoproto_dot_gogo__pb2
+from cosmos.base.v1beta1 import coin_pb2 as cosmos_dot_base_dot_v1beta1_dot_coin__pb2
 from inference.streamvesting import params_pb2 as inference_dot_streamvesting_dot_params__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n inference/streamvesting/tx.proto\x12\x17inference.streamvesting\x1a\x11\x61mino/amino.proto\x1a\x17\x63osmos/msg/v1/msg.proto\x1a\x19\x63osmos_proto/cosmos.proto\x1a\x14gogoproto/gogo.proto\x1a$inference/streamvesting/params.proto\"\xcb\x01\n\x0fMsgUpdateParams\x12\x36\n\tauthority\x18\x01 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\tauthority\x12\x42\n\x06params\x18\x02 \x01(\x0b\x32\x1f.inference.streamvesting.ParamsB\t\xc8\xde\x1f\x00\xa8\xe7\xb0*\x01R\x06params:<\x82\xe7\xb0*\tauthority\x8a\xe7\xb0*)inference/x/streamvesting/MsgUpdateParams\"\x19\n\x17MsgUpdateParamsResponse2x\n\x03Msg\x12j\n\x0cUpdateParams\x12(.inference.streamvesting.MsgUpdateParams\x1a\x30.inference.streamvesting.MsgUpdateParamsResponse\x1a\x05\x80\xe7\xb0*\x01\x42;Z9github.com/productscience/inference/x/streamvesting/typesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n inference/streamvesting/tx.proto\x12\x17inference.streamvesting\x1a\x11\x61mino/amino.proto\x1a\x17\x63osmos/msg/v1/msg.proto\x1a\x19\x63osmos_proto/cosmos.proto\x1a\x14gogoproto/gogo.proto\x1a\x1e\x63osmos/base/v1beta1/coin.proto\x1a$inference/streamvesting/params.proto\"\xcb\x01\n\x0fMsgUpdateParams\x12\x36\n\tauthority\x18\x01 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\tauthority\x12\x42\n\x06params\x18\x02 \x01(\x0b\x32\x1f.inference.streamvesting.ParamsB\t\xc8\xde\x1f\x00\xa8\xe7\xb0*\x01R\x06params:<\x82\xe7\xb0*\tauthority\x8a\xe7\xb0*)inference/x/streamvesting/MsgUpdateParams\"\x19\n\x17MsgUpdateParamsResponse\"\xd5\x02\n\x16MsgTransferWithVesting\x12\x30\n\x06sender\x18\x01 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\x06sender\x12\x36\n\trecipient\x18\x02 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\trecipient\x12h\n\x06\x61mount\x18\x03 \x03(\x0b\x32\x19.cosmos.base.v1beta1.CoinB5\xc8\xde\x1f\x00\xaa\xdf\x1f(github.com/cosmos/cosmos-sdk/types.Coins\xa8\xe7\xb0*\x01R\x06\x61mount\x12%\n\x0evesting_epochs\x18\x04 \x01(\x04R\rvestingEpochs:@\x82\xe7\xb0*\x06sender\x8a\xe7\xb0*0inference/x/streamvesting/MsgTransferWithVesting\" \n\x1eMsgTransferWithVestingResponse\"\xb6\x01\n\x12\x42\x61tchVestingOutput\x12\x36\n\trecipient\x18\x01 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\trecipient\x12h\n\x06\x61mount\x18\x02 \x03(\x0b\x32\x19.cosmos.base.v1beta1.CoinB5\xc8\xde\x1f\x00\xaa\xdf\x1f(github.com/cosmos/cosmos-sdk/types.Coins\xa8\xe7\xb0*\x01R\x06\x61mount\"\x8a\x02\n\x1bMsgBatchTransferWithVesting\x12\x30\n\x06sender\x18\x01 \x01(\tB\x18\xd2\xb4-\x14\x63osmos.AddressStringR\x06sender\x12K\n\x07outputs\x18\x02 \x03(\x0b\x32+.inference.streamvesting.BatchVestingOutputB\x04\xc8\xde\x1f\x00R\x07outputs\x12%\n\x0evesting_epochs\x18\x03 \x01(\x04R\rvestingEpochs:E\x82\xe7\xb0*\x06sender\x8a\xe7\xb0*5inference/x/streamvesting/MsgBatchTransferWithVesting\"%\n#MsgBatchTransferWithVestingResponse2\x8a\x03\n\x03Msg\x12j\n\x0cUpdateParams\x12(.inference.streamvesting.MsgUpdateParams\x1a\x30.inference.streamvesting.MsgUpdateParamsResponse\x12\x7f\n\x13TransferWithVesting\x12/.inference.streamvesting.MsgTransferWithVesting\x1a\x37.inference.streamvesting.MsgTransferWithVestingResponse\x12\x8e\x01\n\x18\x42\x61tchTransferWithVesting\x12\x34.inference.streamvesting.MsgBatchTransferWithVesting\x1a<.inference.streamvesting.MsgBatchTransferWithVestingResponse\x1a\x05\x80\xe7\xb0*\x01\x42;Z9github.com/productscience/inference/x/streamvesting/typesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,12 +34,40 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_MSGUPDATEPARAMS'].fields_by_name['params']._serialized_options = b'\310\336\037\000\250\347\260*\001'
   _globals['_MSGUPDATEPARAMS']._loaded_options = None
   _globals['_MSGUPDATEPARAMS']._serialized_options = b'\202\347\260*\tauthority\212\347\260*)inference/x/streamvesting/MsgUpdateParams'
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['sender']._loaded_options = None
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['sender']._serialized_options = b'\322\264-\024cosmos.AddressString'
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['recipient']._loaded_options = None
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['recipient']._serialized_options = b'\322\264-\024cosmos.AddressString'
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['amount']._loaded_options = None
+  _globals['_MSGTRANSFERWITHVESTING'].fields_by_name['amount']._serialized_options = b'\310\336\037\000\252\337\037(github.com/cosmos/cosmos-sdk/types.Coins\250\347\260*\001'
+  _globals['_MSGTRANSFERWITHVESTING']._loaded_options = None
+  _globals['_MSGTRANSFERWITHVESTING']._serialized_options = b'\202\347\260*\006sender\212\347\260*0inference/x/streamvesting/MsgTransferWithVesting'
+  _globals['_BATCHVESTINGOUTPUT'].fields_by_name['recipient']._loaded_options = None
+  _globals['_BATCHVESTINGOUTPUT'].fields_by_name['recipient']._serialized_options = b'\322\264-\024cosmos.AddressString'
+  _globals['_BATCHVESTINGOUTPUT'].fields_by_name['amount']._loaded_options = None
+  _globals['_BATCHVESTINGOUTPUT'].fields_by_name['amount']._serialized_options = b'\310\336\037\000\252\337\037(github.com/cosmos/cosmos-sdk/types.Coins\250\347\260*\001'
+  _globals['_MSGBATCHTRANSFERWITHVESTING'].fields_by_name['sender']._loaded_options = None
+  _globals['_MSGBATCHTRANSFERWITHVESTING'].fields_by_name['sender']._serialized_options = b'\322\264-\024cosmos.AddressString'
+  _globals['_MSGBATCHTRANSFERWITHVESTING'].fields_by_name['outputs']._loaded_options = None
+  _globals['_MSGBATCHTRANSFERWITHVESTING'].fields_by_name['outputs']._serialized_options = b'\310\336\037\000'
+  _globals['_MSGBATCHTRANSFERWITHVESTING']._loaded_options = None
+  _globals['_MSGBATCHTRANSFERWITHVESTING']._serialized_options = b'\202\347\260*\006sender\212\347\260*5inference/x/streamvesting/MsgBatchTransferWithVesting'
   _globals['_MSG']._loaded_options = None
   _globals['_MSG']._serialized_options = b'\200\347\260*\001'
-  _globals['_MSGUPDATEPARAMS']._serialized_start=193
-  _globals['_MSGUPDATEPARAMS']._serialized_end=396
-  _globals['_MSGUPDATEPARAMSRESPONSE']._serialized_start=398
-  _globals['_MSGUPDATEPARAMSRESPONSE']._serialized_end=423
-  _globals['_MSG']._serialized_start=425
-  _globals['_MSG']._serialized_end=545
+  _globals['_MSGUPDATEPARAMS']._serialized_start=225
+  _globals['_MSGUPDATEPARAMS']._serialized_end=428
+  _globals['_MSGUPDATEPARAMSRESPONSE']._serialized_start=430
+  _globals['_MSGUPDATEPARAMSRESPONSE']._serialized_end=455
+  _globals['_MSGTRANSFERWITHVESTING']._serialized_start=458
+  _globals['_MSGTRANSFERWITHVESTING']._serialized_end=799
+  _globals['_MSGTRANSFERWITHVESTINGRESPONSE']._serialized_start=801
+  _globals['_MSGTRANSFERWITHVESTINGRESPONSE']._serialized_end=833
+  _globals['_BATCHVESTINGOUTPUT']._serialized_start=836
+  _globals['_BATCHVESTINGOUTPUT']._serialized_end=1018
+  _globals['_MSGBATCHTRANSFERWITHVESTING']._serialized_start=1021
+  _globals['_MSGBATCHTRANSFERWITHVESTING']._serialized_end=1287
+  _globals['_MSGBATCHTRANSFERWITHVESTINGRESPONSE']._serialized_start=1289
+  _globals['_MSGBATCHTRANSFERWITHVESTINGRESPONSE']._serialized_end=1326
+  _globals['_MSG']._serialized_start=1329
+  _globals['_MSG']._serialized_end=1723
 # @@protoc_insertion_point(module_scope)

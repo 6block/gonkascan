@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'inference/inference/pruning_state.proto\x12\x13inference.inference\"\xbe\x01\n\x0cPruningState\x12\x37\n\x18poc_batches_pruned_epoch\x18\x01 \x01(\x03R\x15pocBatchesPrunedEpoch\x12?\n\x1cpoc_validations_pruned_epoch\x18\x02 \x01(\x03R\x19pocValidationsPrunedEpoch\x12\x34\n\x16inference_pruned_epoch\x18\x03 \x01(\x03R\x14inferencePrunedEpochB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'inference/inference/pruning_state.proto\x12\x13inference.inference\"\xbe\x02\n\x0cPruningState\x12\x37\n\x18poc_batches_pruned_epoch\x18\x01 \x01(\x03R\x15pocBatchesPrunedEpoch\x12?\n\x1cpoc_validations_pruned_epoch\x18\x02 \x01(\x03R\x19pocValidationsPrunedEpoch\x12\x34\n\x16inference_pruned_epoch\x18\x03 \x01(\x03R\x14inferencePrunedEpoch\x12N\n$epoch_group_validations_pruned_epoch\x18\x04 \x01(\x03R epochGroupValidationsPrunedEpoch\x12.\n\x13subnet_pruned_epoch\x18\x05 \x01(\x03R\x11subnetPrunedEpochB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -23,5 +23,5 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z5github.com/productscience/inference/x/inference/types'
   _globals['_PRUNINGSTATE']._serialized_start=65
-  _globals['_PRUNINGSTATE']._serialized_end=255
+  _globals['_PRUNINGSTATE']._serialized_end=383
 # @@protoc_insertion_point(module_scope)
