@@ -120,8 +120,13 @@ class CacheDB:
             """)
 
             await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_transaction_participants_role_address 
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_role_address
                 ON transaction_participants(role, address)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_address_height
+                ON transaction_participants(address, height DESC, transaction_hash)
             """)
 
             await db.execute("""
@@ -1790,13 +1795,17 @@ class CacheDB:
             db.row_factory = aiosqlite.Row
 
             async with db.execute("""
-                SELECT DISTINCT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp
-                FROM transaction_participants tp
+                SELECT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp
+                FROM (
+                    SELECT DISTINCT transaction_hash, height
+                    FROM transaction_participants
+                    WHERE address = ?
+                    ORDER BY height DESC
+                    LIMIT ?
+                ) tp
                 JOIN transactions t ON tp.transaction_hash = t.hash
-                JOIN blocks b ON t.height = b.height
-                WHERE tp.address = ?
-                ORDER BY t.height DESC
-                LIMIT ?
+                JOIN blocks b ON tp.height = b.height
+                ORDER BY tp.height DESC
             """, (address, limit)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
