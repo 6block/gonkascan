@@ -2946,10 +2946,13 @@ class InferenceService:
         for validation  in epoch_data["epoch_group_data"]["validation_weights"]:
             total_participants.add(validation["member_address"])
 
+        voting_end_time = proposal.get("voting_end_time")
+        voting_end_height = await self.cache_db.get_height_by_time(voting_end_time) if voting_end_time else None
+
         try:
-            validators = await self.client.get_all_validators(voting_start_height)
+            validators = await self.client.get_all_validators(voting_end_height)
         except Exception as e:
-            logger.warning(f"get_all_validators failed at height={voting_start_height}, use empty list. error={e}")
+            logger.warning(f"get_all_validators failed at height={voting_end_height}, use empty list. error={e}")
             validators = []
         bonded = [v for v in validators if v["status"] == "BOND_STATUS_BONDED"]
         total_weight = sum(int(v["tokens"]) for v in bonded) if bonded else 0
@@ -3304,9 +3307,17 @@ class InferenceService:
         for code in [3, 4]:
             proposals = await self.cache_db.get_proposals_by_code(code)
             for proposal in proposals:
-                total_weight = proposal["total_weight"]
-                if total_weight: continue
-                cache_epoch_data = await self.cache_db.get_epoch_status_data(proposal["epoch_id"])
-                proposal["total_weight"] = cache_epoch_data["total_weight"]
-                await self.cache_db.save_proposal(proposal)
+                voting_end_time = proposal.get("voting_end_time")
+                voting_end_height = await self.cache_db.get_height_by_time(voting_end_time) if voting_end_time else None
+                try:
+                    validators = await self.client.get_all_validators(voting_end_height)
+                except Exception as e:
+                    logger.warning(f"get_all_validators failed for proposal {proposal['id']} at height={voting_end_height}: {e}")
+                    continue
+                bonded = [v for v in validators if v["status"] == "BOND_STATUS_BONDED"]
+                new_total_weight = sum(int(v["tokens"]) for v in bonded) if bonded else 0
+                if new_total_weight and new_total_weight != proposal["total_weight"]:
+                    logger.info(f"Updating proposal {proposal['id']} total_weight: {proposal['total_weight']} -> {new_total_weight}")
+                    proposal["total_weight"] = new_total_weight
+                    await self.cache_db.save_proposal(proposal)
 

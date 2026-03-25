@@ -1634,6 +1634,18 @@ class CacheDB:
                 await db.rollback()
                 raise e
 
+    async def get_height_by_time(self, time_str: str) -> Optional[int]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT height FROM blocks WHERE time <= ? ORDER BY time DESC LIMIT 1""",
+                (time_str,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if row is None:
+                    return None
+                return int(row["height"])
+
     async def get_latest_block_height(self) -> int:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
