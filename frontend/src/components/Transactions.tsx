@@ -48,8 +48,8 @@ export function Transactions() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[10%]">HEIGHT</th>
-                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[55%]">HASH</th>
-                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[15%]">MESSAGES</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[50%]">HASH</th>
+                <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[20%]">MESSAGES</th>
                 <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider w-[20%]">TIME</th>
               </tr>
             </thead>

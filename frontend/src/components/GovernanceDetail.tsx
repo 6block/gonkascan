@@ -185,7 +185,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
   return (
     <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
       <div className="px-0 sm:px-2 md:px-6 py-2 sm:py-4">
-        <BackNavigation onBack={() => window.history.back()} title={<>{proposal.id}. {proposal.title}</>} />
+        <BackNavigation onBack={() => window.history.back()} backLabel="Governance" title={<>{proposal.id}. {proposal.title}</>} />
       </div>
 
       {/* Summary */}

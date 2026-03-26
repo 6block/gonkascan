@@ -33,7 +33,7 @@ export function TransactionDetail({ txHash }: {txHash: string }) {
     <div className="w-full max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
       <div className="rounded-lg shadow-sm">
         <div className="px-3 sm:px-4 md:px-6 py-3 md:py-4">
-          <BackNavigation onBack={() => window.history.back()} title={data.txhash.toUpperCase()} />
+          <BackNavigation onBack={() => window.history.back()} backLabel="Transactions" title={data.txhash.toUpperCase()} />
         </div>
 
         <div className="space-y-6">

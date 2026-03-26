@@ -102,11 +102,7 @@ export function BountyProgram() {
 
   return (
     <div className="space-y-6">
-      <BackNavigation
-        onBack={handleBack}
-        backLabel="Resource"
-        title="Bounty Program"
-      />
+      <BackNavigation onBack={handleBack} backLabel="Resource" title="Bounty Program"/>
 
       {/* Discord Community */}
       <div className="bg-white border border-gray-200 rounded-xl p-6">

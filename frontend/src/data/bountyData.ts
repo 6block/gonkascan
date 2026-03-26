@@ -100,7 +100,7 @@ export const REWARD_DATA: RewardGroup[] = [
       { githubUsername: 'x0152', address: 'gonka18enyz7h6hh5zjveee5wnhkhrcexamfz0zdxxqe', amount: 2500, discord: '@x0152' },
       { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 2500, discord: '@Ouicate' },
       { githubUsername: 'akup', address: 'gonka1ejkupq3cy6p8xd64ew2wlzveml86ckpzn9dl56', amount: 2500, discord: '@Alexander Kuprin' },
-      { username: 'username', address: 'gonka1zqss46r6jf6dhhyaa777kc2ppvjhn0ufkx4y57', amount: 2500 },
+      { username: '6block team', address: 'gonka1zqss46r6jf6dhhyaa777kc2ppvjhn0ufkx4y57', amount: 2500 },
     ],
   },
   {

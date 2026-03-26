@@ -233,11 +233,17 @@ class ParticipantInferencesResponse(BaseModel):
     cached_at: Optional[str] = None
 
 
+class BalanceInfo(BaseModel):
+    amount: str
+    denom: str
+
+
 class Transaction(BaseModel):
     height: int
     tx_hash: str
     messages: List[str]
     timestamp: Optional[str] = None
+    status: Optional[str] = None
 
 
 class TransactionResponse(BaseModel):
@@ -249,6 +255,23 @@ class AddressTransactionsResponse(BaseModel):
     address: str
     total: int
     transactions: List[Transaction]
+
+
+class TransferTransaction(BaseModel):
+    height: int
+    tx_hash: str
+    msg_type: str
+    from_address: str
+    to_address: str
+    amount: List[BalanceInfo]
+    status: str
+    timestamp: Optional[str] = None
+
+
+class AddressTransfersResponse(BaseModel):
+    address: str
+    total: int
+    transfers: List[TransferTransaction]
 
 
 class ParticipantMapItem(BaseModel):
@@ -268,10 +291,6 @@ class ParticipantMapResponse(BaseModel):
     total_participant: int
     participants: List[ParticipantMapItem]
 
-
-class BalanceInfo(BaseModel):
-    amount: str
-    denom: str
 
 class EpochSchedule(BaseModel):
     coins: List[BalanceInfo]

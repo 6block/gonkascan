@@ -64,7 +64,10 @@ from backend.models import (
     OrderbookStats,
     TokenStats,
     MarketStats,
-    CollateralStatus
+    CollateralStatus,
+    TransferTransaction,
+    AddressTransfersResponse,
+    BalanceInfo
 )
 
 getcontext().prec = 60
@@ -2081,14 +2084,14 @@ class InferenceService:
             decoded_transaction["index"] = idx
             decoded_transaction["height"] = height
             decoded_transaction["raw_data"] = tx_base64
-            decoded_transaction["msg_types"] = [
-                (msg.get("@type", "").split(".")[-1]).replace("Msg", "")
-                for msg in decoded_transaction["body"].get("messages", [])
-            ]
+            decoded_transaction["msg_types"] = self._extract_msg_types(
+                decoded_transaction["body"].get("messages", [])
+            )
             transactions.append(decoded_transaction)
             transaction_index_hash_map[idx] = decoded_transaction["hash"]
 
             transaction_hash = decoded_transaction["hash"]
+            is_transfer = 1 if ("Send" in json.dumps(decoded_transaction["msg_types"]) or "Transfer" in json.dumps(decoded_transaction["msg_types"])) else 0
             for msg in decoded_transaction["body"].get("messages", []):
                 address_hits = self.extract_gonka_addresses(msg)
                 for role, address in address_hits:
@@ -2097,6 +2100,7 @@ class InferenceService:
                         "transaction_hash": transaction_hash,
                         "address": address,
                         "role": role,
+                        "is_transfer": is_transfer,
                     })
                 
         result = block_results.get("result", {})
@@ -2602,6 +2606,7 @@ class InferenceService:
                     height=tx["height"],
                     messages=json.loads(tx["messages"]) if tx["messages"] else [],
                     timestamp=tx["timestamp"],
+                    status="success" if tx.get("code", 0) == 0 else "failed",
                 )
             )
 
@@ -2611,6 +2616,138 @@ class InferenceService:
             transactions=transactions,
         )
     
+    @staticmethod
+    def _extract_msg_types(messages: list) -> list:
+        msg_types = []
+        for msg in messages:
+            at_type = msg.get("@type", "")
+            type_name = at_type.split(".")[-1].replace("Msg", "")
+            if "MsgExec" in at_type:
+                inner_types = []
+                for inner_msg in msg.get("msgs", []):
+                    inner_type = inner_msg.get("@type", "").split(".")[-1].replace("Msg", "")
+                    if inner_type:
+                        inner_types.append(inner_type)
+                if inner_types:
+                    from collections import Counter
+                    counts = Counter(inner_types)
+                    parts = []
+                    for t, c in counts.items():
+                        parts.append(f"{t}×{c}" if c > 1 else t)
+                    msg_types.append(f"{type_name} > {', '.join(parts)}")
+                else:
+                    msg_types.append(type_name)
+            else:
+                msg_types.append(type_name)
+        return msg_types
+
+    def _extract_transfers_from_msg(self, msg: dict, tx: dict, status: str) -> list:
+        transfers = []
+        at_type = msg.get("@type", "")
+        msg_type_str = at_type.split(".")[-1].replace("Msg", "")
+
+        if "MsgMultiSend" in at_type:
+            inputs = msg.get("inputs", [])
+            outputs = msg.get("outputs", [])
+            from_addr = inputs[0].get("address", "") if inputs else ""
+            for output in outputs:
+                to_addr = output.get("address", "")
+                coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in output.get("coins", [])]
+                transfers.append(TransferTransaction(
+                    tx_hash=tx["tx_hash"],
+                    height=tx["height"],
+                    msg_type=msg_type_str,
+                    from_address=from_addr,
+                    to_address=to_addr,
+                    amount=coins,
+                    status=status,
+                    timestamp=tx["timestamp"],
+                ))
+        elif "MsgSend" in at_type:
+            coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in msg.get("amount", [])]
+            transfers.append(TransferTransaction(
+                tx_hash=tx["tx_hash"],
+                height=tx["height"],
+                msg_type=msg_type_str,
+                from_address=msg.get("from_address", ""),
+                to_address=msg.get("to_address", ""),
+                amount=coins,
+                status=status,
+                timestamp=tx["timestamp"],
+            ))
+        elif "MsgBatchTransferWithVesting" in at_type:
+            sender = msg.get("sender", "")
+            for output in msg.get("outputs", []):
+                coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in output.get("amount", [])]
+                transfers.append(TransferTransaction(
+                    tx_hash=tx["tx_hash"],
+                    height=tx["height"],
+                    msg_type=msg_type_str,
+                    from_address=sender,
+                    to_address=output.get("recipient", ""),
+                    amount=coins,
+                    status=status,
+                    timestamp=tx["timestamp"],
+                ))
+        elif "MsgTransferWithVesting" in at_type:
+            coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in msg.get("amount", [])]
+            transfers.append(TransferTransaction(
+                tx_hash=tx["tx_hash"],
+                height=tx["height"],
+                msg_type=msg_type_str,
+                from_address=msg.get("sender", ""),
+                to_address=msg.get("recipient", ""),
+                amount=coins,
+                status=status,
+                timestamp=tx["timestamp"],
+            ))
+        elif "MsgTransfer" in at_type and "Ownership" not in at_type:
+            token = msg.get("token", {})
+            coins = [BalanceInfo(amount=token.get("amount", "0"), denom=token.get("denom", ""))]
+            transfers.append(TransferTransaction(
+                tx_hash=tx["tx_hash"],
+                height=tx["height"],
+                msg_type=msg_type_str,
+                from_address=msg.get("sender", ""),
+                to_address=msg.get("receiver", ""),
+                amount=coins,
+                status=status,
+                timestamp=tx["timestamp"],
+            ))
+        elif "MsgExec" in at_type:
+            for inner_msg in msg.get("msgs", []):
+                transfers.extend(self._extract_transfers_from_msg(inner_msg, tx, status))
+
+        return transfers
+
+    async def get_transfer_types_by_address(self, address: str) -> list:
+        return await self.cache_db.get_transfer_msg_types_by_address(address)
+
+    async def get_transfer_transactions_by_address(
+        self, address: str, limit: int = 50,
+        msg_type: str = None, time_from: str = None, time_to: str = None,
+    ) -> AddressTransfersResponse:
+        tx_rows = await self.cache_db.get_transfer_transactions_by_address(
+            address, limit=limit, time_from=time_from, time_to=time_to,
+        )
+
+        transfers = []
+        for tx in tx_rows:
+            messages = json.loads(tx["messages_json"]) if tx["messages_json"] else []
+            status = "success" if tx["code"] == 0 else "failed"
+
+            for msg in messages:
+                transfers.extend(self._extract_transfers_from_msg(msg, tx, status))
+
+        if msg_type:
+            transfers = [t for t in transfers if t.msg_type == msg_type]
+
+        return AddressTransfersResponse(
+            address=address,
+            total=len(transfers),
+            transfers=transfers,
+        )
+
     async def get_model_epoch_series(self) -> ModelEpochSeriesResponse:
         models_set = set()
 
@@ -3320,4 +3457,3 @@ class InferenceService:
                     logger.info(f"Updating proposal {proposal['id']} total_weight: {proposal['total_weight']} -> {new_total_weight}")
                     proposal["total_weight"] = new_total_weight
                     await self.cache_db.save_proposal(proposal)
-

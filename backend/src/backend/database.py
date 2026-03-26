@@ -105,17 +105,18 @@ class CacheDB:
                     transaction_hash TEXT NOT NULL,
                     address TEXT NOT NULL,
                     role TEXT NOT NULL,
+                    is_transfer BOOLEAN NOT NULL DEFAULT 0,
                     FOREIGN KEY(transaction_hash) REFERENCES transactions(transaction_hash)
                 )
             """)
 
             await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_transaction_participants_height 
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_height
                 ON transaction_participants(height)
             """)
 
             await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_transaction_participants_address 
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_address
                 ON transaction_participants(address)
             """)
 
@@ -127,6 +128,11 @@ class CacheDB:
             await db.execute("""
                 CREATE INDEX IF NOT EXISTS idx_transaction_participants_address_height
                 ON transaction_participants(address, height DESC, transaction_hash)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_transaction_participants_address_transfer
+                ON transaction_participants(address, is_transfer, height DESC, transaction_hash)
             """)
 
             await db.execute("""
@@ -526,7 +532,7 @@ class CacheDB:
                     token_updated_at TEXT NOT NULL
                 );
             """)
-            
+
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
     
@@ -1535,16 +1541,17 @@ class CacheDB:
     async def _save_transaction_participants_batch(self, db, transaction_participants: list[dict]):
         await db.executemany("""
             INSERT INTO transaction_participants (
-                height, transaction_hash, address, role
-            ) VALUES (?, ?, ?, ?)
+                height, transaction_hash, address, role, is_transfer
+            ) VALUES (?, ?, ?, ?, ?)
         """, [
             (
-                transaction_participant["height"],
-                transaction_participant["transaction_hash"],
-                transaction_participant["address"],
-                transaction_participant["role"],
+                tp["height"],
+                tp["transaction_hash"],
+                tp["address"],
+                tp["role"],
+                tp.get("is_transfer", 0),
             )
-            for transaction_participant in transaction_participants
+            for tp in transaction_participants
         ])
     
     async def _save_block_results_batch(self, db, block_results: list[dict]):
@@ -1807,7 +1814,8 @@ class CacheDB:
             db.row_factory = aiosqlite.Row
 
             async with db.execute("""
-                SELECT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp
+                SELECT t.hash AS tx_hash, t.height, t.msg_types AS messages, b.time AS timestamp,
+                       COALESCE(tr.code, 0) AS code
                 FROM (
                     SELECT DISTINCT transaction_hash, height
                     FROM transaction_participants
@@ -1817,8 +1825,82 @@ class CacheDB:
                 ) tp
                 JOIN transactions t ON tp.transaction_hash = t.hash
                 JOIN blocks b ON tp.height = b.height
+                LEFT JOIN transaction_results tr ON t.hash = tr.transaction_hash
                 ORDER BY tp.height DESC
             """, (address, limit)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_transfer_msg_types_by_address(self, address: str) -> List[str]:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT DISTINCT t.msg_types
+                FROM (
+                    SELECT DISTINCT transaction_hash
+                    FROM transaction_participants
+                    WHERE address = ? AND is_transfer = 1
+                ) tp
+                JOIN transactions t ON tp.transaction_hash = t.hash
+            """, (address,)) as cursor:
+                rows = await cursor.fetchall()
+                types = set()
+                for row in rows:
+                    for mt in json.loads(row[0]) if row[0] else []:
+                        if 'Send' in mt or 'Transfer' in mt:
+                            if ' > ' in mt:
+                                for part in mt.split(' > ')[1].split(', '):
+                                    name = part.split('×')[0].strip()
+                                    if 'Send' in name or 'Transfer' in name:
+                                        types.add(name)
+                            else:
+                                types.add(mt)
+                return sorted(types)
+
+    async def get_transfer_transactions_by_address(
+        self, address: str, limit: int = 50,
+        time_from: str = None, time_to: str = None,
+    ) -> List[Dict[str, Any]]:
+        height_from = None
+        height_to = None
+        if time_from:
+            height_from = await self.get_height_by_time(time_from)
+        if time_to:
+            height_to = await self.get_height_by_time(time_to)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            conditions = ["address = ?", "is_transfer = 1"]
+            params: list = [address]
+
+            if height_from is not None:
+                conditions.append("height >= ?")
+                params.append(height_from)
+            if height_to is not None:
+                conditions.append("height <= ?")
+                params.append(height_to)
+
+            params.append(limit)
+            where = " AND ".join(conditions)
+
+            query = f"""
+                SELECT t.hash AS tx_hash, t.height, t.msg_types AS messages,
+                       t.messages_json, b.time AS timestamp,
+                       COALESCE(tr.code, 0) AS code
+                FROM (
+                    SELECT DISTINCT transaction_hash, height
+                    FROM transaction_participants
+                    WHERE {where}
+                    ORDER BY height DESC
+                    LIMIT ?
+                ) sub
+                JOIN transactions t ON sub.transaction_hash = t.hash
+                JOIN blocks b ON sub.height = b.height
+                LEFT JOIN transaction_results tr ON t.hash = tr.transaction_hash
+                ORDER BY sub.height DESC
+            """
+
+            async with db.execute(query, params) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
@@ -2313,5 +2395,112 @@ class CacheDB:
                 row = await cursor.fetchone()
                 return row if row else None
 
+    async def migrate_transfer_flags(self):
+        """Mark is_transfer on transaction_participants using pure SQL. Fast (minutes)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            logger.info("Migration step 1: marking is_transfer flags via SQL...")
 
+            await db.execute("""
+                UPDATE transaction_participants SET is_transfer = 1
+                WHERE transaction_hash IN (
+                    SELECT hash FROM transactions
+                    WHERE msg_types LIKE '%Send%' OR msg_types LIKE '%Transfer%'
+                )
+                AND is_transfer = 0
+            """)
+            changes = db.total_changes
+            await db.commit()
+            logger.info(f"Migration step 1 complete: marked {changes} participant rows as is_transfer=1")
+
+    async def migrate_msg_types_background(self, batch_size: int = 2000, sleep_seconds: float = 5.0):
+        """Background migration: update msg_types for MsgExec transactions and fix is_transfer flags.
+        Runs slowly with sleep between batches to avoid blocking normal operations."""
+        import asyncio
+        from collections import Counter
+
+        def extract_msg_types(messages: list) -> list:
+            msg_types = []
+            for msg in messages:
+                at_type = msg.get("@type", "")
+                type_name = at_type.split(".")[-1].replace("Msg", "")
+                if "MsgExec" in at_type:
+                    inner_types = []
+                    for inner_msg in msg.get("msgs", []):
+                        inner_at = inner_msg.get("@type", "")
+                        inner_type = inner_at.split(".")[-1].replace("Msg", "")
+                        if inner_type:
+                            inner_types.append(inner_type)
+                    if inner_types:
+                        counts = Counter(inner_types)
+                        parts = []
+                        for t, c in counts.items():
+                            parts.append(f"{t}×{c}" if c > 1 else t)
+                        msg_types.append(f"{type_name} > {', '.join(parts)}")
+                    else:
+                        msg_types.append(type_name)
+                else:
+                    msg_types.append(type_name)
+            return msg_types
+
+        TRANSFER_KEYWORDS = ('Send', 'Transfer')
+
+        total_processed = 0
+        total_msg_updated = 0
+        total_transfer_marked = 0
+
+        logger.info("Background migration started: msg_types + is_transfer fix")
+
+        while True:
+            try:
+                async with aiosqlite.connect(self.db_path) as db:
+                    db.row_factory = aiosqlite.Row
+
+                    cursor = await db.execute(
+                        "SELECT hash, messages_json, msg_types FROM transactions WHERE msg_types LIKE '%Exec%' AND msg_types NOT LIKE '%>%' LIMIT ?",
+                        (batch_size,)
+                    )
+                    rows = await cursor.fetchall()
+                    if not rows:
+                        break
+
+                    total_processed += len(rows)
+
+                    msg_updates = []
+                    transfer_hashes = []
+
+                    for row in rows:
+                        messages = json.loads(row["messages_json"]) if row["messages_json"] else []
+                        new_types = extract_msg_types(messages)
+                        new_types_str = json.dumps(new_types)
+
+                        msg_updates.append((new_types_str, row["hash"]))
+
+                        if any(kw in new_types_str for kw in TRANSFER_KEYWORDS):
+                            transfer_hashes.append(row["hash"])
+
+                    if msg_updates:
+                        await db.executemany(
+                            "UPDATE transactions SET msg_types = ? WHERE hash = ?",
+                            msg_updates
+                        )
+
+                    if transfer_hashes:
+                        placeholders = ",".join("?" * len(transfer_hashes))
+                        await db.execute(
+                            f"UPDATE transaction_participants SET is_transfer = 1 WHERE transaction_hash IN ({placeholders}) AND is_transfer = 0",
+                            transfer_hashes
+                        )
+                        total_transfer_marked += len(transfer_hashes)
+
+                    await db.commit()
+                    total_msg_updated += len(msg_updates)
+
+                logger.info(f"Background migration: processed {total_processed}, msg_types updated {total_msg_updated}, transfers marked {total_transfer_marked}")
+                await asyncio.sleep(sleep_seconds)
+
+            except Exception as e:
+                logger.error(f"Background migration error: {e}, retrying in 10s...")
+                await asyncio.sleep(10)
+
+        logger.info(f"Background migration complete: processed {total_processed}, msg_types updated {total_msg_updated}, transfers marked {total_transfer_marked}")
 

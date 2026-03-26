@@ -10,6 +10,7 @@ from backend.models import (
     ParticipantMapResponse,
     AssetsResponse,
     AddressTransactionsResponse,
+    AddressTransfersResponse,
     ModelEpochSeriesResponse,
     ModelEpochTokenUsageResponse,
     HardwaresResponse,
@@ -313,6 +314,36 @@ async def get_transactions(address: str):
         return await inference_service.get_transaction_by_address(address)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
+
+
+@router.get("/transfers/{address}", response_model=AddressTransfersResponse)
+async def get_transfers(
+    address: str,
+    msg_type: Optional[str] = Query(None),
+    time_from: Optional[str] = Query(None),
+    time_to: Optional[str] = Query(None),
+):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_transfer_transactions_by_address(
+            address, msg_type=msg_type, time_from=time_from, time_to=time_to
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch transfers: {str(e)}")
+
+
+@router.get("/transfers/{address}/types")
+async def get_transfer_types(address: str):
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        types = await inference_service.get_transfer_types_by_address(address)
+        return {"address": address, "types": types}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch transfer types: {str(e)}")
 
 
 @router.get("/metrics/models",response_model=ModelEpochSeriesResponse)

@@ -1,4 +1,5 @@
 import { AddressTransactionsResponse } from '../types/inference'
+import { timeAgo } from '../utils'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
@@ -31,6 +32,8 @@ export function AddressTransactionsTable({transactions, isLoading, error}: Addre
             <th className="px-2 sm:px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Height</th>
             <th className="px-2 sm:px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Hash</th>
             <th className="px-2 sm:px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Messages</th>
+            <th className="px-2 sm:px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Status</th>
+            <th className="px-2 sm:px-4 py-2 text-center text-xs font-semibold text-gray-500 uppercase whitespace-nowrap">Time</th>
           </tr>
         </thead>
 
@@ -46,6 +49,14 @@ export function AddressTransactionsTable({transactions, isLoading, error}: Addre
                 </a>
               </td>
               <td className="px-2 sm:px-4 py-2 text-center text-xs sm:text-sm text-gray-700 break-words">{tx.messages.join(', ')}</td>
+              <td className="px-2 sm:px-4 py-2 text-center text-sm whitespace-nowrap">
+                <span className={`inline-block px-2 py-0.5 text-sm font-semibold rounded ${tx.status === 'success' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                  {tx.status === 'success' ? 'Success' : 'Fail'}
+                </span>
+              </td>
+              <td className="px-2 sm:px-4 py-2 text-center text-sm text-gray-500 whitespace-nowrap" title={tx.timestamp || ''}>
+                {tx.timestamp ? timeAgo(tx.timestamp) : '-'}
+              </td>
             </tr>
           ))}
         </tbody>

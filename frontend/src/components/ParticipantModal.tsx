@@ -4,6 +4,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recha
 import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, AssetsResponse, AddressTransactionsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
+import { TransfersTable } from './TransfersTable'
 import { formatGNK, apiFetch, toGonka, formatDateTime } from '../utils'
 import { StatCard } from './common/StatCard'
 import { Badge } from './common/Badge'
@@ -20,7 +21,7 @@ interface ParticipantModalProps {
   currentEpochId: number | null
 }
 
-type TabType = 'details' | 'inferences' | 'transactions'
+type TabType = 'details' | 'inferences' | 'transactions' | 'transfers'
 
 export function ParticipantModal({ participantId, epochId, currentEpochId }: ParticipantModalProps) {
   const [activeTab, setActiveTab] = useState<TabType>('details')
@@ -64,6 +65,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
   useEffect(() => {
     setSelectedInference(null)
     setActiveTab('details')
+    window.scrollTo(0, 0)
   }, [participantId])
 
   if (!participant) {
@@ -110,7 +112,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
       <div className="bg-white rounded-lg shadow-sm">
 
         <div className="border-b border-gray-200 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-          <BackNavigation onBack={handleBack} backLabel="Dashboard" title={participant.index} />
+          <BackNavigation onBack={handleBack} backLabel="Dashboard" title={participant.index} badge={{ label: 'Participant', color: 'orange' }} />
         </div>
 
         <div className="px-3 sm:px-4 md:px-6 py-4 sm:py-5 md:py-6">
@@ -124,7 +126,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
         <div className="px-3 sm:px-4 md:px-6 py-2">
           <TabBar
-            tabs={['details', 'inferences', 'transactions'] as TabType[]}
+            tabs={['details', 'inferences', 'transfers', 'transactions'] as TabType[]}
             activeTab={activeTab}
             onChange={setActiveTab}
           />
@@ -487,6 +489,12 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
               isLoading={transactionsLoading}
               error={transactionsError}
             />
+          </div>
+        )}
+
+        {activeTab === 'transfers' && (
+          <div className="px-3 sm:px-4 md:px-6 py-4 space-y-6">
+            <TransfersTable address={participantId} />
           </div>
         )}
 

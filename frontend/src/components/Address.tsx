@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransactionsResponse, AssetsResponse } from '../types/inference'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
+import { TransfersTable } from './TransfersTable'
+import { TabBar } from './common/TabBar'
 import { formatGNK, apiFetch, toGonka } from '../utils'
 import { BackNavigation } from './common/BackNavigation'
 
@@ -8,7 +11,11 @@ interface AddressProps {
   address: string
 }
 
+type TabType = 'transfers' | 'transactions'
+
 export function Address({ address }: AddressProps) {
+  const [activeTab, setActiveTab] = useState<TabType>('transfers')
+
   const { data: assets, isLoading: assetsLoading } = useQuery<AssetsResponse>({
     queryKey: ['address-assets', address],
     queryFn: () => apiFetch(`/v1/address/assets/${address}`),
@@ -47,7 +54,7 @@ export function Address({ address }: AddressProps) {
       <div className="bg-white rounded-lg shadow-sm">
 
         <div className="border-b border-gray-200 px-3 sm:px-4 md:px-6 py-3 sm:py-4">
-          <BackNavigation onBack={handleBack} backLabel="Dashboard" title={address} />
+          <BackNavigation onBack={handleBack} backLabel="Dashboard" title={address} badge={{ label: 'Wallet', color: 'blue' }} />
         </div>
 
         <div className="px-3 sm:px-4 md:px-6 py-5 sm:py-6 md:py-8">
@@ -69,15 +76,26 @@ export function Address({ address }: AddressProps) {
           </div>
         </div>
 
-        <div className="border-t border-gray-200 px-3 sm:px-4 md:px-6 py-5 sm:py-6">
-          <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wider mb-3 sm:mb-4">Transactions</h3>
-
-          <AddressTransactionsTable
-            transactions={transactions}
-            isLoading={transactionsLoading}
-            error={transactionsError}
+        <div className="px-3 sm:px-4 md:px-6 py-2">
+          <TabBar
+            tabs={['transfers', 'transactions'] as TabType[]}
+            activeTab={activeTab}
+            onChange={setActiveTab}
           />
+        </div>
 
+        <div className="border-t border-gray-200 px-3 sm:px-4 md:px-6 py-5 sm:py-6">
+          {activeTab === 'transfers' && (
+            <TransfersTable address={address} />
+          )}
+
+          {activeTab === 'transactions' && (
+            <AddressTransactionsTable
+              transactions={transactions}
+              isLoading={transactionsLoading}
+              error={transactionsError}
+            />
+          )}
         </div>
 
       </div>

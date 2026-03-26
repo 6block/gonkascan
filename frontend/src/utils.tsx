@@ -63,7 +63,7 @@ export function formatDecimal(num: number, digits = 4) {
 
 export function formatGNK(value: number | null | undefined) {
   if (value == null) return '-'
-  return `${formatDecimal(value, 2)} gonka`
+  return `${formatDecimal(value, 2)} GNK`
 }
 
 export function timeAgo(date: string | number | Date) {

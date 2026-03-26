@@ -219,6 +219,7 @@ export interface Transaction {
   tx_hash: string;
   messages: string[];
   timestamp?: string;
+  status?: string;
 }
 
 export interface TransactionsResponse {
@@ -231,6 +232,23 @@ export interface AddressTransactionsResponse {
   total: number;
   address: string;
   transactions: Transaction[]
+}
+
+export interface TransferTransaction {
+  height: number;
+  tx_hash: string;
+  msg_type: string;
+  from_address: string;
+  to_address: string;
+  amount: BalanceInfo[];
+  status: string;
+  timestamp?: string;
+}
+
+export interface AddressTransfersResponse {
+  total: number;
+  address: string;
+  transfers: TransferTransaction[];
 }
 
 export interface ParticipantMapItem{
