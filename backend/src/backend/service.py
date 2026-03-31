@@ -527,24 +527,32 @@ class InferenceService:
         cached_stats = await self.cache_db.get_stats(epoch_id, height=target_height)
         if cached_stats:
             logger.info(f"Returning cached stats for epoch {epoch_id} at height {target_height}")
-            
+
+            if not is_finished:
+                try:
+                    data = await self.client.get_epoch_group_data(epoch_id)
+                    epoch_group_data = data.get("epoch_group_data", {})
+                    await self.cache_db.mark_epoch_finished(epoch_id, target_height, epoch_group_data)
+                except Exception as e:
+                    logger.warning(f"Failed to mark epoch {epoch_id} as finished from cached stats path: {e}")
+
             participants_stats = []
             for stats_dict in cached_stats:
                 try:
                     stats_copy = dict(stats_dict)
                     stats_copy.pop("_cached_at", None)
                     stats_copy.pop("_height", None)
-                    
+
                     participant = ParticipantStats(**stats_copy)
                     participants_stats.append(participant)
                 except Exception as e:
                     logger.warning(f"Failed to parse cached participant: {e}")
-            
+
             epoch_data = await self.get_epoch_participants(epoch_id)
             active_participants_list = epoch_data["active_participants"]["participants"]
             participants_stats = await self.merge_jail_and_health_data(epoch_id, participants_stats, target_height, active_participants_list)
             participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, target_height, active_participants_list)
-            
+
             total_rewards_gnk = await self.cache_db.get_epoch_total_rewards(epoch_id)
             if total_rewards_gnk is None or total_rewards_gnk == 0:
                 if total_rewards_gnk == 0:
@@ -665,15 +673,24 @@ class InferenceService:
     
     async def _mark_epoch_finished_if_needed(self, current_epoch_id: int, current_height: int):
         if self.current_epoch_id is None:
+            # On first startup, check if the previous epoch needs to be marked as finished
+            prev_epoch_id = current_epoch_id - 1
+            if prev_epoch_id >= 1 and not await self.cache_db.is_epoch_finished(prev_epoch_id):
+                logger.info(f"Startup: marking previous epoch {prev_epoch_id} as finished")
+                try:
+                    await self.get_historical_epoch_stats(prev_epoch_id, calculate_rewards_sync=True)
+                    logger.info(f"Startup: marked epoch {prev_epoch_id} as finished")
+                except Exception as e:
+                    logger.error(f"Startup: failed to mark epoch {prev_epoch_id} as finished: {e}")
             return
-        
+
         if current_epoch_id > self.current_epoch_id:
             old_epoch_id = self.current_epoch_id
             is_already_finished = await self.cache_db.is_epoch_finished(old_epoch_id)
-            
+
             if not is_already_finished:
                 logger.info(f"Epoch transition detected: {old_epoch_id} -> {current_epoch_id}")
-                
+
                 try:
                     await self.get_historical_epoch_stats(old_epoch_id, calculate_rewards_sync=True)
                     logger.info(f"Marked epoch {old_epoch_id} as finished and cached final stats with total rewards")
@@ -947,7 +964,10 @@ class InferenceService:
                         })
                     elif task_type == 'warm_keys':
                         warm_keys_data = result if result else []
-                        await self.cache_db.save_warm_keys_batch(epoch_id, participant_id, warm_keys_data)
+                        try:
+                            await self.cache_db.save_warm_keys_batch(epoch_id, participant_id, warm_keys_data)
+                        except Exception as e:
+                            logger.warning(f"Failed to save warm keys for {participant_id}: {e}")
                     elif task_type == 'hardware':
                         hardware_nodes_data = result if result else []
                         ml_nodes_map = participant.ml_nodes_map if participant.ml_nodes_map else {}
@@ -962,8 +982,11 @@ class InferenceService:
                                 local_id = node.get("local_id")
                                 if local_id and local_id in ml_nodes_map:
                                     node["poc_weight"] = ml_nodes_map[local_id]
-                        await self.cache_db.save_hardware_nodes_batch(epoch_id, participant_id, hardware_nodes_data)
-                        logger.debug(f"Participant Updated {len(hardware_nodes_data)} hardware nodes for {participant_id}")
+                        try:
+                            await self.cache_db.save_hardware_nodes_batch(epoch_id, participant_id, hardware_nodes_data)
+                            logger.debug(f"Participant Updated {len(hardware_nodes_data)} hardware nodes for {participant_id}")
+                        except Exception as e:
+                            logger.warning(f"Failed to save hardware nodes for {participant_id}: {e}")
                 
                 if newly_fetched_rewards:
                     await self.cache_db.save_reward_batch(newly_fetched_rewards)

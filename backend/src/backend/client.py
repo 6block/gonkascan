@@ -336,7 +336,7 @@ class GonkaClient:
             
             authorization = grant.get("authorization", {})
             msg_url = authorization.get("msg", "")
-            expiration = grant.get("expiration", "")
+            expiration = grant.get("expiration") or ""
             
             if grantee not in grantee_perms:
                 grantee_perms[grantee] = {
