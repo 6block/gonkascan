@@ -34,6 +34,8 @@ export function Address({ address }: AddressProps) {
   const vesting = assets?.total_vesting?.find(v => v.denom === 'ngonka')
     ? toGonka(assets.total_vesting.find(v => v.denom === 'ngonka')!.amount) : 0
 
+  const mined = assets?.total_rewarded?.amount ? toGonka(assets.total_rewarded.amount) : 0
+
   const total = balance + vesting
 
   const handleBack = () => {
@@ -58,7 +60,7 @@ export function Address({ address }: AddressProps) {
         </div>
 
         <div className="px-3 sm:px-4 md:px-6 py-5 sm:py-6 md:py-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 md:gap-12">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 md:gap-12">
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Total</div>
               <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{assetsLoading ? '-' : formatGNK(total)}</div>
@@ -67,6 +69,13 @@ export function Address({ address }: AddressProps) {
             <div className="bg-gray-50 p-4 rounded">
               <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Balance</div>
               <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{assetsLoading ? '-' : formatGNK(balance)}</div>
+            </div>
+
+            <div className="bg-gray-50 p-4 rounded">
+              <div className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                Mined
+              </div>
+              <div className="mt-1 text-xl sm:text-2xl font-semibold text-gray-900 break-words">{assetsLoading ? '-' : formatGNK(mined)}</div>
             </div>
 
             <div className="bg-gray-50 p-4 rounded">

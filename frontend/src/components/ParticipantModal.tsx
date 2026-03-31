@@ -29,7 +29,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
   const { data: assets } = useQuery<AssetsResponse>({
     queryKey: ['participant-assets', participantId],
-    queryFn: () => apiFetch(`/v1/address/assets/${participantId}?is_participant=true`),
+    queryFn: () => apiFetch(`/v1/address/assets/${participantId}`),
     enabled: !!participantId,
   })
 
@@ -119,7 +119,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             <StatCard label="Total" size="lg">{formatGNK(balance_gonka + vesting_gonka)}</StatCard>
             <StatCard label="Balance" size="lg">{formatGNK(balance_gonka)}</StatCard>
-            <StatCard label={<><span>Mined</span><span className="text-[11px] text-gray-400 normal-case ml-2">(Data since epoch 100)</span></>} size="lg">{formatGNK(total_rewards)}</StatCard>
+            <StatCard label="Mined" size="lg">{formatGNK(total_rewards)}</StatCard>
             <StatCard label="Vesting" size="lg">{formatGNK(vesting_gonka)}</StatCard>
           </div>
         </div>

@@ -2584,7 +2584,7 @@ class InferenceService:
             participants=participant_nodes,
         )
 
-    async def get_address_assets(self, address: str, is_participant: bool) -> AssetsResponse:
+    async def get_address_assets(self, address: str) -> AssetsResponse:
         try:
             balances_data = await self.client.get_balances(address)
             balances = balances_data.get("balances", [])
@@ -2592,26 +2592,30 @@ class InferenceService:
             epoch_amounts = []
             total_rewarded = 0
 
-            if is_participant:
+            try:
                 rewards_data = await self.cache_db.get_all_rewards_for_participant(address)
                 vesting_schedule_data = await self.client.get_vesting_schedule(address)
                 vesting_schedule = vesting_schedule_data.get("vesting_schedule")
-                epoch_amounts = vesting_schedule.get("epoch_amounts", [])
-                total_vesting_amount = 0
-                for epoch_entry in epoch_amounts:
-                    coins = epoch_entry.get("coins", [])
-                    for coin in coins:
-                        if coin.get("denom") == "ngonka":
-                            total_vesting_amount += int(coin.get("amount", 0))
-                total_vesting.append(
-                    {
-                        "amount": str(total_vesting_amount),
-                        "denom": "ngonka"
-                    }
-                )
+                if vesting_schedule:
+                    epoch_amounts = vesting_schedule.get("epoch_amounts", [])
+                    total_vesting_amount = 0
+                    for epoch_entry in epoch_amounts:
+                        coins = epoch_entry.get("coins", [])
+                        for coin in coins:
+                            if coin.get("denom") == "ngonka":
+                                total_vesting_amount += int(coin.get("amount", 0))
+                    if total_vesting_amount > 0:
+                        total_vesting.append(
+                            {
+                                "amount": str(total_vesting_amount),
+                                "denom": "ngonka"
+                            }
+                        )
                 for reward_data in rewards_data:
                     rewarded_coins = int(reward_data.get("rewarded_coins", "0"))
                     total_rewarded += rewarded_coins
+            except Exception:
+                pass
 
             return AssetsResponse(
                 address=address,
@@ -3466,6 +3470,54 @@ class InferenceService:
             except Exception as e:
                 logger.error(f"Failed to fetch epoch_group_data for {epoch_id}: {e}")
     
+    async def collect_history_rewards(self):
+        latest_info = await self.client.get_latest_epoch()
+        current_epoch_id = latest_info["latest_epoch"]["index"]
+        logger.info(f"Collecting history rewards for all participants, current epoch: {current_epoch_id}")
+
+        total_saved = 0
+        for epoch_id in range(1, current_epoch_id):
+            epoch_data = await self.cache_db.get_epoch_status_data(epoch_id)
+            if not epoch_data:
+                logger.debug(f"Epoch {epoch_id}: no cached epoch_group_data, skipping")
+                continue
+
+            participants = [vw["member_address"] for vw in epoch_data.get("validation_weights", [])]
+            if not participants:
+                continue
+
+            rewards_batch = []
+            for participant_id in participants:
+                cached = await self.cache_db.get_reward(epoch_id, participant_id)
+                if cached:
+                    continue
+
+                try:
+                    summary = await self.client.get_epoch_performance_summary(
+                        epoch_id, participant_id
+                    )
+                    perf = summary.get("epochPerformanceSummary", {})
+                    rewarded_coins = perf.get("rewarded_coins", "0")
+                    claimed = perf.get("claimed", False)
+
+                    if int(rewarded_coins) > 0:
+                        rewards_batch.append({
+                            "epoch_id": epoch_id,
+                            "participant_id": participant_id,
+                            "rewarded_coins": rewarded_coins,
+                            "claimed": claimed,
+                        })
+                except Exception as e:
+                    logger.debug(f"Epoch {epoch_id} participant {participant_id}: failed to fetch rewards: {e}")
+
+            if rewards_batch:
+                await self.cache_db.save_reward_batch(rewards_batch)
+                total_saved += len(rewards_batch)
+
+            logger.info(f"Epoch {epoch_id}: {len(rewards_batch)} new rewards from {len(participants)} participants")
+
+        logger.info(f"History rewards collection complete: saved {total_saved} reward records")
+        
     async def collect_history_proposals(self):
         tallying_data = await self.client.get_tallying()
         if self.params_module_index is None:

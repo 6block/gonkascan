@@ -982,7 +982,7 @@ class CacheDB:
             
             query = """
                 SELECT * FROM participant_rewards
-                WHERE participant_id = ? AND epoch_id > 99
+                WHERE participant_id = ?
                 ORDER BY epoch_id DESC
             """
             
