@@ -1,3 +1,4 @@
+import re
 import asyncio
 import logging
 import time
@@ -2056,6 +2057,38 @@ class InferenceService:
                     results.append((role_prefix, obj))
         return results
     
+    @staticmethod
+    def _parse_finalize_transfers(height: int, events: list) -> list:
+        """Parse transfer events from finalize_block_events, excluding BeginBlock mint transfers."""
+        transfers = []
+        for evt in events:
+            if evt.get("type") != "transfer":
+                continue
+
+            attrs = {}
+            for attr in evt.get("attributes", []):
+                attrs[attr.get("key", "")] = attr.get("value", "")
+
+            if attrs.get("mode") in ("BeginBlock", "EndBlock"):
+                continue
+
+            recipient = attrs.get("recipient", "")
+            sender = attrs.get("sender", "")
+            amount_raw = attrs.get("amount", "")
+
+            if recipient and sender and amount_raw:
+                match = re.match(r"^(\d+)(.+)$", amount_raw)
+                if match:
+                    transfers.append({
+                        "height": height,
+                        "sender": sender,
+                        "recipient": recipient,
+                        "amount": match.group(1),
+                        "denom": match.group(2),
+                    })
+
+        return transfers
+    
     async def fetch_block_data(self, height):
         commit_signatures = []
         transactions = []
@@ -2133,6 +2166,9 @@ class InferenceService:
                         "value": attribute.get("value"),
                         "indexed": attribute.get("indexed"),
                     })        
+        finalize_events = result.get("finalize_block_events", []) or []
+        block_transfers = self._parse_finalize_transfers(height, finalize_events)
+
         return {
             "height": height,
             "block": [block],
@@ -2142,6 +2178,7 @@ class InferenceService:
             "participants": participants,
             "tx_results": transaction_results,
             "tx_events": transaction_events,
+            "block_transfers": block_transfers,
         }
     
     async def safe_fetch(self, height):
@@ -2178,6 +2215,7 @@ class InferenceService:
         block_results_batch = []
         transaction_results_batch = []
         transaction_events_batch = []
+        block_transfers_batch = []
 
         fetch_results = await asyncio.gather(
             *[self.safe_fetch(h) for h in range(start_height, end_height)]
@@ -2194,7 +2232,7 @@ class InferenceService:
         if commit_upto is None:
             logger.error("[Cache blocks] No contiguous block data to commit, skip")
             return
-        
+
         to_commits = [r for r in fetch_results if r["ok"] and r["height"] <= commit_upto]
         for work_result in to_commits:
             blocks_batch.extend(work_result["block"])
@@ -2204,6 +2242,7 @@ class InferenceService:
             block_results_batch.extend(work_result["block_result"])
             transaction_results_batch.extend(work_result["tx_results"])
             transaction_events_batch.extend(work_result["tx_events"])
+            block_transfers_batch.extend(work_result.get("block_transfers", []))
 
         try:
             logger.info(
@@ -2214,6 +2253,7 @@ class InferenceService:
                 f"block_results={len(block_results_batch)}, "
                 f"transaction_results={len(transaction_results_batch)}, "
                 f"transaction_events={len(transaction_events_batch)}, "
+                f"block_transfers={len(block_transfers_batch)}, "
             )
             await self.cache_db.save_block_full_batch(
                 blocks_batch,
@@ -2223,6 +2263,7 @@ class InferenceService:
                 block_results_batch,
                 transaction_results_batch,
                 transaction_events_batch,
+                block_transfers_batch,
             )
             logger.info(f"[Cache blocks] Batch block data saved successfully, to {commit_upto} count: {len(to_commits)}")
         except Exception as e:
@@ -2721,7 +2762,11 @@ class InferenceService:
         return transfers
 
     async def get_transfer_types_by_address(self, address: str) -> list:
-        return await self.cache_db.get_transfer_msg_types_by_address(address)
+        types = await self.cache_db.get_transfer_msg_types_by_address(address)
+        has_block_transfers = await self.cache_db.get_block_transfers_by_address(address, limit=1)
+        if has_block_transfers:
+            types = sorted(set(types) | {"PocReward"})
+        return types
 
     async def get_transfer_transactions_by_address(
         self, address: str, limit: int = 50,
@@ -2739,8 +2784,27 @@ class InferenceService:
             for msg in messages:
                 transfers.extend(self._extract_transfers_from_msg(msg, tx, status))
 
+        if not msg_type or msg_type == "PocReward":
+            bt_rows = await self.cache_db.get_block_transfers_by_address(
+                address, limit=limit, time_from=time_from, time_to=time_to,
+            )
+            for bt in bt_rows:
+                transfers.append(TransferTransaction(
+                    tx_hash="",
+                    height=bt["height"],
+                    msg_type="PocReward",
+                    from_address=bt["sender"],
+                    to_address=bt["recipient"],
+                    amount=[BalanceInfo(amount=bt["amount"], denom=bt["denom"])],
+                    status="success",
+                    timestamp=bt.get("timestamp"),
+                ))
+
         if msg_type:
             transfers = [t for t in transfers if t.msg_type == msg_type]
+
+        transfers.sort(key=lambda t: t.height, reverse=True)
+        transfers = transfers[:limit]
 
         return AddressTransfersResponse(
             address=address,

@@ -1,5 +1,6 @@
 import aiosqlite
 import json
+import asyncio
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
@@ -143,6 +144,32 @@ class CacheDB:
                     finalize_block_events_json TEXT,
                     validator_updates_json TEXT
                 )
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS block_transfers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    height BIGINT NOT NULL,
+                    sender TEXT NOT NULL,
+                    recipient TEXT NOT NULL,
+                    amount TEXT NOT NULL,
+                    denom TEXT NOT NULL
+                )
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_block_transfers_recipient
+                ON block_transfers(recipient, height DESC)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_block_transfers_sender
+                ON block_transfers(sender, height DESC)
+            """)
+
+            await db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_block_transfers_height
+                ON block_transfers(height)
             """)
 
             await db.execute("""
@@ -1570,6 +1597,23 @@ class CacheDB:
             for block_result in block_results
         ])
     
+    async def _save_block_transfers_batch(self, db, block_transfers: list[dict]):
+        if not block_transfers:
+            return
+        await db.executemany("""
+            INSERT INTO block_transfers (height, sender, recipient, amount, denom)
+            VALUES (?, ?, ?, ?, ?)
+        """, [
+            (
+                bt["height"],
+                bt["sender"],
+                bt["recipient"],
+                bt["amount"],
+                bt["denom"],
+            )
+            for bt in block_transfers
+        ])
+
     async def _save_transaction_results_batch(self, db, transaction_results: list[dict]):
         await db.executemany("""
             INSERT OR REPLACE INTO transaction_results (
@@ -1616,6 +1660,7 @@ class CacheDB:
         block_results_batch: list[dict],
         transaction_results_batch: list[dict],
         transaction_events_batch: list[dict],
+        block_transfers_batch: list[dict] = None,
     ):
         async with aiosqlite.connect(self.db_path) as db:
             try:
@@ -1634,6 +1679,9 @@ class CacheDB:
                 logger.info(f"Saved transaction_results data for {len(transaction_results_batch)}")
                 await self._save_transaction_events_batch(db, transaction_events_batch)
                 logger.info(f"Saved transaction_events data for {len(transaction_events_batch)}")
+                if block_transfers_batch:
+                    await self._save_block_transfers_batch(db, block_transfers_batch)
+                    logger.info(f"Saved block_transfers data for {len(block_transfers_batch)}")
                 await db.commit()
                 return True
 
@@ -1898,6 +1946,42 @@ class CacheDB:
                 JOIN blocks b ON sub.height = b.height
                 LEFT JOIN transaction_results tr ON t.hash = tr.transaction_hash
                 ORDER BY sub.height DESC
+            """
+
+            async with db.execute(query, params) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def get_block_transfers_by_address(
+        self, address: str, limit: int = 50, time_from: str = None, time_to: str = None
+    ) -> List[Dict[str, Any]]:
+        height_from = None
+        height_to = None
+        if time_from:
+            height_from = await self.get_height_by_time(time_from)
+        if time_to:
+            height_to = await self.get_height_by_time(time_to)
+
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+
+            conditions = ["(bt.recipient = ? OR bt.sender = ?)"]
+            params: list = [address, address]
+
+            if height_from is not None:
+                conditions.append("bt.height >= ?")
+                params.append(height_from)
+            if height_to is not None:
+                conditions.append("bt.height <= ?")
+                params.append(height_to)
+
+            params.append(limit)
+            where = " AND ".join(conditions)
+
+            query = f"""
+                SELECT bt.height, bt.sender, bt.recipient, bt.amount, bt.denom, b.time AS timestamp
+                FROM block_transfers bt JOIN blocks b ON bt.height = b.height
+                WHERE {where} ORDER BY bt.height DESC LIMIT ?
             """
 
             async with db.execute(query, params) as cursor:
@@ -2415,7 +2499,6 @@ class CacheDB:
     async def migrate_msg_types_background(self, batch_size: int = 2000, sleep_seconds: float = 5.0):
         """Background migration: update msg_types for MsgExec transactions and fix is_transfer flags.
         Runs slowly with sleep between batches to avoid blocking normal operations."""
-        import asyncio
         from collections import Counter
 
         def extract_msg_types(messages: list) -> list:
@@ -2503,4 +2586,69 @@ class CacheDB:
                 await asyncio.sleep(10)
 
         logger.info(f"Background migration complete: processed {total_processed}, msg_types updated {total_msg_updated}, transfers marked {total_transfer_marked}")
+
+    async def migrate_block_transfers(self, parse_fn, batch_size: int = 5000, sleep_seconds: float = 2.0):
+        """Backfill block_transfers from existing block_results.finalize_block_events_json.
+
+        Args:
+            parse_fn: callable(height, events) -> list[dict], provided by service layer.
+        """
+        total_inserted = 0
+        total_scanned = 0
+
+        logger.info("Block transfers migration started")
+
+        async with aiosqlite.connect(self.db_path) as db:
+            cursor = await db.execute("SELECT MAX(height) FROM block_results")
+            row = await cursor.fetchone()
+            max_height = row[0] if row and row[0] else None
+
+        if max_height is None:
+            logger.info("Block transfers migration: no block_results data, skipping")
+            return
+
+        last_height = 0
+        logger.info(f"Block transfers migration: scanning block_results up to height {max_height}")
+
+        while True:
+            try:
+                async with aiosqlite.connect(self.db_path) as db:
+                    db.row_factory = aiosqlite.Row
+
+                    cursor = await db.execute(
+                        """SELECT height, finalize_block_events_json FROM block_results
+                           WHERE height > ? AND height <= ?
+                           ORDER BY height ASC LIMIT ?""",
+                        (last_height, max_height, batch_size,)
+                    )
+                    rows = await cursor.fetchall()
+                    if not rows:
+                        break
+
+                    batch = []
+                    for row in rows:
+                        raw = row["finalize_block_events_json"] or ""
+                        if '"type": "transfer"' not in raw:
+                            continue
+                        events = json.loads(raw)
+                        transfers = parse_fn(row["height"], events)
+                        batch.extend(transfers)
+
+                    last_height = rows[-1]["height"]
+                    total_scanned += len(rows)
+
+                    if batch:
+                        await self._save_block_transfers_batch(db, batch)
+                        await db.commit()
+                        total_inserted += len(batch)
+
+                    logger.info(f"Block transfers migration: scanned {total_scanned} blocks (up to height {last_height}), inserted {total_inserted} transfers")
+
+                await asyncio.sleep(sleep_seconds)
+
+            except Exception as e:
+                logger.error(f"Block transfers migration error: {e}, retrying in 10s...")
+                await asyncio.sleep(10)
+
+        logger.info(f"Block transfers migration complete: {total_inserted} transfers inserted")
 
