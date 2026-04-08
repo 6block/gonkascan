@@ -1286,21 +1286,21 @@ class InferenceService:
         finally:
             self.cache_warming_in_progress = False
     
-    async def _calculate_and_cache_total_rewards(self, epoch_id: int):
+    async def _calculate_and_cache_total_rewards(self, epoch_id: int, force_update: bool = False):
         try:
             logger.info(f"Calculating total assigned rewards for epoch {epoch_id}")
-            
+
             epoch_data = await self.get_epoch_participants(epoch_id)
             participants = epoch_data["active_participants"]["participants"]
-            
+
             total_ugnk = 0
             fetched_count = 0
             rewards_batch = []
             participants_with_rewards = 0
-            
+
             for participant in participants:
                 participant_id = participant["index"]
-                
+
                 try:
                     summary = await self.client.get_epoch_performance_summary(
                         epoch_id,
@@ -1311,10 +1311,10 @@ class InferenceService:
                     rewarded_amount = int(rewarded_coins)
                     total_ugnk += rewarded_amount
                     fetched_count += 1
-                    
+
                     if rewarded_amount > 0:
                         participants_with_rewards += 1
-                    
+
                     rewards_batch.append({
                         "epoch_id": epoch_id,
                         "participant_id": participant_id,
@@ -1324,49 +1324,55 @@ class InferenceService:
                 except Exception as e:
                     logger.debug(f"Could not fetch reward for {participant_id} in epoch {epoch_id}: {e}")
                     continue
-            
+
             if total_ugnk == 0 and fetched_count > 0:
                 logger.warning(f"Epoch {epoch_id} rewards calculation returned 0 for all {fetched_count} participants - rewards may not be available yet, skipping cache")
                 return
-            
+
+            total_gnk = total_ugnk // 1_000_000_000
+
+            cached_total = await self.cache_db.get_epoch_total_rewards(epoch_id)
+            if cached_total is not None and cached_total >= total_gnk and not force_update:
+                logger.debug(f"Epoch {epoch_id} cached total ({cached_total} GNK) >= new total ({total_gnk} GNK), skipping update")
+                return
+
             if rewards_batch:
                 await self.cache_db.save_reward_batch(rewards_batch)
                 logger.debug(f"Cached {len(rewards_batch)} participant rewards during total calculation")
-            
-            total_gnk = total_ugnk // 1_000_000_000
-            
+
             await self.cache_db.save_epoch_total_rewards(epoch_id, total_gnk)
-            logger.info(f"Calculated and cached total rewards for epoch {epoch_id}: {total_gnk} GNK from {fetched_count}/{len(participants)} participants ({participants_with_rewards} with rewards)")
-            
+            if cached_total is not None and cached_total > 0:
+                logger.info(f"Updated total rewards for epoch {epoch_id}: {cached_total} -> {total_gnk} GNK from {fetched_count}/{len(participants)} participants ({participants_with_rewards} with rewards)")
+            else:
+                logger.info(f"Calculated and cached total rewards for epoch {epoch_id}: {total_gnk} GNK from {fetched_count}/{len(participants)} participants ({participants_with_rewards} with rewards)")
+
         except Exception as e:
             logger.error(f"Error calculating epoch total rewards for epoch {epoch_id}: {e}")
     
     async def poll_epoch_total_rewards(self):
         try:
             logger.info("Polling epoch total rewards")
-            
+
             latest_info = await self.client.get_latest_epoch()
             current_epoch_id = latest_info["latest_epoch"]["index"]
-            
+
             for offset in range(1, 6):
                 epoch_id = current_epoch_id - offset
                 if epoch_id <= 0:
                     continue
-                
+
                 cached_total = await self.cache_db.get_epoch_total_rewards(epoch_id)
-                if cached_total is not None and cached_total > 0:
-                    logger.debug(f"Epoch {epoch_id} total rewards already cached: {cached_total} GNK")
-                    continue
-                
+
                 if cached_total == 0:
                     logger.warning(f"Detected invalid cached total rewards (0 GNK) for epoch {epoch_id}, recalculating")
                     await self.cache_db.delete_epoch_total_rewards(epoch_id)
-                
-                logger.info(f"Calculating total rewards for epoch {epoch_id}")
+
+                # Always recalculate recent epochs — rewards may still be distributing on-chain
+                logger.info(f"Calculating total rewards for epoch {epoch_id} (cached: {cached_total} GNK)")
                 await self._calculate_and_cache_total_rewards(epoch_id)
-            
+
             logger.info("Completed epoch total rewards polling")
-            
+
         except Exception as e:
             logger.error(f"Error polling epoch total rewards: {e}")
     
@@ -3596,3 +3602,24 @@ class InferenceService:
                     logger.info(f"Updating proposal {proposal['id']} total_weight: {proposal['total_weight']} -> {new_total_weight}")
                     proposal["total_weight"] = new_total_weight
                     await self.cache_db.save_proposal(proposal)
+    
+    async def repair_all_epoch_total_rewards(self):
+        """One-time repair: recalculate total rewards for all historical epochs."""
+        try:
+            latest_info = await self.client.get_latest_epoch()
+            current_epoch_id = latest_info["latest_epoch"]["index"]
+
+            logger.info(f"Starting one-time repair of total rewards for epochs 1 to {current_epoch_id - 1}")
+
+            for epoch_id in range(1, current_epoch_id):
+                try:
+                    logger.info(f"Repairing total rewards for epoch {epoch_id}/{current_epoch_id - 1}")
+                    await self._calculate_and_cache_total_rewards(epoch_id)
+                except Exception as e:
+                    logger.error(f"Error repairing epoch {epoch_id}: {e}")
+                    continue
+
+            logger.info("Completed one-time repair of all epoch total rewards")
+
+        except Exception as e:
+            logger.error(f"Error during epoch total rewards repair: {e}")
