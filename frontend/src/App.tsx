@@ -17,6 +17,7 @@ import { AddressRoute } from './components/AddressRoute'
 import { Hardware } from './components/Hardware'
 import { Governance } from './components/Governance'
 import { GovernanceDetail } from './components/GovernanceDetail'
+import { ActiveProposals } from './components/ActiveProposals'
 import { MarketStats } from './components/MarketStats'
 import { Resource } from './components/Resource'
 import { BountyProgram } from './components/BountyProgram'
@@ -489,6 +490,7 @@ function App() {
             data && (
               <>
                 <MarketStats />
+                <ActiveProposals />
                 <div className="bg-white rounded-lg shadow-sm p-3 sm:p-4 md:p-6 mb-6 border border-gray-200">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3 sm:gap-4 mb-4">
                     <div className="col-span-2 sm:col-span-1">

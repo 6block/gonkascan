@@ -334,20 +334,56 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
       {/* Details */}
       {tab === 'details' && (
         <div className="space-y-6">
-          {/* Messages / Diff */}
-          <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-6">
-            {Array.isArray(diff_params) && updateMsgs.length > 0 && (
-              <>
-                {diff_params.map((msg, i) => (
-                  <MessageBlock key={`diff-${i}`} msg={msg} />
-                ))}
-              </>
+          {/* Description */}
+          <section className="bg-white border rounded-lg p-5 sm:p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <h3 className="text-sm font-semibold text-gray-500 tracking-wide uppercase">Description</h3>
+            </div>
+
+            {proposal.summary ? (
+              <p className="text-gray-700 text-sm sm:text-base leading-relaxed mb-4">
+                {proposal.summary}
+              </p>
+            ) : (
+              <p className="text-gray-400 text-sm italic mb-4">No description provided.</p>
             )}
 
-            {otherMsgs.map((msg, i) => (
-              <MessageBlock key={i} msg={msg} />
-            ))}
+            {proposal.metadata && proposal.metadata.trim() && (
+              <a
+                href={proposal.metadata.trim()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 transition text-sm font-medium"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                </svg>
+                View Related Documentation
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
+                </svg>
+              </a>
+            )}
           </section>
+
+          {/* Messages / Diff */}
+          {((Array.isArray(diff_params) && diff_params.length > 0) || updateMsgs.length > 0 || otherMsgs.length > 0) && (
+            <section className="bg-white border rounded-lg p-4 sm:p-6 space-y-6">
+              {Array.isArray(diff_params) && diff_params.length > 0 ? (
+                diff_params.map((msg, i) => (
+                  <MessageBlock key={`diff-${i}`} msg={msg} />
+                ))
+              ) : (
+                updateMsgs.map((msg, i) => (
+                  <MessageBlock key={`update-${i}`} msg={msg} />
+                ))
+              )}
+
+              {otherMsgs.map((msg, i) => (
+                <MessageBlock key={i} msg={msg} />
+              ))}
+            </section>
+          )}
 
           {/* Metadata (README) */}
           <ProposalMetadata

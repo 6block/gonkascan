@@ -36,8 +36,8 @@ export function MarketStats() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
-        <h2 className="text-lg font-semibold text-gray-900">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+        <h2 className="text-lg font-bold text-gray-900">
           Market & Token Data
         </h2>
 
@@ -52,7 +52,7 @@ export function MarketStats() {
       </div>
 
       {/* ===== Price + OrderBook ===== */}
-      <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200 mb-6 sm:mb-8">
+      <div className="bg-gray-50 rounded-lg p-3 sm:p-4 border border-gray-200 mb-4">
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
           {/* Price */}
           <div className="shrink-0 sm:min-w-[220px]">
