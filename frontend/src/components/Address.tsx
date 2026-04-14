@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { AddressTransactionsResponse, AssetsResponse } from '../types/inference'
+import { AssetsResponse } from '../types/inference'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
 import { TransfersTable } from './TransfersTable'
 import { TabBar } from './common/TabBar'
@@ -13,18 +13,18 @@ interface AddressProps {
 
 type TabType = 'transfers' | 'transactions'
 
+function getInitialTab(): TabType {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  if (tab === 'transfers' || tab === 'transactions') return tab
+  return 'transfers'
+}
+
 export function Address({ address }: AddressProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('transfers')
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab)
 
   const { data: assets, isLoading: assetsLoading } = useQuery<AssetsResponse>({
     queryKey: ['address-assets', address],
     queryFn: () => apiFetch(`/v1/address/assets/${address}`),
-    enabled: !!address,
-  })
-
-  const { data: transactions, isLoading: transactionsLoading, error: transactionsError} = useQuery<AddressTransactionsResponse>({
-    queryKey: ['address-transactions', address],
-    queryFn: () => apiFetch(`/v1/transactions/${address}`),
     enabled: !!address,
   })
 
@@ -99,11 +99,7 @@ export function Address({ address }: AddressProps) {
           )}
 
           {activeTab === 'transactions' && (
-            <AddressTransactionsTable
-              transactions={transactions}
-              isLoading={transactionsLoading}
-              error={transactionsError}
-            />
+            <AddressTransactionsTable address={address} />
           )}
         </div>
 

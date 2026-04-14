@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransfersResponse, TransferTransaction } from '../types/inference'
 import { toGonka, formatGNK, timeAgo, apiFetch, shortHash } from '../utils'
@@ -6,12 +6,15 @@ import { usePopover } from '../hooks/usePopover'
 import { FilterIcon } from './common/FilterIcon'
 import { FilterListPopover } from './common/FilterListPopover'
 import { FilterSearchPopover } from './common/FilterSearchPopover'
+import { LoadMoreBar } from './common/LoadMoreBar'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
 interface TransfersTableProps {
   address: string
 }
+
+const PAGE_SIZE = 20
 
 const DURATION_PRESETS = [
   { label: 'LAST 1H', hours: 1 },
@@ -38,6 +41,9 @@ function formatTransferAmount(tx: TransferTransaction, address: string) {
 }
 
 export function TransfersTable({ address }: TransfersTableProps) {
+  const [extraTransfers, setExtraTransfers] = useState<TransferTransaction[]>([])
+  const [loadingMore, setLoadingMore] = useState(false)
+
   const [msgType, setMsgType] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string | null>(null)
   const [timeFrom, setTimeFrom] = useState<string | null>(null)
@@ -53,17 +59,26 @@ export function TransfersTable({ address }: TransfersTableProps) {
   const fromPop = usePopover()
   const toPop = usePopover()
 
-  const queryParams = new URLSearchParams()
-  if (msgType) queryParams.set('msg_type', msgType)
-  if (timeFrom) queryParams.set('time_from', timeFrom)
-  if (timeTo) queryParams.set('time_to', timeTo)
-  const qs = queryParams.toString()
+  const buildQs = useCallback((customOffset: number) => {
+    const params = new URLSearchParams()
+    params.set('limit', String(PAGE_SIZE))
+    params.set('offset', String(customOffset))
+    if (msgType) params.set('msg_type', msgType)
+    if (timeFrom) params.set('time_from', timeFrom)
+    if (timeTo) params.set('time_to', timeTo)
+    return params.toString()
+  }, [msgType, timeFrom, timeTo])
 
-  const { data: transfers, isLoading, error } = useQuery<AddressTransfersResponse>({
+  const { data, isLoading, error } = useQuery<AddressTransfersResponse>({
     queryKey: ['address-transfers', address, msgType, timeFrom, timeTo],
-    queryFn: () => apiFetch(`/v1/transfers/${address}${qs ? '?' + qs : ''}`),
+    queryFn: () => apiFetch(`/v1/transfers/${address}?${buildQs(0)}`) as Promise<AddressTransfersResponse>,
     enabled: !!address,
   })
+
+  // Reset extra data when filters change (useQuery refetches the first page)
+  useEffect(() => {
+    setExtraTransfers([])
+  }, [msgType, timeFrom, timeTo])
 
   const { data: typesData } = useQuery<{ types: string[] }>({
     queryKey: ['address-transfer-types', address],
@@ -75,14 +90,33 @@ export function TransfersTable({ address }: TransfersTableProps) {
     (typesData?.types || []).map(t => ({ label: t, value: t })),
   [typesData])
 
+  const allTransfers = useMemo(() => {
+    if (!data) return []
+    return [...data.transfers, ...extraTransfers]
+  }, [data, extraTransfers])
+
+  const total = data?.total ?? 0
+
   const list = useMemo(() => {
-    if (!transfers) return []
-    let result = transfers.transfers
+    let result = allTransfers
     if (statusFilter) result = result.filter(t => t.status === statusFilter)
     if (appliedFromAddr) result = result.filter(t => t.from_address.toLowerCase().includes(appliedFromAddr.toLowerCase()))
     if (appliedToAddr) result = result.filter(t => t.to_address.toLowerCase().includes(appliedToAddr.toLowerCase()))
     return result
-  }, [transfers, statusFilter, appliedFromAddr, appliedToAddr])
+  }, [allTransfers, statusFilter, appliedFromAddr, appliedToAddr])
+
+  const handleLoadMore = useCallback(async () => {
+    setLoadingMore(true)
+    try {
+      const offset = (data?.transfers.length ?? 0) + extraTransfers.length
+      const result = await apiFetch(
+        `/v1/transfers/${address}?${buildQs(offset)}`
+      ) as AddressTransfersResponse
+      setExtraTransfers(prev => [...prev, ...result.transfers])
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [address, data, extraTransfers.length, buildQs])
 
   function applyPreset(hours: number) {
     const from = new Date(Date.now() - hours * 3600 * 1000)
@@ -117,7 +151,7 @@ export function TransfersTable({ address }: TransfersTableProps) {
 
   if (isLoading) return <LoadingScreen label="Loading transfers..." className="py-10" />
   if (error) return <ErrorScreen error={error} title="Failed to load transfers" className="py-10" />
-  if (!transfers || transfers.transfers.length === 0) {
+  if (allTransfers.length === 0) {
     return <div className="text-center py-6 sm:py-8 text-sm text-gray-400">No transfers found</div>
   }
 
@@ -215,6 +249,14 @@ export function TransfersTable({ address }: TransfersTableProps) {
           </tbody>
         </table>
       </div>
+
+      <LoadMoreBar
+        loaded={allTransfers.length}
+        total={total}
+        loading={loadingMore}
+        label="Transfers"
+        onLoadMore={handleLoadMore}
+      />
 
       <FilterListPopover popover={typePop} title="" options={typeOptions} selected={msgType} onSelect={setMsgType} />
       <FilterListPopover popover={statusPop} title="" options={STATUS_OPTIONS} selected={statusFilter} onSelect={setStatusFilter} width="w-32" />

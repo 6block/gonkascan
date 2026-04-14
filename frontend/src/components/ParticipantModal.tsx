@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, AssetsResponse, AddressTransactionsResponse } from '../types/inference'
+import { ParticipantDetailsResponse, ParticipantInferencesResponse, InferenceDetail, AssetsResponse } from '../types/inference'
 import { InferenceDetailModal } from './InferenceDetailModal'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
 import { TransfersTable } from './TransfersTable'
@@ -23,19 +23,19 @@ interface ParticipantModalProps {
 
 type TabType = 'details' | 'inferences' | 'transactions' | 'transfers'
 
+function getInitialTab(): TabType {
+  const tab = new URLSearchParams(window.location.search).get('tab')
+  if (tab === 'transfers' || tab === 'transactions' || tab === 'inferences' || tab === 'details') return tab
+  return 'details'
+}
+
 export function ParticipantModal({ participantId, epochId, currentEpochId }: ParticipantModalProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('details')
+  const [activeTab, setActiveTab] = useState<TabType>(getInitialTab)
   const [selectedInference, setSelectedInference] = useState<InferenceDetail | null>(null)
 
   const { data: assets } = useQuery<AssetsResponse>({
     queryKey: ['participant-assets', participantId],
     queryFn: () => apiFetch(`/v1/address/assets/${participantId}`),
-    enabled: !!participantId,
-  })
-
-  const { data: transactions, isLoading: transactionsLoading, error: transactionsError} = useQuery<AddressTransactionsResponse>({
-    queryKey: ['participant-transactions', participantId],
-    queryFn: () => apiFetch(`/v1/transactions/${participantId}`),
     enabled: !!participantId,
   })
 
@@ -64,7 +64,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
   useEffect(() => {
     setSelectedInference(null)
-    setActiveTab('details')
+    setActiveTab(getInitialTab())
     window.scrollTo(0, 0)
   }, [participantId])
 
@@ -78,13 +78,12 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
     const params = new URLSearchParams(window.location.search)
     params.delete('page')
     params.delete('participant')
-  
+
     const newUrl = params.toString()
       ? `${window.location.pathname}?${params.toString()}`
       : window.location.pathname
-  
+
     window.history.pushState({}, '', newUrl)
-  
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
@@ -484,11 +483,7 @@ export function ParticipantModal({ participantId, epochId, currentEpochId }: Par
 
         {activeTab === 'transactions' && (
           <div className="px-3 sm:px-4 md:px-6 py-4 space-y-6">
-            <AddressTransactionsTable
-              transactions={transactions}
-              isLoading={transactionsLoading}
-              error={transactionsError}
-            />
+            <AddressTransactionsTable address={participantId} />
           </div>
         )}
 

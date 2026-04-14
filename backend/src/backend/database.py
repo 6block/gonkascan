@@ -1857,7 +1857,17 @@ class CacheDB:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
-    async def get_transactions_by_address(self, address: str, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_transactions_by_address_count(self, address: str) -> int:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT COUNT(DISTINCT transaction_hash)
+                FROM transaction_participants
+                WHERE address = ?
+            """, (address,)) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else 0
+
+    async def get_transactions_by_address(self, address: str, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:
             db.row_factory = aiosqlite.Row
 
@@ -1869,13 +1879,13 @@ class CacheDB:
                     FROM transaction_participants
                     WHERE address = ?
                     ORDER BY height DESC
-                    LIMIT ?
+                    LIMIT ? OFFSET ?
                 ) tp
                 JOIN transactions t ON tp.transaction_hash = t.hash
                 JOIN blocks b ON tp.height = b.height
                 LEFT JOIN transaction_results tr ON t.hash = tr.transaction_hash
                 ORDER BY tp.height DESC
-            """, (address, limit)) as cursor:
+            """, (address, limit, offset)) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
 
@@ -1905,7 +1915,7 @@ class CacheDB:
                 return sorted(types)
 
     async def get_transfer_transactions_by_address(
-        self, address: str, limit: int = 50,
+        self, address: str, limit: int = 50, offset: int = 0,
         time_from: str = None, time_to: str = None,
     ) -> List[Dict[str, Any]]:
         height_from = None
@@ -1928,7 +1938,7 @@ class CacheDB:
                 conditions.append("height <= ?")
                 params.append(height_to)
 
-            params.append(limit)
+            params.extend([limit, offset])
             where = " AND ".join(conditions)
 
             query = f"""
@@ -1940,7 +1950,7 @@ class CacheDB:
                     FROM transaction_participants
                     WHERE {where}
                     ORDER BY height DESC
-                    LIMIT ?
+                    LIMIT ? OFFSET ?
                 ) sub
                 JOIN transactions t ON sub.transaction_hash = t.hash
                 JOIN blocks b ON sub.height = b.height
@@ -1953,7 +1963,8 @@ class CacheDB:
                 return [dict(row) for row in rows]
 
     async def get_block_transfers_by_address(
-        self, address: str, limit: int = 50, time_from: str = None, time_to: str = None
+        self, address: str, limit: int = 50, offset: int = 0,
+        time_from: str = None, time_to: str = None
     ) -> List[Dict[str, Any]]:
         height_from = None
         height_to = None
@@ -1975,13 +1986,13 @@ class CacheDB:
                 conditions.append("bt.height <= ?")
                 params.append(height_to)
 
-            params.append(limit)
+            params.extend([limit, offset])
             where = " AND ".join(conditions)
 
             query = f"""
                 SELECT bt.height, bt.sender, bt.recipient, bt.amount, bt.denom, b.time AS timestamp
                 FROM block_transfers bt JOIN blocks b ON bt.height = b.height
-                WHERE {where} ORDER BY bt.height DESC LIMIT ?
+                WHERE {where} ORDER BY bt.height DESC LIMIT ? OFFSET ?
             """
 
             async with db.execute(query, params) as cursor:

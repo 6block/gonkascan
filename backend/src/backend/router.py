@@ -306,12 +306,16 @@ async def get_transactions():
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
 
 @router.get("/transactions/{address}", response_model=AddressTransactionsResponse)
-async def get_transactions(address: str):
+async def get_transactions(
+    address: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+):
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
 
     try:
-        return await inference_service.get_transaction_by_address(address)
+        return await inference_service.get_transaction_by_address(address, limit=limit, offset=offset)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
 
@@ -319,6 +323,8 @@ async def get_transactions(address: str):
 @router.get("/transfers/{address}", response_model=AddressTransfersResponse)
 async def get_transfers(
     address: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     msg_type: Optional[str] = Query(None),
     time_from: Optional[str] = Query(None),
     time_to: Optional[str] = Query(None),
@@ -328,7 +334,8 @@ async def get_transfers(
 
     try:
         return await inference_service.get_transfer_transactions_by_address(
-            address, msg_type=msg_type, time_from=time_from, time_to=time_to
+            address, limit=limit, offset=offset,
+            msg_type=msg_type, time_from=time_from, time_to=time_to
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch transfers: {str(e)}")

@@ -2669,8 +2669,9 @@ class InferenceService:
                 epoch_amounts=[]
             )
 
-    async def get_transaction_by_address(self, address: str, limit: int = 50) -> AddressTransactionsResponse:
-        tx_rows = await self.cache_db.get_transactions_by_address(address, limit=limit)
+    async def get_transaction_by_address(self, address: str, limit: int = 20, offset: int = 0) -> AddressTransactionsResponse:
+        total = await self.cache_db.get_transactions_by_address_count(address)
+        tx_rows = await self.cache_db.get_transactions_by_address(address, limit=limit, offset=offset)
 
         transactions = []
         for tx in tx_rows:
@@ -2686,7 +2687,7 @@ class InferenceService:
 
         return AddressTransactionsResponse(
             address=address,
-            total=len(transactions),
+            total=total,
             transactions=transactions,
         )
     
@@ -2802,11 +2803,13 @@ class InferenceService:
         return types
 
     async def get_transfer_transactions_by_address(
-        self, address: str, limit: int = 50,
+        self, address: str, limit: int = 20, offset: int = 0,
         msg_type: str = None, time_from: str = None, time_to: str = None,
     ) -> AddressTransfersResponse:
+        # Fetch all matching transfers (we need to merge two sources before slicing)
+        large_limit = 10000
         tx_rows = await self.cache_db.get_transfer_transactions_by_address(
-            address, limit=limit, time_from=time_from, time_to=time_to,
+            address, limit=large_limit, offset=0, time_from=time_from, time_to=time_to,
         )
 
         transfers = []
@@ -2819,7 +2822,7 @@ class InferenceService:
 
         if not msg_type or msg_type == "PocReward":
             bt_rows = await self.cache_db.get_block_transfers_by_address(
-                address, limit=limit, time_from=time_from, time_to=time_to,
+                address, limit=large_limit, offset=0, time_from=time_from, time_to=time_to,
             )
             for bt in bt_rows:
                 transfers.append(TransferTransaction(
@@ -2837,11 +2840,13 @@ class InferenceService:
             transfers = [t for t in transfers if t.msg_type == msg_type]
 
         transfers.sort(key=lambda t: t.height, reverse=True)
-        transfers = transfers[:limit]
+
+        total = len(transfers)
+        transfers = transfers[offset:offset + limit]
 
         return AddressTransfersResponse(
             address=address,
-            total=len(transfers),
+            total=total,
             transfers=transfers,
         )
 
