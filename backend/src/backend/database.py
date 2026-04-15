@@ -2490,6 +2490,24 @@ class CacheDB:
                 row = await cursor.fetchone()
                 return row if row else None
 
+    async def _get_migration_progress(self, db, name: str) -> int:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS migration_progress (
+                task_name TEXT PRIMARY KEY,
+                last_completed_height BIGINT NOT NULL DEFAULT 0
+            )
+        """)
+        cursor = await db.execute(
+            "SELECT last_completed_height FROM migration_progress WHERE task_name = ?", (name,))
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+    async def _set_migration_progress(self, db, name: str, height: int):
+        await db.execute("""
+            INSERT INTO migration_progress (task_name, last_completed_height) VALUES (?, ?)
+            ON CONFLICT(task_name) DO UPDATE SET last_completed_height = ?
+        """, (name, height, height))
+
     async def migrate_transfer_flags(self):
         """Mark is_transfer on transaction_participants using pure SQL. Fast (minutes)."""
         async with aiosqlite.connect(self.db_path) as db:
@@ -2507,9 +2525,9 @@ class CacheDB:
             await db.commit()
             logger.info(f"Migration step 1 complete: marked {changes} participant rows as is_transfer=1")
 
-    async def migrate_msg_types_background(self, batch_size: int = 2000, sleep_seconds: float = 5.0):
+    async def migrate_msg_types_background(self, batch_size: int = 5000, sleep_seconds: float = 1.0):
         """Background migration: update msg_types for MsgExec transactions and fix is_transfer flags.
-        Runs slowly with sleep between batches to avoid blocking normal operations."""
+        Scans by height range using idx_transactions_height index."""
         from collections import Counter
 
         def extract_msg_types(messages: list) -> list:
@@ -2537,25 +2555,42 @@ class CacheDB:
             return msg_types
 
         TRANSFER_KEYWORDS = ('Send', 'Transfer')
+        migration_name = "migrate_msg_types"
+
+        async with aiosqlite.connect(self.db_path) as db:
+            last_height = await self._get_migration_progress(db, migration_name)
+            cursor = await db.execute("SELECT MAX(height) FROM transactions")
+            row = await cursor.fetchone()
+            max_height = row[0] if row and row[0] else None
+
+        if max_height is None:
+            logger.info("msg_types migration: no transactions data, skipping")
+            return
+
+        if last_height >= max_height:
+            logger.info(f"msg_types migration already complete (up to {last_height}), skipping")
+            return
 
         total_processed = 0
         total_msg_updated = 0
         total_transfer_marked = 0
 
-        logger.info("Background migration started: msg_types + is_transfer fix")
+        logger.info(f"msg_types migration started: from height {last_height} to {max_height}")
 
-        while True:
+        while last_height < max_height:
             try:
+                batch_end = min(last_height + batch_size, max_height)
+
                 async with aiosqlite.connect(self.db_path) as db:
                     db.row_factory = aiosqlite.Row
 
-                    cursor = await db.execute(
-                        "SELECT hash, messages_json, msg_types FROM transactions WHERE msg_types LIKE '%Exec%' AND msg_types NOT LIKE '%>%' LIMIT ?",
-                        (batch_size,)
-                    )
+                    cursor = await db.execute("""
+                        SELECT hash, messages_json, msg_types FROM transactions
+                        WHERE height > ? AND height <= ?
+                          AND msg_types LIKE '%Exec%'
+                          AND msg_types NOT LIKE '%>%'
+                    """, (last_height, batch_end))
                     rows = await cursor.fetchall()
-                    if not rows:
-                        break
 
                     total_processed += len(rows)
 
@@ -2567,10 +2602,11 @@ class CacheDB:
                         new_types = extract_msg_types(messages)
                         new_types_str = json.dumps(new_types)
 
-                        msg_updates.append((new_types_str, row["hash"]))
+                        if new_types_str != row["msg_types"]:
+                            msg_updates.append((new_types_str, row["hash"]))
 
-                        if any(kw in new_types_str for kw in TRANSFER_KEYWORDS):
-                            transfer_hashes.append(row["hash"])
+                            if any(kw in new_types_str for kw in TRANSFER_KEYWORDS):
+                                transfer_hashes.append(row["hash"])
 
                     if msg_updates:
                         await db.executemany(
@@ -2586,17 +2622,19 @@ class CacheDB:
                         )
                         total_transfer_marked += len(transfer_hashes)
 
+                    await self._set_migration_progress(db, migration_name, batch_end)
                     await db.commit()
                     total_msg_updated += len(msg_updates)
+                    last_height = batch_end
 
-                logger.info(f"Background migration: processed {total_processed}, msg_types updated {total_msg_updated}, transfers marked {total_transfer_marked}")
+                logger.info(f"msg_types migration: height {last_height}/{max_height}, processed {total_processed}, updated {total_msg_updated}, transfers marked {total_transfer_marked}")
                 await asyncio.sleep(sleep_seconds)
 
             except Exception as e:
-                logger.error(f"Background migration error: {e}, retrying in 10s...")
+                logger.error(f"msg_types migration error at height {last_height}: {e}, retrying in 10s...")
                 await asyncio.sleep(10)
 
-        logger.info(f"Background migration complete: processed {total_processed}, msg_types updated {total_msg_updated}, transfers marked {total_transfer_marked}")
+        logger.info(f"msg_types migration complete: processed {total_processed}, updated {total_msg_updated}, transfers marked {total_transfer_marked}")
 
     async def migrate_block_transfers(self, parse_fn, batch_size: int = 5000, sleep_seconds: float = 2.0):
         """Backfill block_transfers from existing block_results.finalize_block_events_json.
