@@ -2110,14 +2110,70 @@ class InferenceService:
                 if match:
                     transfers.append({
                         "height": height,
+                        "tx_hash": "",
+                        "msg_type": "PocReward",
                         "sender": sender,
                         "recipient": recipient,
-                        "amount": match.group(1),
-                        "denom": match.group(2),
+                        "amount_json": json.dumps([{"amount": match.group(1), "denom": match.group(2)}]),
+                        "status": "success",
                     })
 
         return transfers
-    
+
+    @staticmethod
+    def _extract_transfer_records(msg: dict, height: int, tx_hash: str, status: str) -> list:
+        records = []
+        at_type = msg.get("@type", "")
+        msg_type_str = at_type.split(".")[-1].replace("Msg", "")
+
+        if "MsgMultiSend" in at_type:
+            inputs = msg.get("inputs", [])
+            outputs = msg.get("outputs", [])
+            from_addr = inputs[0].get("address", "") if inputs else ""
+            for output in outputs:
+                coins = [{"amount": c.get("amount", "0"), "denom": c.get("denom", "")} for c in output.get("coins", [])]
+                records.append({
+                    "height": height, "tx_hash": tx_hash, "msg_type": msg_type_str,
+                    "sender": from_addr, "recipient": output.get("address", ""),
+                    "amount_json": json.dumps(coins), "status": status,
+                })
+        elif "MsgSend" in at_type:
+            coins = [{"amount": c.get("amount", "0"), "denom": c.get("denom", "")} for c in msg.get("amount", [])]
+            records.append({
+                "height": height, "tx_hash": tx_hash, "msg_type": msg_type_str,
+                "sender": msg.get("from_address", ""), "recipient": msg.get("to_address", ""),
+                "amount_json": json.dumps(coins), "status": status,
+            })
+        elif "MsgBatchTransferWithVesting" in at_type:
+            sender = msg.get("sender", "")
+            for output in msg.get("outputs", []):
+                coins = [{"amount": c.get("amount", "0"), "denom": c.get("denom", "")} for c in output.get("amount", [])]
+                records.append({
+                    "height": height, "tx_hash": tx_hash, "msg_type": msg_type_str,
+                    "sender": sender, "recipient": output.get("recipient", ""),
+                    "amount_json": json.dumps(coins), "status": status,
+                })
+        elif "MsgTransferWithVesting" in at_type:
+            coins = [{"amount": c.get("amount", "0"), "denom": c.get("denom", "")} for c in msg.get("amount", [])]
+            records.append({
+                "height": height, "tx_hash": tx_hash, "msg_type": msg_type_str,
+                "sender": msg.get("sender", ""), "recipient": msg.get("recipient", ""),
+                "amount_json": json.dumps(coins), "status": status,
+            })
+        elif "MsgTransfer" in at_type and "Ownership" not in at_type:
+            token = msg.get("token", {})
+            coins = [{"amount": token.get("amount", "0"), "denom": token.get("denom", "")}]
+            records.append({
+                "height": height, "tx_hash": tx_hash, "msg_type": msg_type_str,
+                "sender": msg.get("sender", ""), "recipient": msg.get("receiver", ""),
+                "amount_json": json.dumps(coins), "status": status,
+            })
+        elif "MsgExec" in at_type:
+            for inner_msg in msg.get("msgs", []):
+                records.extend(InferenceService._extract_transfer_records(inner_msg, height, tx_hash, status))
+
+        return records
+
     async def fetch_block_data(self, height):
         commit_signatures = []
         transactions = []
@@ -2196,7 +2252,19 @@ class InferenceService:
                         "indexed": attribute.get("indexed"),
                     })        
         finalize_events = result.get("finalize_block_events", []) or []
-        block_transfers = self._parse_finalize_transfers(height, finalize_events)
+        transfers = self._parse_finalize_transfers(height, finalize_events)
+
+        tx_code_map = {}
+        for tr_result in transaction_results:
+            tx_code_map[tr_result["transaction_hash"]] = tr_result.get("code", 0)
+
+        for tx in transactions:
+            tx_hash = tx["hash"]
+            code = tx_code_map.get(tx_hash, 0)
+            status = "success" if code == 0 else "failed"
+            messages = tx["body"].get("messages", [])
+            for msg in messages:
+                transfers.extend(self._extract_transfer_records(msg, height, tx_hash, status))
 
         return {
             "height": height,
@@ -2207,7 +2275,7 @@ class InferenceService:
             "participants": participants,
             "tx_results": transaction_results,
             "tx_events": transaction_events,
-            "block_transfers": block_transfers,
+            "transfers": transfers,
         }
     
     async def safe_fetch(self, height):
@@ -2244,7 +2312,7 @@ class InferenceService:
         block_results_batch = []
         transaction_results_batch = []
         transaction_events_batch = []
-        block_transfers_batch = []
+        transfers_batch = []
 
         fetch_results = await asyncio.gather(
             *[self.safe_fetch(h) for h in range(start_height, end_height)]
@@ -2271,7 +2339,7 @@ class InferenceService:
             block_results_batch.extend(work_result["block_result"])
             transaction_results_batch.extend(work_result["tx_results"])
             transaction_events_batch.extend(work_result["tx_events"])
-            block_transfers_batch.extend(work_result.get("block_transfers", []))
+            transfers_batch.extend(work_result.get("transfers", []))
 
         try:
             logger.info(
@@ -2282,7 +2350,7 @@ class InferenceService:
                 f"block_results={len(block_results_batch)}, "
                 f"transaction_results={len(transaction_results_batch)}, "
                 f"transaction_events={len(transaction_events_batch)}, "
-                f"block_transfers={len(block_transfers_batch)}, "
+                f"transfers={len(transfers_batch)}, "
             )
             await self.cache_db.save_block_full_batch(
                 blocks_batch,
@@ -2292,7 +2360,7 @@ class InferenceService:
                 block_results_batch,
                 transaction_results_batch,
                 transaction_events_batch,
-                block_transfers_batch,
+                transfers_batch,
             )
             logger.info(f"[Cache blocks] Batch block data saved successfully, to {commit_upto} count: {len(to_commits)}")
         except Exception as e:
@@ -2716,133 +2784,31 @@ class InferenceService:
                 msg_types.append(type_name)
         return msg_types
 
-    def _extract_transfers_from_msg(self, msg: dict, tx: dict, status: str) -> list:
-        transfers = []
-        at_type = msg.get("@type", "")
-        msg_type_str = at_type.split(".")[-1].replace("Msg", "")
-
-        if "MsgMultiSend" in at_type:
-            inputs = msg.get("inputs", [])
-            outputs = msg.get("outputs", [])
-            from_addr = inputs[0].get("address", "") if inputs else ""
-            for output in outputs:
-                to_addr = output.get("address", "")
-                coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in output.get("coins", [])]
-                transfers.append(TransferTransaction(
-                    tx_hash=tx["tx_hash"],
-                    height=tx["height"],
-                    msg_type=msg_type_str,
-                    from_address=from_addr,
-                    to_address=to_addr,
-                    amount=coins,
-                    status=status,
-                    timestamp=tx["timestamp"],
-                ))
-        elif "MsgSend" in at_type:
-            coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in msg.get("amount", [])]
-            transfers.append(TransferTransaction(
-                tx_hash=tx["tx_hash"],
-                height=tx["height"],
-                msg_type=msg_type_str,
-                from_address=msg.get("from_address", ""),
-                to_address=msg.get("to_address", ""),
-                amount=coins,
-                status=status,
-                timestamp=tx["timestamp"],
-            ))
-        elif "MsgBatchTransferWithVesting" in at_type:
-            sender = msg.get("sender", "")
-            for output in msg.get("outputs", []):
-                coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in output.get("amount", [])]
-                transfers.append(TransferTransaction(
-                    tx_hash=tx["tx_hash"],
-                    height=tx["height"],
-                    msg_type=msg_type_str,
-                    from_address=sender,
-                    to_address=output.get("recipient", ""),
-                    amount=coins,
-                    status=status,
-                    timestamp=tx["timestamp"],
-                ))
-        elif "MsgTransferWithVesting" in at_type:
-            coins = [BalanceInfo(amount=a.get("amount", "0"), denom=a.get("denom", "")) for a in msg.get("amount", [])]
-            transfers.append(TransferTransaction(
-                tx_hash=tx["tx_hash"],
-                height=tx["height"],
-                msg_type=msg_type_str,
-                from_address=msg.get("sender", ""),
-                to_address=msg.get("recipient", ""),
-                amount=coins,
-                status=status,
-                timestamp=tx["timestamp"],
-            ))
-        elif "MsgTransfer" in at_type and "Ownership" not in at_type:
-            token = msg.get("token", {})
-            coins = [BalanceInfo(amount=token.get("amount", "0"), denom=token.get("denom", ""))]
-            transfers.append(TransferTransaction(
-                tx_hash=tx["tx_hash"],
-                height=tx["height"],
-                msg_type=msg_type_str,
-                from_address=msg.get("sender", ""),
-                to_address=msg.get("receiver", ""),
-                amount=coins,
-                status=status,
-                timestamp=tx["timestamp"],
-            ))
-        elif "MsgExec" in at_type:
-            for inner_msg in msg.get("msgs", []):
-                transfers.extend(self._extract_transfers_from_msg(inner_msg, tx, status))
-
-        return transfers
-
     async def get_transfer_types_by_address(self, address: str) -> list:
-        types = await self.cache_db.get_transfer_msg_types_by_address(address)
-        has_block_transfers = await self.cache_db.get_block_transfers_by_address(address, limit=1)
-        if has_block_transfers:
-            types = sorted(set(types) | {"PocReward"})
-        return types
+        return await self.cache_db.get_transfer_types_by_address(address)
 
     async def get_transfer_transactions_by_address(
         self, address: str, limit: int = 20, offset: int = 0,
         msg_type: str = None, time_from: str = None, time_to: str = None,
     ) -> AddressTransfersResponse:
-        # Fetch all matching transfers (we need to merge two sources before slicing)
-        large_limit = 10000
-        tx_rows = await self.cache_db.get_transfer_transactions_by_address(
-            address, limit=large_limit, offset=0, time_from=time_from, time_to=time_to,
+        rows, total = await self.cache_db.get_transfers_by_address(
+            address, limit=limit, offset=offset,
+            msg_type=msg_type, time_from=time_from, time_to=time_to,
         )
 
-        transfers = []
-        for tx in tx_rows:
-            messages = json.loads(tx["messages_json"]) if tx["messages_json"] else []
-            status = "success" if tx["code"] == 0 else "failed"
-
-            for msg in messages:
-                transfers.extend(self._extract_transfers_from_msg(msg, tx, status))
-
-        if not msg_type or msg_type == "PocReward":
-            bt_rows = await self.cache_db.get_block_transfers_by_address(
-                address, limit=large_limit, offset=0, time_from=time_from, time_to=time_to,
+        transfers = [
+            TransferTransaction(
+                tx_hash=row["tx_hash"],
+                height=row["height"],
+                msg_type=row["msg_type"],
+                from_address=row["sender"],
+                to_address=row["recipient"],
+                amount=[BalanceInfo(amount=c["amount"], denom=c["denom"]) for c in json.loads(row["amount_json"])],
+                status=row["status"],
+                timestamp=row.get("timestamp"),
             )
-            for bt in bt_rows:
-                transfers.append(TransferTransaction(
-                    tx_hash="",
-                    height=bt["height"],
-                    msg_type="PocReward",
-                    from_address=bt["sender"],
-                    to_address=bt["recipient"],
-                    amount=[BalanceInfo(amount=bt["amount"], denom=bt["denom"])],
-                    status="success",
-                    timestamp=bt.get("timestamp"),
-                ))
-
-        if msg_type:
-            transfers = [t for t in transfers if t.msg_type == msg_type]
-
-        transfers.sort(key=lambda t: t.height, reverse=True)
-
-        total = len(transfers)
-        transfers = transfers[offset:offset + limit]
+            for row in rows
+        ]
 
         return AddressTransfersResponse(
             address=address,
