@@ -352,6 +352,76 @@
     animation: gradient-pan 8s ease infinite;
   }
 
+  /* Animated mesh-style background — pure CSS replacement for the WebGL shader.
+     Three over-sized layers of multi-stop radial gradients drift on the
+     compositor (transform-only, no paint/layout) at ~5% GPU cost of a fragment
+     shader. The three layers run at different periods + opposite directions so
+     the visible "color clouds" weave past each other instead of moving in
+     lockstep, which is what reads as a richer animation. */
+  .mesh-bg {
+    position: fixed;
+    inset: -15%;
+    z-index: -10;
+    pointer-events: none;
+    will-change: transform;
+    background:
+      radial-gradient(42% 38% at 18% 22%, rgba(62, 229, 177, 0.34), transparent 60%),
+      radial-gradient(48% 42% at 82% 18%, rgba(124, 92, 240, 0.28), transparent 62%),
+      radial-gradient(52% 48% at 70% 80%, rgba(212, 175, 122, 0.22), transparent 65%),
+      radial-gradient(48% 42% at 25% 78%, rgba(56, 122, 240, 0.28), transparent 62%);
+    animation: mesh-drift-a 18s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite alternate;
+  }
+  /* Mid-layer: brighter accent blobs traveling along a different path. */
+  .mesh-bg::before {
+    content: '';
+    position: absolute;
+    inset: -5%;
+    background:
+      radial-gradient(30% 28% at 50% 50%, rgba(78, 233, 187, 0.22), transparent 60%),
+      radial-gradient(28% 26% at 15% 60%, rgba(94, 234, 212, 0.18), transparent 65%),
+      radial-gradient(32% 30% at 88% 40%, rgba(140, 110, 255, 0.20), transparent 60%);
+    will-change: transform;
+    animation: mesh-drift-c 14s cubic-bezier(0.45, 0.05, 0.55, 0.95) -4s infinite alternate;
+  }
+  /* Deep-tone layer counter-drifting to anchor the lighter blobs. */
+  .mesh-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(40% 35% at 60% 30%, rgba(28, 77, 62, 0.42), transparent 65%),
+      radial-gradient(45% 40% at 35% 65%, rgba(15, 26, 46, 0.48), transparent 65%);
+    will-change: transform;
+    animation: mesh-drift-b 22s cubic-bezier(0.45, 0.05, 0.55, 0.95) -7s infinite alternate;
+  }
+  /* Multi-stop keyframes trace a wandering path instead of a straight A↔B
+     line, so two snapshots a few seconds apart look noticeably different. */
+  @keyframes mesh-drift-a {
+    0%   { transform: translate3d(0,       0,      0) scale(1);    }
+    25%  { transform: translate3d(-4%,     2.5%,   0) scale(1.06); }
+    50%  { transform: translate3d(-1.5%,   -3.5%,  0) scale(1.10); }
+    75%  { transform: translate3d(3.5%,    -1%,    0) scale(1.04); }
+    100% { transform: translate3d(2%,      3%,     0) scale(1.08); }
+  }
+  @keyframes mesh-drift-b {
+    0%   { transform: translate3d(0,       0,      0) scale(1.02); }
+    25%  { transform: translate3d(3%,      -2%,    0) scale(1.06); }
+    50%  { transform: translate3d(1.5%,    2.5%,   0) scale(1);    }
+    75%  { transform: translate3d(-3%,     1%,     0) scale(1.04); }
+    100% { transform: translate3d(-1.5%,   -2.5%,  0) scale(1.08); }
+  }
+  @keyframes mesh-drift-c {
+    0%   { transform: translate3d(0,       0,      0) scale(1);    }
+    33%  { transform: translate3d(5%,      -3%,    0) scale(1.12); }
+    66%  { transform: translate3d(-4.5%,   2%,     0) scale(0.96); }
+    100% { transform: translate3d(2.5%,    4%,     0) scale(1.08); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .mesh-bg,
+    .mesh-bg::before,
+    .mesh-bg::after { animation: none; }
+  }
+
   /* Hero block — driven by the `--scroll-progress` CSS var (set on <html> by useScrolled).
      Using CSS calc + transform keeps the scroll-coupled fade on the compositor so
      React doesn't re-render the whole app tree on every wheel tick. */
