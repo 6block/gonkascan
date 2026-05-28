@@ -1,26 +1,29 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Toaster, toast } from 'react-hot-toast'
 import { InferenceResponse } from './types/inference'
 import { ParticipantTable } from './components/ParticipantTable'
-import { Timeline } from './components/Timeline'
-import { Models } from './components/Models'
 import { EpochTimer } from './components/EpochTimer'
-import { Blocks } from './components/Blocks'
 import LoadingScreen from './components/common/LoadingScreen'
 import ErrorScreen from './components/common/ErrorScreen'
-import { BlockDetail } from './components/BlockDetail'
-import { Transactions } from './components/Transactions'
-import { TransactionDetail } from './components/TransactionDetail'
-import { ParticipantMap } from './components/ParticipantMap'
-import { AddressRoute } from './components/AddressRoute'
-import { Hardware } from './components/Hardware'
-import { Governance } from './components/Governance'
-import { GovernanceDetail } from './components/GovernanceDetail'
 import { ActiveProposals } from './components/ActiveProposals'
 import { MarketStats } from './components/MarketStats'
-import { Resource } from './components/Resource'
-import { BountyProgram } from './components/BountyProgram'
+
+// Non-dashboard pages are lazy-loaded so they don't bloat the critical bundle
+// (recharts, d3, react-markdown, react-json-view, etc. all hide behind these).
+const Timeline = lazy(() => import('./components/Timeline').then(m => ({ default: m.Timeline })))
+const Models = lazy(() => import('./components/Models').then(m => ({ default: m.Models })))
+const Blocks = lazy(() => import('./components/Blocks').then(m => ({ default: m.Blocks })))
+const BlockDetail = lazy(() => import('./components/BlockDetail').then(m => ({ default: m.BlockDetail })))
+const Transactions = lazy(() => import('./components/Transactions').then(m => ({ default: m.Transactions })))
+const TransactionDetail = lazy(() => import('./components/TransactionDetail').then(m => ({ default: m.TransactionDetail })))
+const ParticipantMap = lazy(() => import('./components/ParticipantMap').then(m => ({ default: m.ParticipantMap })))
+const AddressRoute = lazy(() => import('./components/AddressRoute').then(m => ({ default: m.AddressRoute })))
+const Hardware = lazy(() => import('./components/Hardware').then(m => ({ default: m.Hardware })))
+const Governance = lazy(() => import('./components/Governance').then(m => ({ default: m.Governance })))
+const GovernanceDetail = lazy(() => import('./components/GovernanceDetail').then(m => ({ default: m.GovernanceDetail })))
+const Resource = lazy(() => import('./components/Resource').then(m => ({ default: m.Resource })))
+const BountyProgram = lazy(() => import('./components/BountyProgram').then(m => ({ default: m.BountyProgram })))
 import { StatItem } from './components/common/StatItem'
 import { EpochIdDisplay } from './components/common/EpochIdDisplay'
 import { RefreshControlFooter } from './components/common/RefreshControlFooter'
@@ -78,7 +81,7 @@ function App() {
   const [selectedHardware, setSelectedHardware] = useState<string>('ALL')
 
   const { prefetchAll } = usePrefetch()
-  const { scrolled, progress: scrollProgress } = useScrolled(8, 140)
+  const { scrolled } = useScrolled(8, 140)
 
   const { data, isLoading, error, refetch, dataUpdatedAt } = useQuery<InferenceResponse>({
     queryKey: ['inference', selectedEpochId === null ? 'current' : selectedEpochId],
@@ -374,10 +377,6 @@ function App() {
     return <ErrorScreen error={error} onRetry={handleRefresh} />
   }
 
-  // Header opacity ramp
-  const headerInnerScale = 1 - 0.04 * scrollProgress
-  const heroFadeOpacity = 1 - scrollProgress * 0.6
-
   return (
     <>
       <Toaster
@@ -424,11 +423,9 @@ function App() {
           }`}
         >
           <div
-            className="mx-auto w-full max-w-[1440px] px-3 sm:px-6 md:px-8 transition-all duration-300 ease-out-expo"
-            style={{
-              paddingTop: scrolled ? '10px' : '14px',
-              paddingBottom: scrolled ? '10px' : '14px',
-            }}
+            className={`mx-auto w-full max-w-[1440px] px-3 sm:px-6 md:px-8 transition-all duration-300 ease-out-expo ${
+              scrolled ? 'py-[10px]' : 'py-[14px]'
+            }`}
           >
             <div className="flex items-center gap-2 sm:gap-5 min-w-0">
               {/* Brand */}
@@ -561,6 +558,7 @@ function App() {
              pt-36 on mobile accounts for the 2-row header (brand + nav).
              At sm+, header is single row so pt-24 is enough. */}
         <main className="flex-1 mx-auto w-full max-w-[1440px] px-3 sm:px-6 md:px-8 pt-36 sm:pt-24 md:pt-28 pb-12 sm:pb-16">
+        <Suspense fallback={<LoadingScreen label="Loading" />}>
           {currentPage === 'timeline' ? (
             <Timeline />
           ) : currentPage === 'models' ? (
@@ -591,14 +589,7 @@ function App() {
             data && (
               <div className="space-y-5 sm:space-y-6 animate-fade-in">
                 {/* Hero title */}
-                <div
-                  className="relative pt-1 sm:pt-2 pb-2"
-                  style={{
-                    opacity: heroFadeOpacity,
-                    transform: `translateY(${(1 - heroFadeOpacity) * -8}px) scale(${headerInnerScale})`,
-                    transformOrigin: 'top left',
-                  }}
-                >
+                <div className="hero-fade relative pt-1 sm:pt-2 pb-2">
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
                     <div>
                       <div className="inline-flex items-center gap-2 mb-3">
@@ -739,6 +730,7 @@ function App() {
               </div>
             )
           )}
+        </Suspense>
         </main>
 
         {/* Footer */}

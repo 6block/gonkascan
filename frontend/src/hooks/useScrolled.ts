@@ -2,29 +2,33 @@ import { useEffect, useState } from 'react'
 
 interface UseScrolledResult {
   scrolled: boolean
-  progress: number
 }
 
 /**
- * Tracks vertical scroll. Returns:
- *   - scrolled: true once past `threshold` px
- *   - progress: 0..1 ramp from 0 to `rampDistance` px (for fading effects)
+ * Tracks vertical scroll.
+ *
+ * Returns only the boolean `scrolled` (toggles once per threshold crossing).
+ * Continuous scroll progress is written to the `--scroll-progress` CSS variable
+ * on <html> so it can drive transforms/opacity via CSS calc() without causing
+ * React re-renders on every scroll frame.
  */
 export function useScrolled(threshold = 12, rampDistance = 120): UseScrolledResult {
-  const [state, setState] = useState<UseScrolledResult>({ scrolled: false, progress: 0 })
+  const [scrolled, setScrolled] = useState(false)
 
   useEffect(() => {
     let ticking = false
+    let lastScrolled = scrolled
+    const root = document.documentElement
 
     const update = () => {
       const y = window.scrollY
-      const scrolled = y > threshold
+      const next = y > threshold
       const progress = Math.min(1, Math.max(0, y / rampDistance))
-      setState((prev) =>
-        prev.scrolled === scrolled && Math.abs(prev.progress - progress) < 0.01
-          ? prev
-          : { scrolled, progress },
-      )
+      root.style.setProperty('--scroll-progress', progress.toFixed(3))
+      if (next !== lastScrolled) {
+        lastScrolled = next
+        setScrolled(next)
+      }
       ticking = false
     }
 
@@ -40,5 +44,5 @@ export function useScrolled(threshold = 12, rampDistance = 120): UseScrolledResu
     return () => window.removeEventListener('scroll', onScroll)
   }, [threshold, rampDistance])
 
-  return state
+  return { scrolled }
 }

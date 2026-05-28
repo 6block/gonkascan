@@ -60,17 +60,23 @@
     position: relative;
   }
 
-  /* Subtle film-grain layer — breaks up the flatness, magazine-quality texture */
+  /* Subtle film-grain layer — kept lightweight: no mix-blend-mode (which forces an
+     extra full-screen composite pass every scroll frame) and lower opacity. */
   body::before {
     content: '';
     position: fixed;
     inset: 0;
     z-index: 0;
     pointer-events: none;
-    opacity: 0.35;
-    mix-blend-mode: overlay;
+    opacity: 0.12;
     background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
     background-size: 180px 180px;
+  }
+
+  /* Devices that opted out of the WebGL background also opt out of the grain layer,
+     since the grain only reads well on top of the animated mesh. */
+  @media (prefers-reduced-motion: reduce), (max-width: 1023px), (pointer: coarse) {
+    body::before { display: none; }
   }
 
   body > * {
@@ -139,15 +145,14 @@
       rgba(255, 255, 255, 0.035) 0%,
       rgba(255, 255, 255, 0.012) 70%
     ),
-    rgb(var(--surface-1) / 0.78);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+    rgb(var(--surface-1) / 0.92);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 1rem;
     box-shadow:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
       0 1px 2px rgba(0, 0, 0, 0.4),
       0 8px 28px -12px rgba(0, 0, 0, 0.45);
+    contain: layout paint style;
   }
 
   .surface-raised {
@@ -156,15 +161,14 @@
       rgba(255, 255, 255, 0.045) 0%,
       rgba(255, 255, 255, 0.015) 60%
     ),
-    rgb(var(--surface-2) / 0.82);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    rgb(var(--surface-2) / 0.94);
     border: 1px solid rgba(255, 255, 255, 0.09);
     border-radius: 1rem;
     box-shadow:
       inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
       0 4px 12px -2px rgba(0, 0, 0, 0.45),
       0 12px 32px -10px rgba(0, 0, 0, 0.5);
+    contain: layout paint style;
   }
 
   .surface-inset {
@@ -348,6 +352,17 @@
     animation: gradient-pan 8s ease infinite;
   }
 
+  /* Hero block — driven by the `--scroll-progress` CSS var (set on <html> by useScrolled).
+     Using CSS calc + transform keeps the scroll-coupled fade on the compositor so
+     React doesn't re-render the whole app tree on every wheel tick. */
+  .hero-fade {
+    --p: var(--scroll-progress, 0);
+    opacity: calc(1 - var(--p) * 0.6);
+    transform: translate3d(0, calc(var(--p) * -4.8px), 0) scale(calc(1 - var(--p) * 0.04));
+    transform-origin: top left;
+    will-change: transform, opacity;
+  }
+
   /* Header glass states */
   .header-rest {
     background: transparent;
@@ -355,10 +370,18 @@
     backdrop-filter: blur(0px);
   }
   .header-scrolled {
-    background: rgb(var(--bg) / 0.7);
+    background: rgb(var(--bg) / 0.88);
     border-bottom-color: rgba(255, 255, 255, 0.07);
-    backdrop-filter: saturate(180%) blur(20px);
-    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(140%) blur(10px);
+    -webkit-backdrop-filter: saturate(140%) blur(10px);
+  }
+  /* Touch / narrow viewports skip backdrop-filter entirely — mobile GPUs choke on it. */
+  @media (max-width: 1023px), (pointer: coarse) {
+    .header-scrolled {
+      background: rgb(var(--bg) / 0.96);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 }
 
@@ -392,20 +415,25 @@
   .aurora-bg::after {
     content: '';
     position: absolute;
-    inset: -20%;
+    inset: -10%;
     z-index: -1;
     pointer-events: none;
-    filter: blur(80px);
-    opacity: 0.3;
-    will-change: transform;
+    /* No filter:blur — the same soft glow comes from radial-gradient falloff at
+       ~10% the GPU cost. Keep transform-only animation. */
+    opacity: 0.55;
   }
   .aurora-bg::before {
-    background: radial-gradient(circle at 30% 30%, rgba(62, 229, 177, 0.5), transparent 40%);
+    background: radial-gradient(circle at 30% 30%, rgba(62, 229, 177, 0.28), transparent 55%);
     animation: aurora 18s ease-in-out infinite;
   }
   .aurora-bg::after {
-    background: radial-gradient(circle at 70% 70%, rgba(212, 175, 122, 0.3), transparent 40%);
+    background: radial-gradient(circle at 70% 70%, rgba(212, 175, 122, 0.18), transparent 55%);
     animation: aurora 22s ease-in-out -3s infinite reverse;
+  }
+  /* Mobile / reduced-motion: static gradient with no animation. */
+  @media (prefers-reduced-motion: reduce), (max-width: 1023px), (pointer: coarse) {
+    .aurora-bg::before,
+    .aurora-bg::after { animation: none; }
   }
 
   /* Shine sweep over surface */
@@ -426,6 +454,9 @@
     background-size: 250% 100%;
     animation: shimmer 6s linear infinite;
     pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce), (max-width: 1023px), (pointer: coarse) {
+    .live-shine::after { animation: none; }
   }
 
   /* Faint grid overlay (used on hero) */
