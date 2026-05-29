@@ -1,7 +1,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransfersResponse, TransferTransaction } from '../types/inference'
-import { toGonka, formatGNK, timeAgo, apiFetch, shortHash } from '../utils'
+import { formatCoin, timeAgo, apiFetch, shortHash } from '../utils'
 import { usePopover } from '../hooks/usePopover'
 import { FilterIcon } from './common/FilterIcon'
 import { FilterListPopover } from './common/FilterListPopover'
@@ -32,12 +32,14 @@ const STATUS_OPTIONS = [
 
 function formatTransferAmount(tx: TransferTransaction, address: string) {
   const isOutgoing = tx.from_address === address
-  const coin = tx.amount.find(a => a.denom === 'ngonka' || a.denom === 'gonka') || tx.amount[0]
+  // Take the first coin in the transfer payload regardless of denom — IBC
+  // transfers carry a single token with a non-GNK denom, and we now decode
+  // that via formatCoin instead of forcing a GNK label.
+  const coin = tx.amount[0]
   if (!coin) return { text: '-', color: '' }
-  const gonka = coin.denom === 'ngonka' ? toGonka(coin.amount) : Number(coin.amount)
   const sign = isOutgoing ? '-' : '+'
   const color = isOutgoing ? 'text-red-300' : 'text-accent-400'
-  return { text: `${sign}${formatGNK(gonka)}`, color }
+  return { text: `${sign}${formatCoin(coin.amount, coin.denom)}`, color }
 }
 
 export function TransfersTable({ address }: TransfersTableProps) {

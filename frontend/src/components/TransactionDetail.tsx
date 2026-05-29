@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { timeAgo, apiFetch, toGonka, formatDateTime } from '../utils'
+import { timeAgo, apiFetch, toGonka, formatDateTime, formatCoin } from '../utils'
 import { TransactionDetailResponse } from '../types/inference'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
@@ -35,7 +35,7 @@ export function TransactionDetail({ txHash }: { txHash: string }) {
   const fee =
     data.tx.auth_info.fee.amount.length > 0
       ? data.tx.auth_info.fee.amount
-          .map((a) => `${toGonka(a.amount)} ${a.denom.replace(/^n/, '')}`)
+          .map((a) => formatCoin(a.amount, a.denom))
           .join(', ')
       : '—'
 
