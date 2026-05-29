@@ -344,6 +344,7 @@ class ModelEpochTokenUsageResponse(BaseModel):
 class HardwareStats(BaseModel):
     id: str
     amount: int
+    active_amount: int = 0
     total_weight: int
     models: List[str]
 
@@ -352,6 +353,8 @@ class HardwaresResponse(BaseModel):
     epoch_id: int
     is_current: bool
     total_weight: int
+    total_amount: int = 0
+    total_active_amount: int = 0
     hardware: List[HardwareStats]
 
 class HardwareParticiapteCount(BaseModel):
@@ -362,12 +365,14 @@ class HardwareDetailsResponse(BaseModel):
     hardware: str
     epoch_id: int
     amount: int
+    active_amount: int = 0
     total_weight: int
     particiaptes: List[HardwareParticiapteCount]
     ml_nodes: List[MLNodeInfo]
 
 class HardwareSeries(BaseModel):
     amount: Dict[str, List[EpochSeriesPoint]]
+    active_amount: Dict[str, List[EpochSeriesPoint]] = {}
     total_weight: Dict[str, List[EpochSeriesPoint]]
 
 

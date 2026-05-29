@@ -331,6 +331,7 @@ export interface ModelEpochTokenUsageResponse {
 export interface HardwareStats {
   id: string;
   amount: number;
+  active_amount?: number;
   total_weight: number;
   models: string[];
 }
@@ -339,6 +340,8 @@ export interface HardwaresResponse {
   epoch_id: number;
   is_current: boolean;
   total_weight: number;
+  total_amount?: number;
+  total_active_amount?: number;
   hardware: HardwareStats[];
 }
 
@@ -351,6 +354,7 @@ export interface HardwareDetailsResponse {
   hardware: string;
   epoch_id: number;
   amount: number;
+  active_amount?: number;
   total_weight: number;
   particiaptes: HardwareParticipateCount[];
   ml_nodes: MLNodeInfo[];
@@ -358,6 +362,7 @@ export interface HardwareDetailsResponse {
 
 export interface HardwareSeries {
   amount: Record<string, EpochSeriesPoint[]>;
+  active_amount?: Record<string, EpochSeriesPoint[]>;
   total_weight: Record<string, EpochSeriesPoint[]>;
 }
 

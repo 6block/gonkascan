@@ -2092,6 +2092,13 @@ class CacheDB:
                 SELECT
                     json_extract(hw.value, '$.type') AS hardware,
                     SUM(CAST(json_extract(hw.value, '$.count') AS INTEGER)) AS amount,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(poc_weight, 0) > 0
+                                THEN CAST(json_extract(hw.value, '$.count') AS INTEGER)
+                            ELSE 0
+                        END
+                    ) AS active_amount,
                     SUM(COALESCE(poc_weight, 0)) AS total_weight
                 FROM participant_hardware_nodes,
                     json_each(hardware_json) AS hw
@@ -2138,6 +2145,13 @@ class CacheDB:
                     epoch_id,
                     json_extract(hw.value, '$.type') AS hardware,
                     SUM(CAST(json_extract(hw.value, '$.count') AS INTEGER)) AS amount,
+                    SUM(
+                        CASE
+                            WHEN COALESCE(poc_weight, 0) > 0
+                                THEN CAST(json_extract(hw.value, '$.count') AS INTEGER)
+                            ELSE 0
+                        END
+                    ) AS active_amount,
                     SUM(COALESCE(poc_weight, 0)) AS total_weight
                 FROM participant_hardware_nodes,
                     json_each(hardware_json) AS hw

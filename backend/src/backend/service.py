@@ -3417,6 +3417,8 @@ class InferenceService:
         cache_hardware_all = await self.cache_db.get_hardware_aggregate(epoch_id)
         cache_hardware_model = await self.cache_db.get_hardware_models(epoch_id)
         all_total_weight = 0
+        all_total_amount = 0
+        all_total_active_amount = 0
         hardware_items = []
 
         models_map = {}
@@ -3427,13 +3429,19 @@ class InferenceService:
 
         for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
-            all_total_weight += int(cache_hardware["total_weight"])
-            models = models_map.get(hardware, []) 
+            amount = int(cache_hardware["amount"])
+            active_amount = int(cache_hardware.get("active_amount") or 0)
+            total_weight = int(cache_hardware["total_weight"])
+            all_total_weight += total_weight
+            all_total_amount += amount
+            all_total_active_amount += active_amount
+            models = models_map.get(hardware, [])
             hardware_items.append(
                 HardwareStats(
                     id=hardware,
-                    amount=int(cache_hardware["amount"]),
-                    total_weight=int(cache_hardware["total_weight"]),
+                    amount=amount,
+                    active_amount=active_amount,
+                    total_weight=total_weight,
                     models=models
                 )
             )
@@ -3442,6 +3450,8 @@ class InferenceService:
             epoch_id=epoch_id,
             is_current=True,
             total_weight=all_total_weight,
+            total_amount=all_total_amount,
+            total_active_amount=all_total_active_amount,
             hardware=hardware_items,
         )
 
@@ -3449,6 +3459,8 @@ class InferenceService:
         cache_hardware_all = await self.cache_db.get_hardware_aggregate(epoch_id)
         cache_hardware_model = await self.cache_db.get_hardware_models(epoch_id)
         all_total_weight = 0
+        all_total_amount = 0
+        all_total_active_amount = 0
         hardware_items = []
 
         models_map = {}
@@ -3459,13 +3471,19 @@ class InferenceService:
 
         for cache_hardware in cache_hardware_all:
             hardware = cache_hardware["hardware"]
-            all_total_weight += int(cache_hardware["total_weight"])
-            models = models_map.get(hardware, []) 
+            amount = int(cache_hardware["amount"])
+            active_amount = int(cache_hardware.get("active_amount") or 0)
+            total_weight = int(cache_hardware["total_weight"])
+            all_total_weight += total_weight
+            all_total_amount += amount
+            all_total_active_amount += active_amount
+            models = models_map.get(hardware, [])
             hardware_items.append(
                 HardwareStats(
                     id=hardware,
-                    amount=int(cache_hardware["amount"]),
-                    total_weight=int(cache_hardware["total_weight"]),
+                    amount=amount,
+                    active_amount=active_amount,
+                    total_weight=total_weight,
                     models=models
                 )
             )
@@ -3474,6 +3492,8 @@ class InferenceService:
             epoch_id=epoch_id,
             is_current=False,
             total_weight=all_total_weight,
+            total_amount=all_total_amount,
+            total_active_amount=all_total_active_amount,
             hardware=hardware_items,
         )
 
@@ -3481,11 +3501,13 @@ class InferenceService:
         rows = await self.cache_db.get_hardware_nodes_by_epoch(epoch_id, hardware)
         ml_nodes: list[MLNodeInfo] = []
         amount = 0
+        active_amount = 0
         total_weight = 0
         particiaptes = defaultdict(int)
 
         for r in rows:
             hardware_list = json.loads(r["hardware_json"] or "[]")
+            node_weight = int(r.get("poc_weight") or 0)
 
             for hw in hardware_list:
                 if hw.get("type") != hardware:
@@ -3493,7 +3515,9 @@ class InferenceService:
 
                 count = int(hw.get("count", 0))
                 amount += count
-                total_weight += int(r.get("poc_weight") or 0)
+                if node_weight > 0:
+                    active_amount += count
+                total_weight += node_weight
                 particiaptes[r["participant_id"]] += count
 
                 ml_nodes.append(
@@ -3509,7 +3533,7 @@ class InferenceService:
                         poc_weight=r.get("poc_weight"),
                     )
                 )
-    
+
         particiaptes_list = [
             HardwareParticiapteCount(
                 particiapte_id=pid,
@@ -3521,6 +3545,7 @@ class InferenceService:
             hardware=hardware,
             epoch_id=epoch_id,
             amount=amount,
+            active_amount=active_amount,
             total_weight=total_weight,
             particiaptes=particiaptes_list,
             ml_nodes=ml_nodes,
@@ -3530,6 +3555,7 @@ class InferenceService:
         hardware_set = set()
         series = {
             "amount": defaultdict(list),
+            "active_amount": defaultdict(list),
             "total_weight": defaultdict(list),
         }
 
@@ -3540,12 +3566,16 @@ class InferenceService:
             epoch_id = cache_hardware["epoch_id"]
             hardware_set.add(hardware)
             series["amount"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["amount"]))
+            series["active_amount"][hardware].append(
+                EpochSeriesPoint(epoch_id=epoch_id, value=int(cache_hardware.get("active_amount") or 0))
+            )
             series["total_weight"][hardware].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_hardware["total_weight"]))
 
         return HardwareEpochSeriesResponse(
             hardware=sorted(hardware_set),
             series={
                 "amount": dict(series["amount"]),
+                "active_amount": dict(series["active_amount"]),
                 "total_weight": dict(series["total_weight"])
             }
         )

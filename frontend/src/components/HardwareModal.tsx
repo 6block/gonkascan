@@ -33,15 +33,20 @@ export function HardwareModal({ hardware, epochId, currentEpochId, onClose }: Ha
         <ErrorScreen error={error} title="Failed to load hardware details" className="py-10" />
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-12 mb-6 sm:mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-10 mb-6 sm:mb-8">
             <div>
               <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Hardware</div>
               <div className="text-sm font-mono text-slate-50 break-all leading-relaxed">{data.hardware}</div>
             </div>
 
             <div>
-              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Amount</div>
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1" title="All MLNodes registered with this hardware in the epoch">Amount</div>
               <div className="text-base sm:text-lg font-semibold text-slate-50 break-words">{data.amount.toLocaleString()}</div>
+            </div>
+
+            <div>
+              <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1" title="MLNodes with poc_weight > 0 in this epoch">Active Amount</div>
+              <div className="text-base sm:text-lg font-semibold text-slate-50 break-words">{(data.active_amount ?? 0).toLocaleString()}</div>
             </div>
 
             <div>
