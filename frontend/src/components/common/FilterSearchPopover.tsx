@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { usePopover } from '../../hooks/usePopover'
 
 interface FilterSearchPopoverProps {
@@ -13,7 +14,9 @@ export function FilterSearchPopover({ popover, placeholder = 'Search...', value,
 
   if (!popover.open) return null
 
-  return (
+  // Portal to body — see FilterListPopover for rationale (viewport-fixed
+  // positioning must escape ancestors that create a fixed-containing block).
+  return createPortal(
     <div
       ref={popover.popoverRef}
       className="fixed z-[9999] surface-raised p-3 w-[min(18rem,calc(100vw-1rem))] animate-fade-in"
@@ -41,6 +44,7 @@ export function FilterSearchPopover({ popover, placeholder = 'Search...', value,
           Clear
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 interface BaseModalProps {
   title: string
@@ -30,7 +31,12 @@ export function BaseModal({ title, onClose, children }: BaseModalProps) {
     }
   }
 
-  return (
+  // Render through a portal to document.body so the modal escapes any ancestor
+  // that establishes a containing block / stacking context for fixed-position
+  // descendants (e.g. the `animate-fade-in` wrapper keeps a non-`none` transform
+  // via `animation-fill-mode: both`). Without this the backdrop is clipped to the
+  // page content box and the header steals clicks from the close button.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center p-0 sm:p-4 animate-fade-in"
       onClick={handleBackdropClick}
@@ -65,6 +71,7 @@ export function BaseModal({ title, onClose, children }: BaseModalProps) {
 
         <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

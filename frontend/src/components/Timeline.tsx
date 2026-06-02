@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { TimelineResponse } from '../types/inference'
 import { apiFetch, formatCountdown } from '../utils'
@@ -795,7 +796,7 @@ export function Timeline() {
           </svg>
         </div>
 
-        {hoveredBlock !== null && mousePosition && (
+        {hoveredBlock !== null && mousePosition && createPortal(
           <div
             className="fixed z-50 surface-raised text-slate-50 px-4 py-3 rounded-lg shadow-pop text-sm pointer-events-none"
             style={{
@@ -825,7 +826,8 @@ export function Timeline() {
                 </div>
               </>
             )}
-          </div>
+          </div>,
+          document.body
         )}
       </section>
 

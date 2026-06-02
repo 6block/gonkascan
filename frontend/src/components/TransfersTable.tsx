@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AddressTransfersResponse, TransferTransaction } from '../types/inference'
 import { formatCoin, timeAgo, apiFetch, shortHash } from '../utils'
@@ -339,7 +340,7 @@ export function TransfersTable({ address }: TransfersTableProps) {
       <FilterSearchPopover popover={fromPop} placeholder="Search by address e.g. gonka1..." value={appliedFromAddr} onApply={setAppliedFromAddr} />
       <FilterSearchPopover popover={toPop} placeholder="Search by address e.g. gonka1..." value={appliedToAddr} onApply={setAppliedToAddr} />
 
-      {timePop.open && (
+      {timePop.open && createPortal(
         <div
           ref={timePop.popoverRef}
           className="fixed z-[9999] surface-raised p-4 w-[min(18rem,calc(100vw-1rem))]"
@@ -382,7 +383,8 @@ export function TransfersTable({ address }: TransfersTableProps) {
             <button onClick={applyCustomTime} className="btn-primary flex-1 h-9 text-sm">Apply</button>
             <button onClick={clearTime} className="btn-secondary flex-1 h-9 text-sm">Cancel</button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

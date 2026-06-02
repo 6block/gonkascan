@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { usePopover } from '../../hooks/usePopover'
 
 interface FilterListPopoverProps {
@@ -12,7 +13,11 @@ interface FilterListPopoverProps {
 export function FilterListPopover({ popover, title, options, selected, onSelect, width = 'w-52' }: FilterListPopoverProps) {
   if (!popover.open) return null
 
-  return (
+  // Portal to body: the popover is positioned with viewport coordinates
+  // (getBoundingClientRect) + position:fixed, so it must escape any ancestor
+  // that creates a containing block for fixed descendants (surface cards use
+  // `contain`, page roots keep a transform via `animate-fade-in`).
+  return createPortal(
     <div
       ref={popover.popoverRef}
       className={`fixed z-[9999] surface-raised p-2 ${width} animate-fade-in`}
@@ -39,6 +44,7 @@ export function FilterListPopover({ popover, title, options, selected, onSelect,
           </button>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
