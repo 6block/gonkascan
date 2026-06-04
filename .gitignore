@@ -25,3 +25,12 @@ test_data/
 .env.*.local
 .vite/
 .idea/
+gonkascan.code-workspace
+
+# Playwright MCP scratch (snapshots, console logs, debug screenshots)
+.playwright-mcp/
+hardware-page.png
+hardware-after.png
+b200-modal.png
+transfers-after.png
+transfers-fixed.png

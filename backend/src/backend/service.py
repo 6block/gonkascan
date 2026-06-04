@@ -3677,10 +3677,17 @@ class InferenceService:
             )
             self.client._rotate_url()
 
+        # A freshly submitted proposal can legitimately have zero votes, and the
+        # chain tx indexer can lag the gov module by a few seconds for the submit
+        # and deposit txs. Persisting with the current counts (and refreshing on
+        # the next polling cycle) is much safer than refusing to cache the
+        # proposal at all — which is what the previous RuntimeError did, and is
+        # how proposal #67 got dropped from the dashboard for hours.
         if total_vote_txs == 0 or total_submit_txs == 0 or total_deposit_txs == 0:
-            raise RuntimeError(
-                f"Failed to get non-zero tx totals for proposal id={proposal_id} after {max_retry} attempts: "
-                f"submit={total_submit_txs}, deposit={total_deposit_txs}, vote={total_vote_txs}"
+            logger.warning(
+                f"Proposal id={proposal_id} has zero tx totals after {max_retry} attempts "
+                f"(submit={total_submit_txs}, deposit={total_deposit_txs}, vote={total_vote_txs}); "
+                f"persisting with current counts, will refresh on next polling cycle."
             )
 
         vote_txs = txs["vote"]["txs"]
@@ -3691,12 +3698,30 @@ class InferenceService:
 
         submit_time = proposal["submit_time"]
         voting_start_time = proposal["voting_start_time"]
+        voting_start_height = None
         if submit_time == voting_start_time:
             submit_height = int(submit_txs[0]["height"]) if submit_txs else None
             if submit_height:
                 voting_start_height = submit_height
-        # else:
-        #     voting_start_height = await self.cache_db.get_height_by_time(voting_start_time)
+        else:
+            # The proposal sat in a deposit period before voting started, so the
+            # submit tx height is not the same as voting_start_height. Resolve
+            # it from the cached block index by timestamp.
+            voting_start_height = await self.cache_db.get_height_by_time(voting_start_time)
+
+        if voting_start_height is None:
+            # Final fallback: use the latest known height so enrichment can
+            # proceed. This is approximate but lets the proposal land in the
+            # cache; the next polling cycle will overwrite with a correct value
+            # once the block index catches up.
+            try:
+                voting_start_height = await self.client.get_latest_height()
+            except Exception as e:
+                logger.warning(
+                    f"Proposal id={proposal_id} could not resolve voting_start_height "
+                    f"(submit_time={submit_time}, voting_start_time={voting_start_time}): {e}"
+                )
+                voting_start_height = 0
 
         epoch_id = await self.cache_db.get_epoch_by_height(voting_start_height)
         if not epoch_id:
@@ -3752,14 +3777,23 @@ class InferenceService:
             tallying_data = await self.client.get_tallying()
             for proposal in voting_list:
                 proposal_id = proposal["id"]
-                voting_proposal.append(int(proposal_id))
-                proposal["code"] = 2
-                proposal["tally_params"] = tallying_data["tally_params"]
-                tally = await self.client.get_proposal_tally(int(proposal_id))
-                proposal["final_tally_result"] = tally["tally"]
-                enriched = await self.enrich_proposal_detail(proposal)
-                await self.cache_db.save_proposal(enriched)
-                logger.info(f"Cached active voting proposal id={proposal_id}")
+                # Isolate per-proposal failures so a single bad proposal cannot
+                # poison the whole polling cycle. Without this guard, one
+                # proposal raising in enrich_proposal_detail would abort the
+                # entire loop and silently drop every other proposal that
+                # follows in voting_list — which is how #67 disappeared.
+                try:
+                    voting_proposal.append(int(proposal_id))
+                    proposal["code"] = 2
+                    proposal["tally_params"] = tallying_data["tally_params"]
+                    tally = await self.client.get_proposal_tally(int(proposal_id))
+                    proposal["final_tally_result"] = tally["tally"]
+                    enriched = await self.enrich_proposal_detail(proposal)
+                    await self.cache_db.save_proposal(enriched)
+                    logger.info(f"Cached active voting proposal id={proposal_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to cache voting proposal id={proposal_id}: {e}")
+                    continue
 
         db_voting = await self.cache_db.get_proposals_by_code(2)
         if not db_voting:
@@ -3770,23 +3804,27 @@ class InferenceService:
             proposal_id = int(proposal["id"])
             if proposal_id in voting_proposal:
                 continue
-            raw = await self.client.get_proposal(proposal_id)
-            final_proposal = raw["proposal"]
-            status = final_proposal.get("status")
-            if status == "PROPOSAL_STATUS_VOTING_PERIOD":
-                logger.info(f"Proposal id={proposal_id} is still in voting period, skipping final update.")
+            try:
+                raw = await self.client.get_proposal(proposal_id)
+                final_proposal = raw["proposal"]
+                status = final_proposal.get("status")
+                if status == "PROPOSAL_STATUS_VOTING_PERIOD":
+                    logger.info(f"Proposal id={proposal_id} is still in voting period, skipping final update.")
+                    continue
+
+                final_proposal["tally_params"] = tallying_data["tally_params"]
+                enriched = await self.enrich_proposal_detail(final_proposal)
+                if status == "PROPOSAL_STATUS_PASSED":
+                    enriched["code"] = 3
+                elif status == "PROPOSAL_STATUS_REJECTED":
+                    enriched["code"] = 4
+                else:
+                    enriched["code"] = 0
+                await self.cache_db.save_proposal(enriched)
+                logger.info(f"Proposal id={proposal_id} finalized with status={status}")
+            except Exception as e:
+                logger.warning(f"Failed to finalize proposal id={proposal_id}: {e}")
                 continue
-            
-            final_proposal["tally_params"] = tallying_data["tally_params"]
-            enriched = await self.enrich_proposal_detail(final_proposal)
-            if status == "PROPOSAL_STATUS_PASSED":
-                enriched["code"] = 3
-            elif status == "PROPOSAL_STATUS_REJECTED":
-                enriched["code"] = 4
-            else:
-                enriched["code"] = 0
-            await self.cache_db.save_proposal(enriched)
-            logger.info(f"Proposal id={proposal_id} finalized with status={status}")
             if enriched["code"] == 3:
                 msgs = [msg for msg in proposal.get("messages", []) if msg.get("@type", "").endswith("MsgUpdateParams")]
                 if not msgs: continue
