@@ -402,6 +402,7 @@ class TallyParams(BaseModel):
     quorum: str
     threshold: str
     veto_threshold: str
+    expedited_threshold: Optional[str] = None
 
 
 class TotalDeposit(BaseModel):
