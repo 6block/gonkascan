@@ -501,6 +501,7 @@ class CacheDB:
                     quorum TEXT NOT NULL,
                     threshold TEXT NOT NULL,
                     veto_threshold TEXT NOT NULL,
+                    expedited_threshold TEXT,
                     epoch_id INTEGER NOT NULL,
                     voting_start_height INTEGER NOT NULL,
                     total_weight INTEGER NOT NULL,
@@ -519,6 +520,20 @@ class CacheDB:
                 CREATE INDEX IF NOT EXISTS idx_gov_proposals_code
                 ON gov_proposals(code)
             """)
+
+            # Backfill: older databases were created before
+            # gov_proposals.expedited_threshold existed. SQLite's CREATE TABLE
+            # IF NOT EXISTS is a no-op on those, so we add the column in place.
+            try:
+                async with db.execute("PRAGMA table_info(gov_proposals)") as cur:
+                    cols = {r[1] for r in await cur.fetchall()}
+                if "expedited_threshold" not in cols:
+                    await db.execute(
+                        "ALTER TABLE gov_proposals ADD COLUMN expedited_threshold TEXT"
+                    )
+                    logger.info("DB migration: added gov_proposals.expedited_threshold")
+            except Exception as e:
+                logger.warning(f"DB migration for expedited_threshold failed: {e}")
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS params_snapshot (
@@ -2250,16 +2265,16 @@ class CacheDB:
                     id, status, code, metadata, title, summary, proposer, expedited, failed_reason,
                     submit_time, deposit_end_time, voting_start_time, voting_end_time,
                     yes_count, abstain_count, no_count, no_with_veto_count,
-                    quorum, threshold, veto_threshold,
+                    quorum, threshold, veto_threshold, expedited_threshold,
                     epoch_id, voting_start_height, total_weight, voted_weight, total_voters, total_participants,
                     total_vote_txs, total_submit_txs, total_deposit_txs,
                     total_deposit_json, messages_json
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
                         ?, ?, ?, ?,
                         ?, ?, ?, ?,
-                        ?, ?, ?,
+                        ?, ?, ?, ?,
                         ?, ?, ?, ?, ?, ?,
-                        ?, ?, ?, 
+                        ?, ?, ?,
                         ?, ?)
             """,(
                 int(proposal["id"]),
@@ -2282,6 +2297,7 @@ class CacheDB:
                 tally_params["quorum"],
                 tally_params["threshold"],
                 tally_params["veto_threshold"],
+                tally_params.get("expedited_threshold"),
                 proposal["epoch_id"],
                 proposal["voting_start_height"],
                 proposal["total_weight"],
@@ -2332,6 +2348,7 @@ class CacheDB:
                         "quorum": row["quorum"],
                         "threshold": row["threshold"],
                         "veto_threshold": row["veto_threshold"],
+                        "expedited_threshold": row["expedited_threshold"],
                     },
                     "epoch_id": row["epoch_id"],
                     "voting_start_height": row["voting_start_height"],
@@ -2380,6 +2397,7 @@ class CacheDB:
                             "quorum": row["quorum"],
                             "threshold": row["threshold"],
                             "veto_threshold": row["veto_threshold"],
+                            "expedited_threshold": row["expedited_threshold"],
                         },
                         "epoch_id": row["epoch_id"],
                         "voting_start_height": row["voting_start_height"],
