@@ -3768,7 +3768,23 @@ class InferenceService:
             "total_deposit_txs": total_deposit_txs
         }
         return result
-    
+
+    @staticmethod
+    def _tally_params_with_expedited(tallying_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Return the chain's tally_params, merged with expedited_threshold.
+
+        Cosmos SDK v0.50 exposes the expedited approval threshold in
+        params.expedited_threshold (not tally_params), but the dashboard
+        treats tally_params as the single source of truth for proposal
+        thresholds. Merging here keeps every downstream consumer (proposal
+        card, detail page) on one shape.
+        """
+        tally_params = dict(tallying_data.get("tally_params") or {})
+        chain_params = tallying_data.get("params") or {}
+        if "expedited_threshold" in chain_params:
+            tally_params["expedited_threshold"] = chain_params["expedited_threshold"]
+        return tally_params
+
     async def fetch_and_cache_proposal(self):
         voting_list = await self.client.get_proposals(status_code=2)
         voting_proposal = []
@@ -3785,7 +3801,7 @@ class InferenceService:
                 try:
                     voting_proposal.append(int(proposal_id))
                     proposal["code"] = 2
-                    proposal["tally_params"] = tallying_data["tally_params"]
+                    proposal["tally_params"] = self._tally_params_with_expedited(tallying_data)
                     tally = await self.client.get_proposal_tally(int(proposal_id))
                     proposal["final_tally_result"] = tally["tally"]
                     enriched = await self.enrich_proposal_detail(proposal)
@@ -3812,7 +3828,7 @@ class InferenceService:
                     logger.info(f"Proposal id={proposal_id} is still in voting period, skipping final update.")
                     continue
 
-                final_proposal["tally_params"] = tallying_data["tally_params"]
+                final_proposal["tally_params"] = self._tally_params_with_expedited(tallying_data)
                 enriched = await self.enrich_proposal_detail(final_proposal)
                 if status == "PROPOSAL_STATUS_PASSED":
                     enriched["code"] = 3
@@ -4136,7 +4152,7 @@ class InferenceService:
             for proposal in proposals:
                 proposal_id = int(proposal["id"])
                 proposal["code"] = code
-                proposal["tally_params"] = tallying_data["tally_params"]
+                proposal["tally_params"] = self._tally_params_with_expedited(tallying_data)
                 
                 enriched = await self.enrich_proposal_detail(proposal)
                 await self.cache_db.save_proposal(enriched)

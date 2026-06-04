@@ -207,6 +207,16 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
           <h2 className="text-base sm:text-lg font-bold text-slate-50 break-words tracking-tight">
             <span className="font-mono text-slate-500 mr-1">#{proposal.id}</span>
             {proposal.title}
+            {proposal.expedited && (
+              <span
+                className="ml-2 inline-block align-middle text-[10px] font-semibold uppercase tracking-[0.12em]
+                           bg-amber-400/[0.08] text-amber-300 border border-amber-300/30 rounded-md
+                           px-1.5 py-0.5"
+                title="Expedited proposal: shorter voting period and higher approval threshold (66.7%)"
+              >
+                Expedited
+              </span>
+            )}
           </h2>
           {votingTimeText && (
             <div className="mt-1 mb-5 text-[12.5px] text-slate-400 leading-relaxed break-words">
@@ -214,7 +224,7 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-4 mb-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-4 mb-5">
             <div>
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Status</p>
               <p className="font-bold text-accent-300 text-base sm:text-lg break-words tracking-tight">{proposal.status.replace('PROPOSAL_STATUS_', '')}</p>
@@ -231,6 +241,24 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
                   : '—'}
                 <span className="text-slate-500 mx-1">/</span>
                 {(Number(proposal.tally_params?.quorum || 0) * 100).toFixed(2)}%
+              </p>
+            </div>
+            <div>
+              <p
+                className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5"
+                title={proposal.expedited
+                  ? 'Expedited proposals require 66.7% Yes of the votes cast.'
+                  : 'Standard proposals require 50% Yes of the votes cast.'}
+              >
+                Approval Threshold
+              </p>
+              <p className="font-bold text-slate-50 text-base sm:text-lg break-words tabular-nums tracking-tight">
+                {(() => {
+                  const raw = proposal.expedited
+                    ? proposal.tally_params?.expedited_threshold
+                    : proposal.tally_params?.threshold
+                  return raw ? `${(Number(raw) * 100).toFixed(2)}%` : '—'
+                })()}
               </p>
             </div>
           </div>

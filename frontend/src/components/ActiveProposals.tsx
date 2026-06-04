@@ -67,6 +67,15 @@ function ProposalCard({
         </span>
         <h3 className="font-semibold text-slate-100 text-sm truncate min-w-0 flex-1 sm:flex-none group-hover:text-accent-300 transition-colors">
           {proposal.title}
+          {proposal.expedited && (
+            <span
+              className="ml-1.5 inline-block align-middle text-[9px] font-semibold uppercase tracking-[0.1em]
+                         bg-amber-400/[0.08] text-amber-300 border border-amber-300/30 rounded px-1 py-px"
+              title="Expedited proposal: shorter voting period and 66.7% approval threshold"
+            >
+              Expedited
+            </span>
+          )}
         </h3>
         <span className="shrink-0 text-xs text-slate-500 tabular-nums">
           Voters {proposal.total_voters}/{proposal.total_participants}

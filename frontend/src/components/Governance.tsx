@@ -116,6 +116,15 @@ export function Governance() {
                     <div className="font-semibold text-slate-100 break-words text-sm leading-snug min-w-0">
                       <span className="font-mono text-slate-500 mr-1">#{p.id}</span>
                       {p.title}
+                      {p.expedited && (
+                        <span
+                          className="ml-1.5 inline-block align-middle text-[9px] font-semibold uppercase tracking-[0.1em]
+                                     bg-amber-400/[0.08] text-amber-300 border border-amber-300/30 rounded px-1 py-px"
+                          title="Expedited proposal: shorter voting period and 66.7% approval threshold"
+                        >
+                          Expedited
+                        </span>
+                      )}
                     </div>
                     <span
                       className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-semibold tracking-wide ${
@@ -211,6 +220,15 @@ export function Governance() {
                     <div className="font-semibold text-slate-100 group-hover:text-accent-300 break-words transition-colors">
                       <span className="font-mono text-slate-500 mr-1">#{p.id}</span>
                       {p.title}
+                      {p.expedited && (
+                        <span
+                          className="ml-1.5 inline-block align-middle text-[9px] font-semibold uppercase tracking-[0.1em]
+                                     bg-amber-400/[0.08] text-amber-300 border border-amber-300/30 rounded px-1 py-px"
+                          title="Expedited proposal: shorter voting period and 66.7% approval threshold"
+                        >
+                          Expedited
+                        </span>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 mt-1.5">
                       <span

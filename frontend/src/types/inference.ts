@@ -401,7 +401,13 @@ export interface GovernanceProposal {
   metadata: string
   epoch_id: number
   final_tally_result: TallyResult
-  tally_params?: { quorum?: string }
+  tally_params?: {
+    quorum?: string
+    threshold?: string
+    expedited_threshold?: string
+    veto_threshold?: string
+  }
+  expedited?: boolean
   total_weight: number
   voted_weight: number
   total_voters: number
