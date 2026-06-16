@@ -31,6 +31,16 @@ export const GITHUB_URL_OVERRIDES: Record<string, string> = {
 
 export const REWARD_DATA: RewardGroup[] = [
   {
+    title: 'Upgrade v0.2.13, Bug bounty awards (pull requests review, security, and correctness fixes)',
+    time: '2026-06-16',
+    records: [
+      { githubUsername: 'kaitakuai', address: 'gonka1x45hruazmcqxslj3g8a08988hr5fr3wx33drhp', amount: 10000, task: 'Kimi experiments', taskUrl: 'https://github.com/kaitakuai/experiments/blob/main/reports/2026-04-kimi-qwen-experiments.md' },
+      { githubUsername: 'blizko', address: 'gonka12jaf7m4eysyqt32mrgarum6z96vt55tckvcleq', amount: 8000, task: 'Prompt of death: report and investigation of prompts causing vLLM crashes around structured outputs / tool handling', discord: '@Blizko' },
+      { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 500, task: 'Partial Payment on Claim Failure Causes Permanent Reward Loss. PR: #826', taskUrl: 'https://github.com/gonka-ai/gonka/pull/826', discord: '@Ouicate' },
+      { githubUsername: 'ouicate', address: 'gonka1f0elpwnx7ezytdlck35003nz6qk8kzvurvnj4a', amount: 375, task: 'Underfunded Work Payout Still Removes Settle Amount. PR: #826', taskUrl: 'https://github.com/gonka-ai/gonka/pull/826', discord: '@Ouicate' },
+    ],
+  },
+  {
     title: 'Upgrade v0.2.12, Bug bounty awards (pull requests review, security, and correctness fixes)',
     time: '2026-05-19',
     records: [
@@ -178,13 +188,13 @@ export const REWARD_DATA: RewardGroup[] = [
 ]
 
 export const CONTRIBUTOR_SUMMARY: ContributorRank[] = [
-  { discord: '@Ouicate["1427291039949127690"]', total: 75250.00 },
+  { discord: '@Ouicate["1427291039949127690"]', total: 76125.00 },
   { discord: '@x0152["782297186939568128"]', total: 44450.00 },
   { github: 'Axel-T["https://github.com/Red-Caesar"]', total: 44000.00 },
   { github: 'Daniil Yankouski["https://github.com/qdanik"]', total: 38500.00 },
+  { discord: '@Blizko["770691223618453574"]', total: 38389.90 },
   { discord: '@Alexander Kuprin["1346953106365354035"]', total: 33000.00 },
-  { discord: '@Blizko["770691223618453574"]', total: 30389.90 },
-  { github: 'kaitaku.ai["https://github.com/kaitakuai"]', total: 22500.00 },
+  { github: 'kaitaku.ai["https://github.com/kaitakuai"]', total: 32500.00 },
   { discord: '@yapion.["705885531174600845"]', total: 22200.00 },
   { github: 'Eugene Maksimenkov["https://github.com/maksimenkoff"]', discord: '@Eugene Maksimenkov["984962691502333993"]', total: 20000.00 },
   { github: 'Ilia Astafev["https://github.com/iamoeco"]', total: 18109.58 },
