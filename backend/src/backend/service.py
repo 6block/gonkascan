@@ -3980,7 +3980,37 @@ class InferenceService:
         if not limit_orders["is_success"]:
             raise Exception(limit_orders["error_message"])
 
-        token_stats = limit_orders["data"]
+        # Upstream herewallet stat API started returning null for these fields
+        # in mid-2026; the market_stats table marks them NOT NULL, so the whole
+        # INSERT — including the orderbook price columns — fails. Fall back to
+        # safe defaults so the GNK price keeps updating even if these tokenomics
+        # numbers are unavailable.
+        raw_token_stats = limit_orders["data"] or {}
+        fallback_epoch = self.current_epoch_id or 0
+        fallback_updated_at = datetime.utcnow().isoformat()
+        def _num(key: str, default: float = 0.0) -> float:
+            value = raw_token_stats.get(key)
+            return float(value) if value is not None else default
+        def _int(key: str, default: int = 0) -> int:
+            value = raw_token_stats.get(key)
+            return int(value) if value is not None else default
+        token_stats = {
+            "epoch_id": _int("epoch_id", fallback_epoch),
+            "total_mining_rewards": _num("total_mining_rewards"),
+            "user_circulating": _num("user_circulating"),
+            "user_unlocked": _num("user_unlocked"),
+            "user_in_vesting": _num("user_in_vesting"),
+            "user_accounts_count": _int("user_accounts_count"),
+            "genesis_total": _num("genesis_total"),
+            "genesis_unlocked": _num("genesis_unlocked"),
+            "genesis_in_vesting": _num("genesis_in_vesting"),
+            "genesis_accounts_count": _int("genesis_accounts_count"),
+            "module_balance": _num("module_balance"),
+            "module_accounts_count": _int("module_accounts_count"),
+            "community_pool": _num("community_pool"),
+            "total_supply": _num("total_supply"),
+            "updated_at": raw_token_stats.get("updated_at") or fallback_updated_at,
+        }
         await self.cache_db.save_market_stats(orderbook_stats, token_stats)
     
     async def get_market_stats(self) -> MarketStats:
