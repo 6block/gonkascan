@@ -36,6 +36,39 @@ export function NavTab({ active, onClick, children }: NavTabProps) {
   )
 }
 
+interface NavLinkProps {
+  href: string
+  children: string
+}
+
+export function NavLink({ href, children }: NavLinkProps) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group relative whitespace-nowrap shrink-0 inline-flex items-center gap-1 px-3.5 h-9 text-[13px] font-medium rounded-lg
+        text-slate-400 hover:text-slate-100 transition-all duration-200 ease-out-expo"
+    >
+      <span className="relative z-10">{children}</span>
+      <svg
+        className="relative z-10 w-3 h-3 text-slate-500 group-hover:text-slate-300 transition-colors"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.2}
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+      </svg>
+      <span
+        aria-hidden
+        className="absolute inset-x-3.5 bottom-1 h-px origin-center scale-x-0 rounded-full bg-gradient-to-r from-transparent via-accent-400/70 to-transparent transition-transform duration-300 ease-out-expo group-hover:scale-x-100"
+      />
+    </a>
+  )
+}
+
 interface NavDropdownProps {
   label: string
   active: boolean

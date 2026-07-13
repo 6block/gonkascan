@@ -27,7 +27,7 @@ const BountyProgram = lazy(() => import('./components/BountyProgram').then(m => 
 import { StatItem } from './components/common/StatItem'
 import { EpochIdDisplay } from './components/common/EpochIdDisplay'
 import { RefreshControlFooter } from './components/common/RefreshControlFooter'
-import { NavTab, NavDropdown } from './components/common/NavTab'
+import { NavTab, NavDropdown, NavLink } from './components/common/NavTab'
 import { isValidGonkaAddress, isHex64, isBlockHeight, apiFetch } from './utils'
 import { usePrefetch } from './hooks/usePrefetch'
 import { useEstimatedBlock } from './hooks/useEstimatedBlock'
@@ -485,6 +485,8 @@ function App() {
                 <NavTab active={currentPage === 'resource'} onClick={() => handlePageChange('resource')}>
                   Resources
                 </NavTab>
+                <NavLink href="https://gonkarouter.io/">GonkaRouter</NavLink>
+                <NavLink href="https://bridge.gonkascan.com/">Bridge</NavLink>
               </nav>
 
               {/* Status + search */}
@@ -550,6 +552,8 @@ function App() {
               />
               <NavTab active={currentPage === 'governance'} onClick={() => handlePageChange('governance')}>Governance</NavTab>
               <NavTab active={currentPage === 'resource'} onClick={() => handlePageChange('resource')}>Resources</NavTab>
+              <NavLink href="https://gonkarouter.io/">GonkaRouter</NavLink>
+              <NavLink href="https://bridge.gonkascan.com/">Bridge</NavLink>
             </nav>
           </div>
         </header>
