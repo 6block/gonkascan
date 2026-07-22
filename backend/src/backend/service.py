@@ -25,6 +25,7 @@ from gonka_protos.cosmos.tx.v1beta1.tx_pb2 import AuthInfo
 from google.protobuf.json_format import MessageToDict
 from bech32 import bech32_decode, convertbits
 from backend.client import GonkaClient
+from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
 from backend.models import (
     ParticipantStats,
@@ -65,6 +66,7 @@ from backend.models import (
     OrderbookStats,
     TokenStats,
     MarketStats,
+    InferenceStatsResponse,
     CollateralStatus,
     TransferTransaction,
     AddressTransfersResponse,
@@ -202,6 +204,41 @@ def _apply_confirmation_rate(participant: ParticipantStats, result: Dict[str, An
     participant.confirmation_poc_ratio_estimate = result["computed_estimate"]
 
 
+def _summarize_epoch_history(epochs_history: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Derive network-wide totals from gonka.gg's per-epoch history.
+
+    Their /stats/inference-network-stats returns 0 for every top-level summary
+    field while epochs_history itself is fully populated, so we roll the totals
+    up ourselves. Pass rate uses the same 3-way denominator they use:
+    validated / (validated + invalidated + missed).
+    """
+    totals = {
+        "requests": 0,
+        "validated": 0,
+        "invalidated": 0,
+        "missed": 0,
+        "failed": 0,
+        "passed_pct": 0.0,
+        "epochs": len(epochs_history),
+    }
+    if not epochs_history:
+        return totals
+
+    for entry in epochs_history:
+        if not isinstance(entry, dict):
+            continue
+        for key in ("requests", "validated", "invalidated", "missed", "failed"):
+            try:
+                totals[key] += int(entry.get(key) or 0)
+            except (TypeError, ValueError):
+                continue
+
+    denominator = totals["validated"] + totals["invalidated"] + totals["missed"]
+    if denominator > 0:
+        totals["passed_pct"] = round(totals["validated"] / denominator * 100, 2)
+    return totals
+
+
 def _extract_chain_confirmation_ratio(participant_info: Dict[str, Any]) -> Optional[float]:
     stats = participant_info.get("current_epoch_stats") or {}
     ratio = stats.get("confirmationPoCRatio")
@@ -314,9 +351,15 @@ def _calc_participant_collateral_status(
 
 
 class InferenceService:
-    def __init__(self, client: GonkaClient, cache_db: CacheDB):
+    def __init__(
+        self,
+        client: GonkaClient,
+        cache_db: CacheDB,
+        gonka_gg_client: Optional[GonkaGGClient] = None,
+    ):
         self.client = client
         self.cache_db = cache_db
+        self.gonka_gg_client = gonka_gg_client
         self.current_epoch_id: Optional[int] = None
         self.current_epoch_data: Optional[InferenceResponse] = None
         self.last_fetch_time: Optional[float] = None
@@ -4048,6 +4091,108 @@ class InferenceService:
         return MarketStats(
             market_stats = orderbook_stats,
             token_stats = token_stats
+        )
+
+    async def _poll_inference_stats_kind(self, kind: str, fetch_coro) -> None:
+        """Fetch one gonka.gg dataset and cache it.
+
+        Only successful responses overwrite the cache, so an upstream outage
+        leaves the previous copy in place for the frontend to keep serving.
+        """
+        if not self.gonka_gg_client or not self.gonka_gg_client.is_configured:
+            logger.debug(f"Skipping inference stats poll for {kind}: gonka.gg API key not set")
+            return
+
+        result = await fetch_coro
+        if not result["is_success"]:
+            logger.warning(
+                f"Inference stats poll failed for {kind}: {result['error_message']} "
+                f"(keeping previously cached values)"
+            )
+            return
+
+        await self.cache_db.save_inference_stats_cache(kind, result["data"])
+        logger.info(f"Cached inference stats: {kind} ({result['response_time_ms']}ms)")
+
+    async def poll_inference_recent(self):
+        await self._poll_inference_stats_kind(
+            "recent", self.gonka_gg_client.get_recent_stats()
+        )
+
+    async def poll_inference_gateways(self):
+        await self._poll_inference_stats_kind(
+            "gateways", self.gonka_gg_client.get_gateway_stats(hours=24)
+        )
+
+    async def poll_inference_top_models(self):
+        await self._poll_inference_stats_kind(
+            "top_models", self.gonka_gg_client.get_top_models(hours=24)
+        )
+
+    async def poll_inference_epoch_history(self):
+        await self._poll_inference_stats_kind(
+            "epoch_history", self.gonka_gg_client.get_inference_network_stats()
+        )
+
+    async def poll_inference_timeseries(self, days: int = 30):
+        """Cache both breakdowns of the timeline over a rolling window."""
+        if not self.gonka_gg_client or not self.gonka_gg_client.is_configured:
+            return
+
+        now = datetime.now(timezone.utc)
+        time_to = now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        time_from = (now - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        for breakdown in ("model", "gateway"):
+            await self._poll_inference_stats_kind(
+                f"timeseries_{breakdown}",
+                self.gonka_gg_client.get_timeseries(time_from, time_to, breakdown),
+            )
+
+    async def get_inference_stats(self) -> InferenceStatsResponse:
+        """Assemble every cached gonka.gg dataset into one response.
+
+        The frontend reads only this endpoint, never gonka.gg directly.
+        """
+        kinds = ("recent", "gateways", "top_models", "timeseries_model",
+                 "timeseries_gateway", "epoch_history")
+        cached = {}
+        for kind in kinds:
+            cached[kind] = await self.cache_db.get_inference_stats_cache(kind)
+
+        def payload_of(kind: str) -> Optional[Any]:
+            entry = cached.get(kind)
+            return entry["payload"] if entry else None
+
+        def fetched_at_of(kind: str) -> Optional[str]:
+            entry = cached.get(kind)
+            return entry["fetched_at"] if entry else None
+
+        # Upstream nests most datasets under "data"; unwrap so the frontend
+        # sees one consistent shape.
+        def unwrap(payload: Any) -> Any:
+            if isinstance(payload, dict) and "data" in payload:
+                return payload["data"]
+            return payload
+
+        epoch_payload = payload_of("epoch_history") or {}
+        epochs_history = epoch_payload.get("epochs_history", []) if isinstance(epoch_payload, dict) else []
+
+        # The upstream's top-level summary fields come back as 0, so derive
+        # network totals from the per-epoch history instead.
+        totals = _summarize_epoch_history(epochs_history)
+
+        return InferenceStatsResponse(
+            recent=unwrap(payload_of("recent")),
+            gateways=unwrap(payload_of("gateways")),
+            top_models=unwrap(payload_of("top_models")),
+            timeseries_model=unwrap(payload_of("timeseries_model")),
+            timeseries_gateway=unwrap(payload_of("timeseries_gateway")),
+            epochs_history=epochs_history,
+            totals=totals,
+            fetched_at={k: fetched_at_of(k) for k in kinds},
+            source="gonka.gg",
+            source_url="https://gonka.gg",
         )
 
     async def repair_all_hardware_poc_weight(self):

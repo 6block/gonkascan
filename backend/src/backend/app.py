@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.router import router, set_inference_service
 from backend.client import GonkaClient
+from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
 from backend.service import InferenceService
 
@@ -32,7 +33,18 @@ POLL_BLOCKS_INTERVAL = int(os.getenv("POLL_BLOCKS_INTERVAL", "10"))
 POLL_PROPOSALS_INTERVAL = int(os.getenv("POLL_PROPOSALS_INTERVAL", "60"))
 POLL_MARKET_STATS_INTERVAL = int(os.getenv("POLL_MARKET_STATS_INTERVAL", "60"))
 
+# gonka.gg public inference-stats API. Their soft cap is ~10 req/min; these
+# intervals add up to roughly 1.4 req/min.
+GONKA_GG_API_BASE = os.getenv("GONKA_GG_API_BASE", "https://gonka-backend-production.up.railway.app/api/public")
+GONKA_GG_API_KEY = os.getenv("GONKA_GG_API_KEY", "")
+POLL_INF_RECENT_INTERVAL = int(os.getenv("POLL_INF_RECENT_INTERVAL", "60"))
+POLL_INF_GATEWAYS_INTERVAL = int(os.getenv("POLL_INF_GATEWAYS_INTERVAL", "60"))
+POLL_INF_TOP_MODELS_INTERVAL = int(os.getenv("POLL_INF_TOP_MODELS_INTERVAL", "120"))
+POLL_INF_TIMESERIES_INTERVAL = int(os.getenv("POLL_INF_TIMESERIES_INTERVAL", "300"))
+POLL_INF_EPOCH_HISTORY_INTERVAL = int(os.getenv("POLL_INF_EPOCH_HISTORY_INTERVAL", "300"))
+
 background_task = None
+inference_stats_polling_tasks = []
 jail_polling_task = None
 health_polling_task = None
 rewards_polling_task = None
@@ -250,6 +262,24 @@ async def poll_market_stats():
         await asyncio.sleep(POLL_MARKET_STATS_INTERVAL)
 
 
+async def _poll_inference_stats_loop(name: str, method_name: str, interval: int, start_delay: int):
+    """Drive one gonka.gg dataset poll on its own cadence.
+
+    Start delays are staggered so we never fire all five requests in the same
+    second, which keeps us comfortably inside their ~10 req/min soft limit.
+    """
+    await asyncio.sleep(start_delay)
+
+    while True:
+        try:
+            if inference_service_instance:
+                await getattr(inference_service_instance, method_name)()
+        except Exception as e:
+            logger.error(f"Inference stats polling error ({name}): {e}")
+
+        await asyncio.sleep(interval)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global background_task, jail_polling_task, health_polling_task, rewards_polling_task, warm_keys_polling_task, hardware_nodes_polling_task, epoch_total_rewards_polling_task, participant_inferences_polling_task, models_api_polling_task, timeline_polling_task, confirmation_polling_task, inference_service_instance
@@ -271,7 +301,14 @@ async def lifespan(app: FastAPI):
     logger.info(f"Initializing with all Participant inference_urls, total: {len(inference_urls)}")
     
     client = GonkaClient(base_urls=inference_urls)
-    inference_service_instance = InferenceService(client=client, cache_db=cache_db)
+    gonka_gg_client = GonkaGGClient(base_url=GONKA_GG_API_BASE, api_key=GONKA_GG_API_KEY)
+    if gonka_gg_client.is_configured:
+        logger.info(f"gonka.gg inference stats enabled (base: {GONKA_GG_API_BASE})")
+    else:
+        logger.warning("GONKA_GG_API_KEY not set; inference stats polling disabled")
+    inference_service_instance = InferenceService(
+        client=client, cache_db=cache_db, gonka_gg_client=gonka_gg_client
+    )
     
     set_inference_service(inference_service_instance)
     
@@ -289,6 +326,18 @@ async def lifespan(app: FastAPI):
     blocks_polling_task = asyncio.create_task(poll_blocks())
     proposals_polling_task = asyncio.create_task(poll_proposals())
     market_stats_polling_task = asyncio.create_task(poll_market_stats())
+    inference_stats_polling_tasks = [
+        asyncio.create_task(_poll_inference_stats_loop(
+            "recent", "poll_inference_recent", POLL_INF_RECENT_INTERVAL, 12)),
+        asyncio.create_task(_poll_inference_stats_loop(
+            "gateways", "poll_inference_gateways", POLL_INF_GATEWAYS_INTERVAL, 18)),
+        asyncio.create_task(_poll_inference_stats_loop(
+            "top_models", "poll_inference_top_models", POLL_INF_TOP_MODELS_INTERVAL, 24)),
+        asyncio.create_task(_poll_inference_stats_loop(
+            "timeseries", "poll_inference_timeseries", POLL_INF_TIMESERIES_INTERVAL, 30)),
+        asyncio.create_task(_poll_inference_stats_loop(
+            "epoch_history", "poll_inference_epoch_history", POLL_INF_EPOCH_HISTORY_INTERVAL, 36)),
+    ]
     logger.info("Background polling tasks started")
     
     yield
@@ -383,6 +432,12 @@ async def lifespan(app: FastAPI):
             await blocks_polling_task
         except asyncio.CancelledError:
             logger.info("Blocks polling task cancelled")
+
+    for task in inference_stats_polling_tasks:
+        task.cancel()
+    if inference_stats_polling_tasks:
+        await asyncio.gather(*inference_stats_polling_tasks, return_exceptions=True)
+        logger.info("Inference stats polling tasks cancelled")
     
     if proposals_polling_task:
         proposals_polling_task.cancel()

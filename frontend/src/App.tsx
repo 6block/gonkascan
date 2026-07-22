@@ -20,6 +20,7 @@ const TransactionDetail = lazy(() => import('./components/TransactionDetail').th
 const ParticipantMap = lazy(() => import('./components/ParticipantMap').then(m => ({ default: m.ParticipantMap })))
 const AddressRoute = lazy(() => import('./components/AddressRoute').then(m => ({ default: m.AddressRoute })))
 const Hardware = lazy(() => import('./components/Hardware').then(m => ({ default: m.Hardware })))
+const Inference = lazy(() => import('./components/Inference').then(m => ({ default: m.Inference })))
 const Governance = lazy(() => import('./components/Governance').then(m => ({ default: m.Governance })))
 const GovernanceDetail = lazy(() => import('./components/GovernanceDetail').then(m => ({ default: m.GovernanceDetail })))
 const Resource = lazy(() => import('./components/Resource').then(m => ({ default: m.Resource })))
@@ -39,6 +40,7 @@ type Page =
   | 'dashboard'
   | 'models'
   | 'hardware'
+  | 'inference'
   | 'timeline'
   | 'transactions'
   | 'nodemap'
@@ -470,11 +472,12 @@ function App() {
                 />
                 <NavDropdown
                   label="Participants"
-                  active={['models', 'hardware', 'nodemap'].includes(currentPage)}
+                  active={['models', 'hardware', 'nodemap', 'inference'].includes(currentPage)}
                   items={[
                     { page: 'models', label: 'Models' },
                     { page: 'hardware', label: 'Hardware' },
                     { page: 'nodemap', label: 'Node Map' },
+                    { page: 'inference', label: 'Inference' },
                   ]}
                   activePage={currentPage}
                   onSelect={(page) => handlePageChange(page as Page)}
@@ -541,11 +544,12 @@ function App() {
               />
               <NavDropdown
                 label="Participants"
-                active={['models', 'hardware', 'nodemap'].includes(currentPage)}
+                active={['models', 'hardware', 'nodemap', 'inference'].includes(currentPage)}
                 items={[
                   { page: 'models', label: 'Models' },
                   { page: 'hardware', label: 'Hardware' },
                   { page: 'nodemap', label: 'Node Map' },
+                  { page: 'inference', label: 'Inference' },
                 ]}
                 activePage={currentPage}
                 onSelect={(page) => handlePageChange(page as Page)}
@@ -569,6 +573,8 @@ function App() {
             <Models />
           ) : currentPage === 'hardware' ? (
             <Hardware />
+          ) : currentPage === 'inference' ? (
+            <Inference />
           ) : currentPage === 'governance' ? (
             proposalId ? <GovernanceDetail proposalId={proposalId}/> : <Governance />
           ) : currentPage === 'blocks' ? (

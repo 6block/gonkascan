@@ -341,6 +341,35 @@ class ModelEpochTokenUsageResponse(BaseModel):
     data: List[ModelEpochTokenUsageItem]
 
 
+class InferenceStatsTotals(BaseModel):
+    requests: int = 0
+    validated: int = 0
+    invalidated: int = 0
+    missed: int = 0
+    failed: int = 0
+    passed_pct: float = 0.0
+    epochs: int = 0
+
+
+class InferenceStatsResponse(BaseModel):
+    """Inference activity sourced from the gonka.gg public API and cached locally.
+
+    Payload shapes are passed through mostly as-is so an upstream field addition
+    doesn't break this endpoint; every dataset is optional because we serve
+    whatever is cached even if one poll is failing.
+    """
+    recent: Optional[Dict[str, Any]] = None
+    gateways: Optional[Dict[str, Any]] = None
+    top_models: Optional[List[Dict[str, Any]]] = None
+    timeseries_model: Optional[Dict[str, Any]] = None
+    timeseries_gateway: Optional[Dict[str, Any]] = None
+    epochs_history: List[Dict[str, Any]] = []
+    totals: InferenceStatsTotals = InferenceStatsTotals()
+    fetched_at: Dict[str, Optional[str]] = {}
+    source: str = "gonka.gg"
+    source_url: str = "https://gonka.gg"
+
+
 class HardwareStats(BaseModel):
     id: str
     amount: int

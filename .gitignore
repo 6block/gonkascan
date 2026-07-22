@@ -34,3 +34,9 @@ hardware-after.png
 b200-modal.png
 transfers-after.png
 transfers-fixed.png
+inference-page.png
+inference-gateway.png
+
+# Local-only vite config used to proxy the API when running the frontend
+# against a locally started backend (avoids CORS during manual testing).
+vite.local-test.config.ts

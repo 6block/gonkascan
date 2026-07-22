@@ -446,8 +446,24 @@ class CacheDB:
             """)
             
             await db.execute("""
-                CREATE INDEX IF NOT EXISTS idx_confirmation_participant 
+                CREATE INDEX IF NOT EXISTS idx_confirmation_participant
                 ON confirmation_data(participant_index)
+            """)
+
+            # Cache of the gonka.gg public inference-stats API. One row per
+            # logical dataset ("recent", "gateways", "top_models",
+            # "timeseries_model", "timeseries_gateway", "epoch_history").
+            # The upstream payloads have quite different shapes and are served
+            # to the frontend as-is, so we keep them as JSON rather than
+            # modelling six near-identical tables. fetched_at lets the API
+            # surface data age, and rows are only overwritten on a successful
+            # fetch so an upstream outage leaves the last good copy in place.
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS inference_stats_cache (
+                    kind TEXT PRIMARY KEY,
+                    payload_json TEXT NOT NULL,
+                    fetched_at TEXT NOT NULL
+                )
             """)
 
             await db.execute("""
@@ -2486,6 +2502,33 @@ class CacheDB:
             async with db.execute("SELECT * FROM market_stats WHERE id = 1") as cursor:
                 row = await cursor.fetchone()
                 return row if row else None
+
+    async def save_inference_stats_cache(self, kind: str, payload: Any):
+        fetched_at = datetime.utcnow().isoformat()
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO inference_stats_cache (kind, payload_json, fetched_at)
+                VALUES (?, ?, ?)
+            """, (kind, json.dumps(payload), fetched_at))
+            await db.commit()
+            logger.debug(f"Saved inference_stats_cache for {kind}")
+
+    async def get_inference_stats_cache(self, kind: str) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT payload_json, fetched_at FROM inference_stats_cache WHERE kind = ?",
+                (kind,),
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return None
+                try:
+                    payload = json.loads(row["payload_json"])
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"Corrupt inference_stats_cache payload for {kind}: {e}")
+                    return None
+                return {"payload": payload, "fetched_at": row["fetched_at"]}
 
     async def _get_migration_progress(self, db, name: str) -> int:
         await db.execute("""

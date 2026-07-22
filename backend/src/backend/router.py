@@ -21,6 +21,7 @@ from backend.models import (
     ProposalDetailResponse,
     ProposalTransactions,
     MarketStats,
+    InferenceStatsResponse,
     TokenStats
 )
 
@@ -413,3 +414,14 @@ async def get_market_stats():
         return await inference_service.get_market_stats()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch gonka market stats: {str(e)}")
+
+
+@router.get("/stats/inference", response_model=InferenceStatsResponse)
+async def get_inference_stats():
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        return await inference_service.get_inference_stats()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch inference stats: {str(e)}")

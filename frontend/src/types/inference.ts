@@ -328,6 +328,95 @@ export interface ModelEpochTokenUsageResponse {
   data: ModelEpochTokenUsageItem[]
 }
 
+export interface InferenceRecentBucket {
+  count: number;
+  finished?: number;
+  tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost?: number;
+  active_executors?: number;
+  active_creators?: number;
+  active_models?: number;
+}
+
+export interface InferenceGatewayRow {
+  address: string;
+  addresses?: string[];
+  name: string;
+  host?: string;
+  url?: string;
+  known?: boolean;
+  inferences: number;
+  tokens: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cost?: number;
+  inference_share: number;
+  token_share: number;
+}
+
+export interface InferenceTopModel {
+  model: string;
+  requests: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_cost?: number;
+}
+
+export interface InferenceSeriesPoint {
+  ts: string;
+  /** Upstream reuses the `model` key for the gateway name when
+   *  breakdown=gateway, so this is the series label either way. */
+  model: string;
+  requests: number;
+  prompt: number;
+  completion: number;
+}
+
+export interface InferenceTimeseries {
+  bucket: string;
+  from: string;
+  to: string;
+  breakdown: string;
+  series: InferenceSeriesPoint[];
+}
+
+export interface InferenceEpochHistoryEntry {
+  epoch: number;
+  requests: number;
+  validated: number;
+  invalidated: number;
+  missed: number;
+  failed: number;
+  passed_pct: number;
+  failed_pct?: number;
+  participants?: number;
+}
+
+export interface InferenceStatsTotals {
+  requests: number;
+  validated: number;
+  invalidated: number;
+  missed: number;
+  failed: number;
+  passed_pct: number;
+  epochs: number;
+}
+
+export interface InferenceStatsResponse {
+  recent?: { hour?: InferenceRecentBucket; day?: InferenceRecentBucket; week?: InferenceRecentBucket } | null;
+  gateways?: { hours?: number; rows?: InferenceGatewayRow[] } | null;
+  top_models?: InferenceTopModel[] | null;
+  timeseries_model?: InferenceTimeseries | null;
+  timeseries_gateway?: InferenceTimeseries | null;
+  epochs_history: InferenceEpochHistoryEntry[];
+  totals: InferenceStatsTotals;
+  fetched_at: Record<string, string | null>;
+  source: string;
+  source_url: string;
+}
+
 export interface HardwareStats {
   id: string;
   amount: number;
