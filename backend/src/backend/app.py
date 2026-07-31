@@ -79,7 +79,7 @@ async def poll_jail_status():
         try:
             if inference_service_instance:
                 epoch_data = await inference_service_instance.client.get_current_epoch_participants()
-                epoch_id = epoch_data["active_participants"]["epoch_group_id"]
+                epoch_id = int(epoch_data["active_participants"]["epoch_group_id"])
                 height = await inference_service_instance.client.get_latest_height()
                 active_participants = epoch_data["active_participants"]["participants"]
                 
@@ -208,7 +208,7 @@ async def poll_confirmation_data():
         try:
             if inference_service_instance:
                 epoch_data = await inference_service_instance.client.get_current_epoch_participants()
-                epoch_id = epoch_data["active_participants"]["epoch_group_id"]
+                epoch_id = int(epoch_data["active_participants"]["epoch_group_id"])
                 height = await inference_service_instance.client.get_latest_height()
                 active_participants = epoch_data["active_participants"]["participants"]
                 

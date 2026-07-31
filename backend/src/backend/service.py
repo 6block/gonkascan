@@ -448,7 +448,7 @@ class InferenceService:
     async def get_canonical_height(self, epoch_id: int, requested_height: Optional[int] = None) -> int:
         if self.current_epoch_id is None:
             latest_info = await self.client.get_latest_epoch()
-            current_epoch_id = latest_info["latest_epoch"]["index"]
+            current_epoch_id = int(latest_info["latest_epoch"]["index"])
             self.current_epoch_id = current_epoch_id
         else:
             current_epoch_id = self.current_epoch_id
@@ -646,7 +646,7 @@ class InferenceService:
         if not self.current_epoch_data and not reload:
             try:
                 latest_info = await self.client.get_latest_epoch()
-                current_epoch_id = latest_info["latest_epoch"]["index"]
+                current_epoch_id = int(latest_info["latest_epoch"]["index"])
                 
                 db_cached = await self._load_cached_epoch_from_db(current_epoch_id)
                 if db_cached:
@@ -663,7 +663,7 @@ class InferenceService:
             height = await self.client.get_latest_height()
             epoch_data = await self.client.get_current_epoch_participants()
             
-            epoch_id = epoch_data["active_participants"]["epoch_group_id"]
+            epoch_id = int(epoch_data["active_participants"]["epoch_group_id"])
             
             await self._mark_epoch_finished_if_needed(epoch_id, height)
             
@@ -775,7 +775,7 @@ class InferenceService:
             participants_stats = await self.merge_confirmation_data(epoch_id, participants_stats, height, active_participants_list)
             
             latest_info = await self.client.get_latest_epoch()
-            latest_epoch_index = latest_info["latest_epoch"]["index"]
+            latest_epoch_index = int(latest_info["latest_epoch"]["index"])
             
             next_poc_start_block = None
             set_new_validators_block = None
@@ -1289,7 +1289,7 @@ class InferenceService:
         try:
             if self.current_epoch_id is None:
                 latest_info = await self.client.get_latest_epoch()
-                current_epoch_id = latest_info["latest_epoch"]["index"]
+                current_epoch_id = int(latest_info["latest_epoch"]["index"])
                 self.current_epoch_id = current_epoch_id
             else:
                 current_epoch_id = self.current_epoch_id
@@ -1625,7 +1625,7 @@ class InferenceService:
             
             height = await self.client.get_latest_height()
             epoch_data = await self.client.get_current_epoch_participants()
-            current_epoch = epoch_data["active_participants"]["epoch_group_id"]
+            current_epoch = int(epoch_data["active_participants"]["epoch_group_id"])
             participants = epoch_data["active_participants"]["participants"]
             
             rewards_to_save = []
@@ -1676,7 +1676,7 @@ class InferenceService:
             logger.info("Polling warm keys")
             
             epoch_data = await self.client.get_current_epoch_participants()
-            current_epoch = epoch_data["active_participants"]["epoch_group_id"]
+            current_epoch = int(epoch_data["active_participants"]["epoch_group_id"])
             participants = epoch_data["active_participants"]["participants"]
             
             async def fetch_warm_key(participant):
@@ -1713,7 +1713,7 @@ class InferenceService:
             logger.info("Polling hardware nodes")
             
             epoch_data = await self.client.get_current_epoch_participants()
-            current_epoch = epoch_data["active_participants"]["epoch_group_id"]
+            current_epoch = int(epoch_data["active_participants"]["epoch_group_id"])
             participants = epoch_data["active_participants"]["participants"]
 
             epoch_stats = None
@@ -1895,7 +1895,7 @@ class InferenceService:
             logger.info("Polling epoch total rewards")
 
             latest_info = await self.client.get_latest_epoch()
-            current_epoch_id = latest_info["latest_epoch"]["index"]
+            current_epoch_id = int(latest_info["latest_epoch"]["index"])
 
             for offset in range(1, 6):
                 epoch_id = current_epoch_id - offset
@@ -2114,7 +2114,7 @@ class InferenceService:
         
         latest_epoch_info = await self.client.get_latest_epoch()
         current_epoch_start = latest_epoch_info["latest_epoch"]["poc_start_block_height"]
-        current_epoch_index = latest_epoch_info["latest_epoch"]["index"]
+        current_epoch_index = int(latest_epoch_info["latest_epoch"]["index"])
         epoch_length = self._extract_epoch_length(latest_epoch_info)
         epoch_stages = latest_epoch_info.get("epoch_stages")
         next_epoch_stages = latest_epoch_info.get("next_epoch_stages")
@@ -2155,7 +2155,7 @@ class InferenceService:
         if self.current_epoch_id is None:
             try:
                 latest_info = await self.client.get_latest_epoch()
-                epoch_id = latest_info["latest_epoch"]["index"]
+                epoch_id = int(latest_info["latest_epoch"]["index"])
                 self.current_epoch_id = epoch_id
             except Exception as e:
                 logger.error(f"Failed to get current epoch ID: {e}")
@@ -2444,7 +2444,7 @@ class InferenceService:
             logger.info("Polling participant inferences")
             
             epoch_data = await self.client.get_current_epoch_participants()
-            current_epoch = epoch_data["active_participants"]["epoch_group_id"]
+            current_epoch = int(epoch_data["active_participants"]["epoch_group_id"])
             current_epoch_effective_height = epoch_data["active_participants"]["effective_block_height"]
             participants = epoch_data["active_participants"]["participants"]
             participant_indices = {p["index"] for p in participants}
@@ -2646,7 +2646,7 @@ class InferenceService:
             logger.info("Polling models API cache")
             
             epoch_data = await self.client.get_current_epoch_participants()
-            epoch_id = epoch_data["active_participants"]["epoch_group_id"]
+            epoch_id = int(epoch_data["active_participants"]["epoch_group_id"])
             height = await self.client.get_latest_height()
             
             models_all_data = await self.client.get_models_all()
@@ -2959,7 +2959,7 @@ class InferenceService:
         try:
             if self.current_epoch_id is None:
                 latest_info = await self.client.get_latest_epoch()
-                self.current_epoch_id = latest_info["latest_epoch"]["index"]
+                self.current_epoch_id = int(latest_info["latest_epoch"]["index"])
             epoch_id = self.current_epoch_id
 
             transaction_rows = await self.cache_db.get_latest_transactions(limit=limit)
@@ -3463,7 +3463,7 @@ class InferenceService:
         if self.current_epoch_id is None:
             try:
                 latest_info = await self.client.get_latest_epoch()
-                epoch_id = latest_info["latest_epoch"]["index"]
+                epoch_id = int(latest_info["latest_epoch"]["index"])
                 self.current_epoch_id = epoch_id
             except Exception as e:
                 logger.error(f"Failed to get current epoch ID: {e}")
@@ -3641,7 +3641,7 @@ class InferenceService:
         if epoch_id is None:
             if self.current_epoch_id is None:
                 latest_info = await self.client.get_latest_epoch()
-                self.current_epoch_id = latest_info["latest_epoch"]["index"]
+                self.current_epoch_id = int(latest_info["latest_epoch"]["index"])
             epoch_id = self.current_epoch_id
         exists = await self.cache_db.has_participant_in_epoch(epoch_id, participant_index)
         return {
@@ -3786,7 +3786,7 @@ class InferenceService:
                 epoch_id = self.current_epoch_id
             else:
                 latest_info = await self.client.get_latest_epoch()
-                epoch_id = latest_info["latest_epoch"]["index"]
+                epoch_id = int(latest_info["latest_epoch"]["index"])
         logger.info(f"{proposal_id} epoch_id {epoch_id} {voting_start_height}")
         
         epoch_data =  await self.client.get_epoch_group_data(epoch_id)
@@ -4257,7 +4257,7 @@ class InferenceService:
 
     async def collect_history_epoch_status(self):
         latest_info = await self.client.get_latest_epoch()
-        current_epoch_id = latest_info["latest_epoch"]["index"]
+        current_epoch_id = int(latest_info["latest_epoch"]["index"])
         cache_epoch = await self.cache_db.get_all_epoch_status()
         existing_epoch = {int(r["epoch_id"]): dict(r) for r in cache_epoch}
         logger.info(f"Existing local epoch_status count: {len(existing_epoch)}, current_epoch_id: {current_epoch_id}")
@@ -4276,7 +4276,7 @@ class InferenceService:
     
     async def collect_history_rewards(self):
         latest_info = await self.client.get_latest_epoch()
-        current_epoch_id = latest_info["latest_epoch"]["index"]
+        current_epoch_id = int(latest_info["latest_epoch"]["index"])
         logger.info(f"Collecting history rewards for all participants, current epoch: {current_epoch_id}")
 
         total_saved = 0
@@ -4382,7 +4382,7 @@ class InferenceService:
         """One-time repair: recalculate total rewards for all historical epochs."""
         try:
             latest_info = await self.client.get_latest_epoch()
-            current_epoch_id = latest_info["latest_epoch"]["index"]
+            current_epoch_id = int(latest_info["latest_epoch"]["index"])
 
             logger.info(f"Starting one-time repair of total rewards for epochs 1 to {current_epoch_id - 1}")
 
