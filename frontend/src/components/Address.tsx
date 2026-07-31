@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { FiChevronDown } from 'react-icons/fi'
 import { AssetsResponse } from '../types/inference'
 import { AddressTransactionsTable } from './AddressTransactionsTable'
 import { TransfersTable } from './TransfersTable'
 import { TabBar } from './common/TabBar'
-import { formatGNK, apiFetch, toGonka } from '../utils'
+import { formatGNK, apiFetch, toGonka, formatCoin, shortDenom } from '../utils'
 import { BackNavigation } from './common/BackNavigation'
 
 interface AddressProps {
@@ -21,6 +22,7 @@ function getInitialTab(): TabType {
 
 export function Address({ address }: AddressProps) {
   const [activeTab, setActiveTab] = useState<TabType>(getInitialTab)
+  const [tokensExpanded, setTokensExpanded] = useState(true)
 
   const { data: assets, isLoading: assetsLoading } = useQuery<AssetsResponse>({
     queryKey: ['address-assets', address],
@@ -37,6 +39,9 @@ export function Address({ address }: AddressProps) {
   const mined = assets?.total_rewarded?.amount ? toGonka(assets.total_rewarded.amount) : 0
 
   const total = balance + vesting
+
+  const otherTokens = (assets?.balances ?? []).filter(b => b.denom !== 'ngonka')
+  const tokenMetadata = assets?.token_metadata ?? {}
 
   const handleBack = () => {
     const params = new URLSearchParams(window.location.search)
@@ -86,6 +91,48 @@ export function Address({ address }: AddressProps) {
               </div>
             ))}
           </div>
+
+          {otherTokens.length > 0 && (
+            <div className="surface-inset mt-2.5 sm:mt-4 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setTokensExpanded(v => !v)}
+                className="w-full flex items-center justify-between gap-3 px-3 sm:px-5 py-3 text-left hover:bg-white/[0.02] transition-colors"
+                aria-expanded={tokensExpanded}
+              >
+                <span className="text-[10px] sm:text-[10.5px] font-semibold text-slate-500 uppercase tracking-[0.14em]">
+                  Other Tokens ({otherTokens.length})
+                </span>
+                <FiChevronDown
+                  className={`shrink-0 text-slate-500 transition-transform ${tokensExpanded ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {tokensExpanded && (
+                <div className="border-t border-white/[0.06]">
+                  {otherTokens.map(token => {
+                    const meta = tokenMetadata[token.denom]
+                    return (
+                      <div
+                        key={token.denom}
+                        className="flex items-center justify-between gap-3 px-3 sm:px-5 py-3 border-b border-white/[0.04] last:border-b-0"
+                      >
+                        <div className="text-sm sm:text-base font-bold tabular-nums text-slate-50 break-all">
+                          {formatCoin(token.amount, token.denom, meta)}
+                        </div>
+                        <div className="text-right text-[10px] sm:text-[11px] text-slate-500 leading-tight">
+                          {meta?.origin_chain && <div>{meta.origin_chain}</div>}
+                          <div className="font-mono" title={token.denom}>
+                            {shortDenom(token.denom)}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="px-3 sm:px-5 md:px-6 pb-3">

@@ -523,7 +523,21 @@ class GonkaClient:
     
     async def get_balances(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/balances/{address}")
-    
+
+    async def get_denom_trace(self, denom_hash: str) -> Dict[str, Any]:
+        return await self._make_request(
+            f"/chain-api/ibc/apps/transfer/v1/denom_traces/{denom_hash}"
+        )
+
+    async def get_channel_client_state(
+        self,
+        channel_id: str,
+        port_id: str = "transfer",
+    ) -> Dict[str, Any]:
+        return await self._make_request(
+            f"/chain-api/ibc/core/channel/v1/channels/{channel_id}/ports/{port_id}/client_state"
+        )
+
     async def get_participant_collateral(
         self,
         participant_id: str,

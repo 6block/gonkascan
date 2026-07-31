@@ -594,9 +594,23 @@ class CacheDB:
                 );
             """)
 
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS ibc_denom_metadata (
+                    denom           TEXT PRIMARY KEY,
+                    base_denom      TEXT NOT NULL,
+                    path            TEXT,
+                    channel_id      TEXT,
+                    origin_chain_id TEXT,
+                    origin_chain    TEXT,
+                    symbol          TEXT NOT NULL,
+                    decimals        INTEGER,
+                    resolved_at     TEXT NOT NULL
+                );
+            """)
+
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
-    
+
     async def save_stats(
         self,
         epoch_id: int,
@@ -2502,6 +2516,36 @@ class CacheDB:
             async with db.execute("SELECT * FROM market_stats WHERE id = 1") as cursor:
                 row = await cursor.fetchone()
                 return row if row else None
+
+    async def get_ibc_denom_metadata(self, denom: str) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM ibc_denom_metadata WHERE denom = ?", (denom,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+
+    async def save_ibc_denom_metadata(self, denom: str, metadata: Dict[str, Any]):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO ibc_denom_metadata (
+                    denom, base_denom, path, channel_id,
+                    origin_chain_id, origin_chain, symbol, decimals, resolved_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                denom,
+                metadata.get("base_denom", ""),
+                metadata.get("path"),
+                metadata.get("channel_id"),
+                metadata.get("origin_chain_id"),
+                metadata.get("origin_chain"),
+                metadata.get("symbol", ""),
+                metadata.get("decimals"),
+                datetime.utcnow().isoformat(),
+            ))
+            await db.commit()
+            logger.debug(f"Saved IBC denom metadata for {denom}")
 
     async def save_inference_stats_cache(self, kind: str, payload: Any):
         fetched_at = datetime.utcnow().isoformat()

@@ -95,7 +95,7 @@ const IBC_DENOM_MAP: Record<string, DenomMeta> = {
   'ibc/C0E66D1C81D8AAF0E6896E05190FDFBC222367148F86AC3EA679C28327A763CD': { symbol: 'AXL', decimals: 6 },
 }
 
-function shortDenom(denom: string): string {
+export function shortDenom(denom: string): string {
   if (denom.startsWith('ibc/') && denom.length > 14) {
     return `ibc/${denom.slice(4, 10)}…${denom.slice(-4)}`
   }
@@ -107,7 +107,14 @@ function shortDenom(denom: string): string {
 // - known IBC voucher (USDT/USDC/AXL/...) -> "X.XX SYMBOL" with the right decimals.
 // - unknown denom -> raw amount + a truncated denom so the value is at least
 //   technically correct rather than mislabelled.
-export function formatCoin(amount: string | number, denom: string): string {
+// `resolved` comes from the backend denom trace lookup and wins over the local
+// table; a null `decimals` there means the scale is unknown, so the raw amount
+// is shown rather than a guessed one.
+export function formatCoin(
+  amount: string | number,
+  denom: string,
+  resolved?: { symbol: string; decimals?: number | null } | null,
+): string {
   const raw = typeof amount === 'string' ? amount : String(amount)
   if (!denom) {
     return formatInt(raw)
@@ -117,6 +124,13 @@ export function formatCoin(amount: string | number, denom: string): string {
   }
   if (denom === 'gonka') {
     return `${formatDecimal(Number(raw), 2)} GNK`
+  }
+  if (resolved?.symbol) {
+    if (resolved.decimals == null) {
+      return `${formatInt(raw)} ${resolved.symbol}`
+    }
+    const scaled = Number(raw) / Math.pow(10, resolved.decimals)
+    return `${formatDecimal(scaled, 2)} ${resolved.symbol}`
   }
   const meta = IBC_DENOM_MAP[denom]
   if (meta) {

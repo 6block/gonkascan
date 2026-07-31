@@ -291,12 +291,23 @@ export interface EpochSchedule {
   coins: BalanceInfo[];
 }
 
+export interface TokenMetadata {
+  symbol: string;
+  // null when the scale is unknown — render the raw amount in that case
+  decimals: number | null;
+  base_denom: string | null;
+  origin_chain: string | null;
+  origin_chain_id: string | null;
+  channel_id: string | null;
+}
+
 export interface AssetsResponse {
   address: string;
   balances: BalanceInfo[];
   total_vesting: BalanceInfo[];
   epoch_amounts: EpochSchedule[];
   total_rewarded: BalanceInfo;
+  token_metadata?: Record<string, TokenMetadata>;
 }
 
 export interface EpochSeriesPoint {

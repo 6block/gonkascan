@@ -27,6 +27,13 @@ from bech32 import bech32_decode, convertbits
 from backend.client import GonkaClient
 from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
+from backend.denoms import (
+    ibc_hash,
+    is_ibc_denom,
+    parse_channel_id,
+    resolve_chain_name,
+    resolve_symbol_and_decimals,
+)
 from backend.models import (
     ParticipantStats,
     CurrentEpochStats,
@@ -367,6 +374,7 @@ class InferenceService:
         self.timeline_cache_time: Optional[float] = None
         self.timeline_cache_ttl: float = 30.0
         self.cache_warming_in_progress: bool = False
+        self.denom_metadata_cache: Dict[str, Dict[str, Any]] = {}
         self.last_cache_warm_time: Optional[float] = None
         self.params_module_index: Optional[dict] = None
     
@@ -3269,10 +3277,86 @@ class InferenceService:
             participants=participant_nodes,
         )
 
+    async def resolve_denom_metadata(self, denom: str) -> Optional[Dict[str, Any]]:
+        """Resolve an IBC voucher denom into displayable token metadata.
+
+        Denom traces are immutable, so a resolved denom is cached in memory and
+        in the database forever. Returns None when the denom cannot be resolved.
+        """
+        if not is_ibc_denom(denom):
+            return None
+
+        if denom in self.denom_metadata_cache:
+            return self.denom_metadata_cache[denom]
+
+        cached = await self.cache_db.get_ibc_denom_metadata(denom)
+        if cached:
+            self.denom_metadata_cache[denom] = cached
+            return cached
+
+        try:
+            trace = (await self.client.get_denom_trace(ibc_hash(denom))).get("denom_trace", {})
+            base_denom = trace.get("base_denom", "")
+            if not base_denom:
+                return None
+
+            path = trace.get("path")
+            channel_id = parse_channel_id(path)
+            symbol, decimals = resolve_symbol_and_decimals(base_denom)
+
+            origin_chain_id = None
+            if channel_id:
+                try:
+                    client_state = await self.client.get_channel_client_state(channel_id)
+                    origin_chain_id = (
+                        client_state.get("identified_client_state", {})
+                        .get("client_state", {})
+                        .get("chain_id")
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to resolve origin chain for {channel_id}: {e}")
+
+            metadata = {
+                "symbol": symbol,
+                "decimals": decimals,
+                "base_denom": base_denom,
+                "path": path,
+                "channel_id": channel_id,
+                "origin_chain_id": origin_chain_id,
+                "origin_chain": resolve_chain_name(origin_chain_id),
+            }
+
+            self.denom_metadata_cache[denom] = metadata
+            try:
+                await self.cache_db.save_ibc_denom_metadata(denom, metadata)
+            except Exception as e:
+                logger.warning(f"Failed to cache denom metadata for {denom}: {e}")
+
+            return metadata
+
+        except Exception as e:
+            logger.warning(f"Failed to resolve denom trace for {denom}: {e}")
+            return None
+
+    async def _build_token_metadata(self, balances: List[Dict[str, Any]]) -> Dict[str, Any]:
+        ibc_denoms = {b.get("denom") for b in balances if is_ibc_denom(b.get("denom", ""))}
+        if not ibc_denoms:
+            return {}
+
+        resolved = await asyncio.gather(
+            *(self.resolve_denom_metadata(denom) for denom in ibc_denoms)
+        )
+        return {
+            denom: metadata
+            for denom, metadata in zip(ibc_denoms, resolved)
+            if metadata
+        }
+
     async def get_address_assets(self, address: str) -> AssetsResponse:
         try:
             balances_data = await self.client.get_balances(address)
             balances = balances_data.get("balances", [])
+            token_metadata = await self._build_token_metadata(balances)
             total_vesting = []
             epoch_amounts = []
             total_rewarded = 0
@@ -3310,7 +3394,8 @@ class InferenceService:
                 total_rewarded={
                     "amount": str(total_rewarded),
                     "denom": "ngonka"
-                }
+                },
+                token_metadata=token_metadata
             )
 
         except Exception as e:

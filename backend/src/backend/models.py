@@ -309,12 +309,24 @@ class ParticipantMapResponse(BaseModel):
 class EpochSchedule(BaseModel):
     coins: List[BalanceInfo]
 
+class TokenMetadata(BaseModel):
+    symbol: str
+    # None when the token is unknown: the UI then shows the raw amount instead
+    # of scaling it with a guessed value.
+    decimals: Optional[int] = None
+    base_denom: Optional[str] = None
+    origin_chain: Optional[str] = None
+    origin_chain_id: Optional[str] = None
+    channel_id: Optional[str] = None
+
+
 class AssetsResponse(BaseModel):
     address: str
     balances: List[BalanceInfo]
     total_vesting: List[BalanceInfo]
     epoch_amounts: List[EpochSchedule]
     total_rewarded: BalanceInfo
+    token_metadata: Dict[str, TokenMetadata] = {}
 
 class EpochSeriesPoint(BaseModel):
     epoch_id: int
