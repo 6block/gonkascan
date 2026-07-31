@@ -2047,6 +2047,20 @@ class InferenceService:
             logger.error(f"Failed to merge confirmation data: {e}")
             return participants
     
+    @staticmethod
+    def _extract_epoch_length(latest_epoch_info: dict) -> int:
+        """Read epoch_length from /v1/epochs/latest.
+
+        Newer chain releases nest the epoch params one level deeper
+        (epoch_params.epoch_params.epoch_length), so support both shapes.
+        """
+        params = latest_epoch_info.get("epoch_params") or {}
+        nested = params.get("epoch_params") or {}
+        value = nested.get("epoch_length", params.get("epoch_length"))
+        if value is None:
+            raise KeyError("epoch_length not found in epoch_params")
+        return int(value)
+
     async def get_timeline(self):
         current_time = time.time()
         
@@ -2101,7 +2115,7 @@ class InferenceService:
         latest_epoch_info = await self.client.get_latest_epoch()
         current_epoch_start = latest_epoch_info["latest_epoch"]["poc_start_block_height"]
         current_epoch_index = latest_epoch_info["latest_epoch"]["index"]
-        epoch_length = latest_epoch_info["epoch_params"]["epoch_length"]
+        epoch_length = self._extract_epoch_length(latest_epoch_info)
         epoch_stages = latest_epoch_info.get("epoch_stages")
         next_epoch_stages = latest_epoch_info.get("next_epoch_stages")
         
@@ -2436,7 +2450,7 @@ class InferenceService:
             participant_indices = {p["index"] for p in participants}
             
             latest_epoch_info = await self.client.get_latest_epoch()
-            epoch_length = latest_epoch_info["epoch_params"]["epoch_length"]
+            epoch_length = self._extract_epoch_length(latest_epoch_info)
             
             logger.info(f"Fetching all inferences (all epochs)")
             all_inferences = await self.client.get_all_inferences()
