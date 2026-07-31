@@ -2246,8 +2246,8 @@ class InferenceService:
                         model_participant_count[model] = set()
                     
                     for ml_node in ml_nodes_entry.get("ml_nodes", []):
-                        poc_weight = ml_node.get("poc_weight", 0)
-                        model_weights[model] += poc_weight
+                        poc_weight = ml_node.get("poc_weight") or 0
+                        model_weights[model] += int(poc_weight)
                     
                     model_participant_count[model].add(participant_index)
             
@@ -2356,8 +2356,8 @@ class InferenceService:
                         model_participant_count[model] = set()
                     
                     for ml_node in ml_nodes_entry.get("ml_nodes", []):
-                        poc_weight = ml_node.get("poc_weight", 0)
-                        model_weights[model] += poc_weight
+                        poc_weight = ml_node.get("poc_weight") or 0
+                        model_weights[model] += int(poc_weight)
                     
                     model_participant_count[model].add(participant_index)
             
