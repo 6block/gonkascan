@@ -27,6 +27,7 @@ from bech32 import bech32_decode, convertbits
 from backend.client import GonkaClient
 from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
+from backend.dex import WGNK_PAIR_LABEL, WGNK_POOL_URL
 from backend.denoms import (
     ibc_hash,
     is_ibc_denom,
@@ -73,6 +74,7 @@ from backend.models import (
     OrderbookStats,
     TokenStats,
     MarketStats,
+    DexStats,
     InferenceStatsResponse,
     CollateralStatus,
     TransferTransaction,
@@ -4057,7 +4059,56 @@ class InferenceService:
             msg["weight"] = participants_weights_map.get(msg.get("voter"), {}).get("weight")
         return proposal_txs
     
+    async def poll_dex_market_stats(self):
+        """Refresh the Uniswap WGNK/USDT price.
+
+        Falls back to the pool's slot0() when GeckoTerminal is unavailable, in
+        which case only the price is known and the 24h figures are dropped
+        rather than being carried over stale.
+        """
+        result = await self.client.fetch_wgnk_dex_stats()
+
+        if result["is_success"]:
+            await self.cache_db.save_dex_market_stats(result["data"], "geckoterminal")
+            logger.info(f"Cached WGNK DEX stats: ${result['data']['price']}")
+            return
+
+        logger.warning(
+            f"GeckoTerminal unavailable ({result['error_message']}), falling back to on-chain slot0"
+        )
+        price = await self.client.fetch_wgnk_price_onchain()
+        if price is None:
+            raise Exception(f"Failed to fetch WGNK price: {result['error_message']}")
+
+        await self.cache_db.save_dex_market_stats(
+            {
+                "price": price,
+                "price_change_24h": 0.0,
+                "volume_24h_usd": 0.0,
+                "liquidity_usd": 0.0,
+            },
+            "uniswap-onchain",
+        )
+        logger.info(f"Cached WGNK price from chain: ${price}")
+
     async def poll_market_stats(self):
+        # The two markets are independent: a HEX outage must not stop the
+        # Uniswap price from updating, and vice versa.
+        dex_error: Optional[Exception] = None
+        try:
+            await self.poll_dex_market_stats()
+        except Exception as e:
+            dex_error = e
+            logger.error(f"Failed to poll DEX market stats: {e}")
+
+        try:
+            await self._poll_orderbook_market_stats()
+        except Exception as e:
+            logger.error(f"Failed to poll orderbook market stats: {e}")
+            if dex_error is not None:
+                raise
+
+    async def _poll_orderbook_market_stats(self):
         result = await self.client.fetch_gonka_orderbook()
         if not result["is_success"]:
             raise Exception(result["error_message"])
@@ -4187,9 +4238,22 @@ class InferenceService:
             total_supply=market_stats["total_supply"],
             updated_at=market_stats["token_updated_at"],
         )
+        dex_row = await self.cache_db.get_dex_market_stats()
+        dex_stats = DexStats(
+            price=float(dex_row["price"]),
+            price_change_24h=float(dex_row["price_change_24h"]),
+            volume_24h_usd=float(dex_row["volume_24h_usd"]),
+            liquidity_usd=float(dex_row["liquidity_usd"]),
+            pair=WGNK_PAIR_LABEL,
+            source=dex_row["source"],
+            pool_url=WGNK_POOL_URL,
+            updated_at=dex_row["updated_at"],
+        ) if dex_row else None
+
         return MarketStats(
             market_stats = orderbook_stats,
-            token_stats = token_stats
+            token_stats = token_stats,
+            dex_stats = dex_stats
         )
 
     async def _poll_inference_stats_kind(self, kind: str, fetch_coro) -> None:

@@ -595,6 +595,18 @@ class CacheDB:
             """)
 
             await db.execute("""
+                CREATE TABLE IF NOT EXISTS dex_market_stats (
+                    id                INTEGER PRIMARY KEY CHECK (id = 1),
+                    price             REAL NOT NULL,
+                    price_change_24h  REAL NOT NULL,
+                    volume_24h_usd    REAL NOT NULL,
+                    liquidity_usd     REAL NOT NULL,
+                    source            TEXT NOT NULL,
+                    updated_at        TEXT NOT NULL
+                );
+            """)
+
+            await db.execute("""
                 CREATE TABLE IF NOT EXISTS ibc_denom_metadata (
                     denom           TEXT PRIMARY KEY,
                     base_denom      TEXT NOT NULL,
@@ -2516,6 +2528,30 @@ class CacheDB:
             async with db.execute("SELECT * FROM market_stats WHERE id = 1") as cursor:
                 row = await cursor.fetchone()
                 return row if row else None
+
+    async def save_dex_market_stats(self, stats: Dict[str, Any], source: str):
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("""
+                INSERT OR REPLACE INTO dex_market_stats (
+                    id, price, price_change_24h, volume_24h_usd,
+                    liquidity_usd, source, updated_at
+                ) VALUES (1, ?, ?, ?, ?, ?, ?)
+            """, (
+                stats["price"],
+                stats.get("price_change_24h", 0.0),
+                stats.get("volume_24h_usd", 0.0),
+                stats.get("liquidity_usd", 0.0),
+                source,
+                datetime.utcnow().isoformat(),
+            ))
+            await db.commit()
+
+    async def get_dex_market_stats(self) -> Optional[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("SELECT * FROM dex_market_stats WHERE id = 1") as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
     async def get_ibc_denom_metadata(self, denom: str) -> Optional[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:

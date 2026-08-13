@@ -9,6 +9,14 @@ import asyncio
 import random
 import json
 
+from backend.dex import (
+    ETH_RPC_URL,
+    GECKOTERMINAL_POOL_URL,
+    SLOT0_SELECTOR,
+    WGNK_USDT_POOL,
+    parse_slot0_price,
+)
+
 logger = logging.getLogger(__name__)
 
 BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
@@ -718,6 +726,70 @@ class GonkaClient:
                 "response_time_ms": None,
                 "data": None
             }
+
+    async def fetch_wgnk_dex_stats(self) -> Dict[str, Any]:
+        """Read the Uniswap V3 WGNK/USDT pool through GeckoTerminal."""
+        start_time = time.time()
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(GECKOTERMINAL_POOL_URL)
+                response_time_ms = int((time.time() - start_time) * 1000)
+
+                if response.status_code != 200:
+                    return {
+                        "is_success": False,
+                        "error_message": f"HTTP {response.status_code}",
+                        "response_time_ms": response_time_ms,
+                        "data": None
+                    }
+
+                attributes = response.json()["data"]["attributes"]
+                price = float(attributes["base_token_price_usd"])
+                if price <= 0:
+                    raise ValueError("GeckoTerminal returned a non-positive price")
+
+                return {
+                    "is_success": True,
+                    "error_message": None,
+                    "response_time_ms": response_time_ms,
+                    "data": {
+                        "price": price,
+                        "price_change_24h": float(
+                            (attributes.get("price_change_percentage") or {}).get("h24") or 0
+                        ),
+                        "volume_24h_usd": float(
+                            (attributes.get("volume_usd") or {}).get("h24") or 0
+                        ),
+                        "liquidity_usd": float(attributes.get("reserve_in_usd") or 0),
+                    }
+                }
+
+        except Exception as e:
+            return {
+                "is_success": False,
+                "error_message": str(e),
+                "response_time_ms": None,
+                "data": None
+            }
+
+    async def fetch_wgnk_price_onchain(self) -> Optional[float]:
+        """Fallback price straight from the pool's slot0(), no third party involved."""
+        payload = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "eth_call",
+            "params": [{"to": WGNK_USDT_POOL, "data": SLOT0_SELECTOR}, "latest"]
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(ETH_RPC_URL, json=payload)
+                response.raise_for_status()
+                return parse_slot0_price(response.json().get("result"))
+        except Exception as e:
+            logger.warning(f"Failed to read WGNK price from chain: {e}")
+            return None
 
     async def fetch_gonka_limit_orders_stat(self) -> Dict[str, Any]:
         url = "https://api0.herewallet.app/api/v1/exchange/limit_orders/gonka/stat"

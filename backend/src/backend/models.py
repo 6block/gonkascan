@@ -533,6 +533,20 @@ class TokenStats(BaseModel):
     total_supply: float
     updated_at: datetime
 
+class DexStats(BaseModel):
+    price: float
+    price_change_24h: float
+    volume_24h_usd: float
+    liquidity_usd: float
+    pair: str
+    source: str
+    pool_url: str
+    updated_at: str
+
+
 class MarketStats(BaseModel):
     market_stats : OrderbookStats
     token_stats: TokenStats
+    # Uniswap WGNK/USDT — the headline price. None until the first poll lands
+    # or when both the API and the on-chain fallback are unreachable.
+    dex_stats: Optional[DexStats] = None
