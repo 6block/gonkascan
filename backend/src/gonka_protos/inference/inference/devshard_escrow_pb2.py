@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n)inference/inference/devshard_escrow.proto\x12\x13inference.inference\"\xfa\x01\n\x0e\x44\x65vshardEscrow\x12\x0e\n\x02id\x18\x01 \x01(\x04R\x02id\x12\x18\n\x07\x63reator\x18\x02 \x01(\tR\x07\x63reator\x12\x16\n\x06\x61mount\x18\x03 \x01(\x04R\x06\x61mount\x12\x14\n\x05slots\x18\x04 \x03(\tR\x05slots\x12\x1f\n\x0b\x65poch_index\x18\x05 \x01(\x04R\nepochIndex\x12\x19\n\x08\x61pp_hash\x18\x06 \x01(\tR\x07\x61ppHash\x12\x18\n\x07settled\x18\x07 \x01(\x08R\x07settled\x12\x1f\n\x0btoken_price\x18\x08 \x01(\x04R\ntokenPrice\x12\x19\n\x08model_id\x18\t \x01(\tR\x07modelId\"\xac\x02\n\x16\x44\x65vshardHostEpochStats\x12 \n\x0bparticipant\x18\x01 \x01(\tR\x0bparticipant\x12\x1f\n\x0b\x65poch_index\x18\x02 \x01(\x04R\nepochIndex\x12\x16\n\x06missed\x18\x03 \x01(\rR\x06missed\x12\x18\n\x07invalid\x18\x04 \x01(\rR\x07invalid\x12\x12\n\x04\x63ost\x18\x05 \x01(\x04R\x04\x63ost\x12\x31\n\x14required_validations\x18\x06 \x01(\rR\x13requiredValidations\x12\x33\n\x15\x63ompleted_validations\x18\x07 \x01(\rR\x14\x63ompletedValidations\x12!\n\x0c\x65scrow_count\x18\x08 \x01(\rR\x0b\x65scrowCount\"\xe4\x01\n\x1b\x44\x65vshardSettlementHostStats\x12\x17\n\x07slot_id\x18\x01 \x01(\rR\x06slotId\x12\x16\n\x06missed\x18\x02 \x01(\rR\x06missed\x12\x18\n\x07invalid\x18\x03 \x01(\rR\x07invalid\x12\x12\n\x04\x63ost\x18\x04 \x01(\x04R\x04\x63ost\x12\x31\n\x14required_validations\x18\x05 \x01(\rR\x13requiredValidations\x12\x33\n\x15\x63ompleted_validations\x18\x06 \x01(\rR\x14\x63ompletedValidations\"N\n\x15\x44\x65vshardSlotSignature\x12\x17\n\x07slot_id\x18\x01 \x01(\rR\x06slotId\x12\x1c\n\tsignature\x18\x02 \x01(\x0cR\tsignatureB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n)inference/inference/devshard_escrow.proto\x12\x13inference.inference\"\xe3\x04\n\x0e\x44\x65vshardEscrow\x12\x0e\n\x02id\x18\x01 \x01(\x04R\x02id\x12\x18\n\x07\x63reator\x18\x02 \x01(\tR\x07\x63reator\x12\x16\n\x06\x61mount\x18\x03 \x01(\x04R\x06\x61mount\x12\x14\n\x05slots\x18\x04 \x03(\tR\x05slots\x12\x1f\n\x0b\x65poch_index\x18\x05 \x01(\x04R\nepochIndex\x12\x19\n\x08\x61pp_hash\x18\x06 \x01(\tR\x07\x61ppHash\x12\x18\n\x07settled\x18\x07 \x01(\x08R\x07settled\x12\x1f\n\x0btoken_price\x18\x08 \x01(\x04R\ntokenPrice\x12\x19\n\x08model_id\x18\t \x01(\tR\x07modelId\x12.\n\x13\x63reate_devshard_fee\x18\n \x01(\x04R\x11\x63reateDevshardFee\x12\"\n\rfee_per_nonce\x18\x0b \x01(\x04R\x0b\x66\x65\x65PerNonce\x12=\n\x1binference_seal_grace_nonces\x18\x0c \x01(\rR\x18inferenceSealGraceNonces\x12?\n\x1cinference_seal_grace_seconds\x18\r \x01(\rR\x19inferenceSealGraceSeconds\x12\x36\n\x18\x61uto_seal_every_n_nonces\x18\x0e \x01(\rR\x14\x61utoSealEveryNNonces\x12\'\n\x0fvalidation_rate\x18\x0f \x01(\rR\x0evalidationRate\x12\x32\n\x15vote_threshold_factor\x18\x10 \x01(\rR\x13voteThresholdFactor\"\xac\x02\n\x16\x44\x65vshardHostEpochStats\x12 \n\x0bparticipant\x18\x01 \x01(\tR\x0bparticipant\x12\x1f\n\x0b\x65poch_index\x18\x02 \x01(\x04R\nepochIndex\x12\x16\n\x06missed\x18\x03 \x01(\rR\x06missed\x12\x18\n\x07invalid\x18\x04 \x01(\rR\x07invalid\x12\x12\n\x04\x63ost\x18\x05 \x01(\x04R\x04\x63ost\x12\x31\n\x14required_validations\x18\x06 \x01(\rR\x13requiredValidations\x12\x33\n\x15\x63ompleted_validations\x18\x07 \x01(\rR\x14\x63ompletedValidations\x12!\n\x0c\x65scrow_count\x18\x08 \x01(\rR\x0b\x65scrowCount\"\xe4\x01\n\x1b\x44\x65vshardSettlementHostStats\x12\x17\n\x07slot_id\x18\x01 \x01(\rR\x06slotId\x12\x16\n\x06missed\x18\x02 \x01(\rR\x06missed\x12\x18\n\x07invalid\x18\x03 \x01(\rR\x07invalid\x12\x12\n\x04\x63ost\x18\x04 \x01(\x04R\x04\x63ost\x12\x31\n\x14required_validations\x18\x05 \x01(\rR\x13requiredValidations\x12\x33\n\x15\x63ompleted_validations\x18\x06 \x01(\rR\x14\x63ompletedValidations\"N\n\x15\x44\x65vshardSlotSignature\x12\x17\n\x07slot_id\x18\x01 \x01(\rR\x06slotId\x12\x1c\n\tsignature\x18\x02 \x01(\x0cR\tsignatureB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -23,11 +23,11 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['DESCRIPTOR']._options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z5github.com/productscience/inference/x/inference/types'
   _globals['_DEVSHARDESCROW']._serialized_start=67
-  _globals['_DEVSHARDESCROW']._serialized_end=317
-  _globals['_DEVSHARDHOSTEPOCHSTATS']._serialized_start=320
-  _globals['_DEVSHARDHOSTEPOCHSTATS']._serialized_end=620
-  _globals['_DEVSHARDSETTLEMENTHOSTSTATS']._serialized_start=623
-  _globals['_DEVSHARDSETTLEMENTHOSTSTATS']._serialized_end=851
-  _globals['_DEVSHARDSLOTSIGNATURE']._serialized_start=853
-  _globals['_DEVSHARDSLOTSIGNATURE']._serialized_end=931
+  _globals['_DEVSHARDESCROW']._serialized_end=678
+  _globals['_DEVSHARDHOSTEPOCHSTATS']._serialized_start=681
+  _globals['_DEVSHARDHOSTEPOCHSTATS']._serialized_end=981
+  _globals['_DEVSHARDSETTLEMENTHOSTSTATS']._serialized_start=984
+  _globals['_DEVSHARDSETTLEMENTHOSTSTATS']._serialized_end=1212
+  _globals['_DEVSHARDSLOTSIGNATURE']._serialized_start=1214
+  _globals['_DEVSHARDSLOTSIGNATURE']._serialized_end=1292
 # @@protoc_insertion_point(module_scope)

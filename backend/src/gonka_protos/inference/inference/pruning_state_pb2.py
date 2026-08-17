@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'inference/inference/pruning_state.proto\x12\x13inference.inference\"\x90\x05\n\x0cPruningState\x12\x37\n\x18poc_batches_pruned_epoch\x18\x01 \x01(\x03R\x15pocBatchesPrunedEpoch\x12?\n\x1cpoc_validations_pruned_epoch\x18\x02 \x01(\x03R\x19pocValidationsPrunedEpoch\x12\x34\n\x16inference_pruned_epoch\x18\x03 \x01(\x03R\x14inferencePrunedEpoch\x12N\n$epoch_group_validations_pruned_epoch\x18\x04 \x01(\x03R epochGroupValidationsPrunedEpoch\x12\x32\n\x15\x64\x65vshard_pruned_epoch\x18\x05 \x01(\x03R\x13\x64\x65vshardPrunedEpoch\x12G\n!poc_v2_store_commits_pruned_epoch\x18\x06 \x01(\x03R\x1cpocV2StoreCommitsPrunedEpoch\x12V\n(mlnode_weight_distributions_pruned_epoch\x18\x07 \x01(\x03R$mlnodeWeightDistributionsPrunedEpoch\x12\x44\n\x1fpoc_validations_v2_pruned_epoch\x18\x08 \x01(\x03R\x1bpocValidationsV2PrunedEpoch\x12P\n%poc_validation_snapshots_pruned_epoch\x18\t \x01(\x03R!pocValidationSnapshotsPrunedEpochR\x13subnet_pruned_epochB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\'inference/inference/pruning_state.proto\x12\x13inference.inference\"\xd3\x05\n\x0cPruningState\x12\x37\n\x18poc_batches_pruned_epoch\x18\x01 \x01(\x03R\x15pocBatchesPrunedEpoch\x12?\n\x1cpoc_validations_pruned_epoch\x18\x02 \x01(\x03R\x19pocValidationsPrunedEpoch\x12\x34\n\x16inference_pruned_epoch\x18\x03 \x01(\x03R\x14inferencePrunedEpoch\x12N\n$epoch_group_validations_pruned_epoch\x18\x04 \x01(\x03R epochGroupValidationsPrunedEpoch\x12\x32\n\x15\x64\x65vshard_pruned_epoch\x18\x05 \x01(\x03R\x13\x64\x65vshardPrunedEpoch\x12G\n!poc_v2_store_commits_pruned_epoch\x18\x06 \x01(\x03R\x1cpocV2StoreCommitsPrunedEpoch\x12V\n(mlnode_weight_distributions_pruned_epoch\x18\x07 \x01(\x03R$mlnodeWeightDistributionsPrunedEpoch\x12\x44\n\x1fpoc_validations_v2_pruned_epoch\x18\x08 \x01(\x03R\x1bpocValidationsV2PrunedEpoch\x12P\n%poc_validation_snapshots_pruned_epoch\x18\t \x01(\x03R!pocValidationSnapshotsPrunedEpoch\x12\x41\n\x1d\x63laim_recipients_pruned_epoch\x18\n \x01(\x03R\x1a\x63laimRecipientsPrunedEpochR\x13subnet_pruned_epochB7Z5github.com/productscience/inference/x/inference/typesb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -23,5 +23,5 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['DESCRIPTOR']._options = None
   _globals['DESCRIPTOR']._serialized_options = b'Z5github.com/productscience/inference/x/inference/types'
   _globals['_PRUNINGSTATE']._serialized_start=65
-  _globals['_PRUNINGSTATE']._serialized_end=721
+  _globals['_PRUNINGSTATE']._serialized_end=788
 # @@protoc_insertion_point(module_scope)
