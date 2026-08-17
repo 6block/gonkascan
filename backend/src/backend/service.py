@@ -380,17 +380,58 @@ class InferenceService:
         self.last_cache_warm_time: Optional[float] = None
         self.params_module_index: Optional[dict] = None
     
+    def _decode_any_message(self, message: Any) -> dict:
+        """Decode one Any, keeping it as opaque bytes if its type is unknown."""
+        try:
+            return MessageToDict(
+                message,
+                preserving_proto_field_name=True,
+                always_print_fields_with_no_presence=True,
+            )
+        except Exception as e:
+            logger.warning(f"Undecodable message {message.type_url}: {e}")
+            return {
+                "@type": message.type_url,
+                "value": base64.b64encode(message.value).decode("utf-8"),
+                "_undecoded": True,
+            }
+
+    def _decode_tx_body(self, body: TxBody) -> dict:
+        """Decode a tx body, tolerating message types this build cannot resolve.
+
+        A chain upgrade that introduces a new Msg makes MessageToDict raise for
+        the whole body. Blocks are only committed up to the first failure, so
+        without this fallback one unknown type_url stalls the indexer
+        indefinitely — regenerate gonka_protos to decode such messages properly.
+        """
+        try:
+            return MessageToDict(
+                body,
+                preserving_proto_field_name=True,
+                always_print_fields_with_no_presence=True,
+            )
+        except Exception as e:
+            logger.warning(f"Falling back to per-message tx body decoding: {e}")
+
+        without_messages = TxBody()
+        without_messages.CopyFrom(body)
+        del without_messages.messages[:]
+
+        body_dict = MessageToDict(
+            without_messages,
+            preserving_proto_field_name=True,
+            always_print_fields_with_no_presence=True,
+        )
+        body_dict["messages"] = [self._decode_any_message(m) for m in body.messages]
+        return body_dict
+
     def decode_tx_base64(self, tx_base64: str) -> dict:
         tx_bytes = base64.b64decode(tx_base64)
         raw = TxRaw()
         raw.ParseFromString(tx_bytes)
         body = TxBody()
         body.ParseFromString(raw.body_bytes)
-        body_dict = MessageToDict(
-            body,
-            preserving_proto_field_name=True,
-            always_print_fields_with_no_presence=True,
-        )
+        body_dict = self._decode_tx_body(body)
 
         auth_info = AuthInfo()
         auth_info.ParseFromString(raw.auth_info_bytes)

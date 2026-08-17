@@ -292,9 +292,16 @@ async def get_transaction(tx_hash: str):
         raise HTTPException(status_code=503, detail="Service not initialized")
 
     try:
-        return await inference_service.get_transaction(tx_hash)
+        transaction = await inference_service.get_transaction(tx_hash)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch transactions: {str(e)}")
+
+    # Raised outside the try block: HTTPException is an Exception too, and would
+    # otherwise be swallowed and re-reported as a 500.
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found or not yet indexed")
+
+    return transaction
 
 @router.get("/transactions", response_model=TransactionResponse)
 async def get_transactions():

@@ -30,7 +30,19 @@ export function TransactionDetail({ txHash }: { txHash: string }) {
   })
 
   if (isLoading) return <LoadingScreen label="Loading transaction detail" />
-  if (error || !data) return <ErrorScreen error={error} title="Failed to load transaction detail" />
+
+  // A confirmed transaction is only visible here once the indexer reaches its
+  // block, so "not found" is a distinct state from a failed request.
+  const isNotFound = (error instanceof Error && error.message.includes('404')) || !data
+  if (isNotFound) {
+    return (
+      <ErrorScreen
+        title="Transaction not found"
+        error="This transaction is not in the explorer index yet. Recently confirmed transactions can take a short while to appear."
+      />
+    )
+  }
+  if (error) return <ErrorScreen error={error} title="Failed to load transaction detail" />
 
   const fee =
     data.tx.auth_info.fee.amount.length > 0
