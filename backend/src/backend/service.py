@@ -271,7 +271,7 @@ def _validation_weight_map(epoch_group_data: Dict[str, Any]) -> Dict[str, Dict[s
 def _model_scale_factors(params: Dict[str, Any]) -> Dict[str, Decimal]:
     return {
         model["model_id"]: _decode_fixed_point(model.get("weight_scale_factor"))
-        for model in params.get("poc_params", {}).get("models", [])
+        for model in (params.get("poc_params") or {}).get("models") or []
         if model.get("model_id")
     }
 
@@ -719,7 +719,7 @@ class InferenceService:
             await self._mark_epoch_finished_if_needed(epoch_id, height)
             
             all_participants_data = await self.client.get_all_participants(height=height)
-            participants_list = all_participants_data.get("participant", [])
+            participants_list = all_participants_data.get("participant") or []
             params = await self.client.get_inference_params()
             params_data = params["params"]
             collateral_params = params_data["collateral_params"]
@@ -743,7 +743,7 @@ class InferenceService:
                     "weight": _int_field(root_weights.get(p["index"], p), "weight"),
                     "models": p.get("models", []),
                     "validator_key": p.get("validator_key"),
-                    "seed_signature": p.get("seed", {}).get("signature"),
+                    "seed_signature": (p.get("seed") or {}).get("signature"),
                     "ml_nodes_map": scaled_weights.get(p["index"], {}).get("ml_nodes_map", {})
                 }
                 for p in epoch_data["active_participants"]["participants"]
@@ -843,7 +843,7 @@ class InferenceService:
                 current_block_timestamp = current_block_data["result"]["block"]["header"]["time"]
                 
                 avg_block_time = await self._calculate_avg_block_time(current_block_height)
-            elif epoch_id == latest_info.get("next_epoch_stages", {}).get("epoch_index"):
+            elif epoch_id == (latest_info.get("next_epoch_stages") or {}).get("epoch_index"):
                 next_poc_start_block = latest_info["next_epoch_stages"]["next_poc_start"]
                 set_new_validators_block = None
                 current_block_height = latest_info["block_height"]
@@ -890,9 +890,14 @@ class InferenceService:
             return response
             
         except Exception as e:
-            logger.error(f"Error fetching current epoch stats: {e}")
+            # Serving stale cache here can hide a persistent failure for hours,
+            # so log the traceback rather than just the message.
+            logger.error(f"Error fetching current epoch stats: {e}", exc_info=True)
             if self.current_epoch_data:
-                logger.info("Returning cached current epoch data due to error")
+                stale_for = time.time() - self.last_fetch_time if self.last_fetch_time else 0
+                logger.warning(
+                    f"Returning cached current epoch data due to error (stale for {stale_for:.0f}s)"
+                )
                 return self.current_epoch_data
             raise
     
@@ -962,7 +967,7 @@ class InferenceService:
             logger.info(f"Fetching historical epoch {epoch_id} at height {target_height}")
             
             all_participants_data = await self.client.get_all_participants(height=target_height)
-            participants_list = all_participants_data.get("participant", [])
+            participants_list = all_participants_data.get("participant") or []
             
             epoch_data = await self.get_epoch_participants(epoch_id)
             params = (await self.client.get_inference_params(height=target_height))["params"]
@@ -986,7 +991,7 @@ class InferenceService:
                     "weight": _int_field(root_weights.get(p["index"], p), "weight"),
                     "models": p.get("models", []),
                     "validator_key": p.get("validator_key"),
-                    "seed_signature": p.get("seed", {}).get("signature"),
+                    "seed_signature": (p.get("seed") or {}).get("signature"),
                     "ml_nodes_map": scaled_weights.get(p["index"], {}).get("ml_nodes_map", {})
                 }
                 for p in epoch_data["active_participants"]["participants"]
