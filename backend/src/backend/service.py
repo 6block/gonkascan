@@ -510,17 +510,32 @@ class InferenceService:
             return requested_height if requested_height else current_height
         
         epoch_data = await self.get_epoch_participants(epoch_id)
-        effective_height = epoch_data["active_participants"]["effective_block_height"]
-        
+        # The chain returns these heights as strings; without int() the
+        # arithmetic below raises TypeError and every epoch silently falls back
+        # to the current epoch's boundary.
+        effective_height = int(epoch_data["active_participants"]["effective_block_height"])
+
         try:
             next_epoch_data = await self.get_epoch_participants(epoch_id + 1)
-            next_effective_height = next_epoch_data["active_participants"]["effective_block_height"]
+            next_effective_height = int(next_epoch_data["active_participants"]["effective_block_height"])
             canonical_height = next_effective_height - 10
-        except Exception:
+        except Exception as e:
+            logger.info(
+                f"No epoch {epoch_id + 1} boundary yet ({e}); "
+                f"falling back to the current epoch's next_poc_start"
+            )
             if latest_info is None:
                 latest_info = await self.client.get_latest_epoch()
-            canonical_height = latest_info["epoch_stages"]["next_poc_start"] - 10
-        
+            next_poc_start = (latest_info.get("epoch_stages") or {}).get("next_poc_start")
+            canonical_height = int(next_poc_start) - 10 if next_poc_start else None
+
+        # next_poc_start is a future block, and the chain refuses to serve state
+        # for heights it has not reached yet ("cannot query with height in the
+        # future"), so never ask beyond the current tip.
+        current_height = await self.client.get_latest_height()
+        if canonical_height is None or canonical_height > current_height:
+            canonical_height = current_height
+
         if requested_height is None:
             return canonical_height
         
@@ -2501,7 +2516,7 @@ class InferenceService:
             
             epoch_data = await self.client.get_current_epoch_participants()
             current_epoch = int(epoch_data["active_participants"]["epoch_group_id"])
-            current_epoch_effective_height = epoch_data["active_participants"]["effective_block_height"]
+            current_epoch_effective_height = int(epoch_data["active_participants"]["effective_block_height"])
             participants = epoch_data["active_participants"]["participants"]
             participant_indices = {p["index"] for p in participants}
             
