@@ -161,7 +161,7 @@ export function BountyProgram() {
                   <thead>
                     <tr className="border-b border-white/[0.06]">
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Address</th>
-                      <th className="text-right py-2.5 px-4 font-medium text-slate-300">Amount (GNK)</th>
+                      <th className="text-right py-2.5 px-4 font-medium text-slate-300">Amount (USDT)</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">GitHub</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Task</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Discord</th>
@@ -278,7 +278,7 @@ export function BountyProgram() {
                   <th className="text-left py-3 px-4 font-medium text-slate-300">#</th>
                   <th className="text-left py-3 px-4 font-medium text-slate-300">Github / Name</th>
                   <th className="text-left py-3 px-4 font-medium text-slate-300">Discord</th>
-                  <th className="text-center py-3 px-4 font-medium text-slate-300">Amount (GNK)</th>
+                  <th className="text-center py-3 px-4 font-medium text-slate-300">Amount (USDT)</th>
                 </tr>
               </thead>
               <tbody>
