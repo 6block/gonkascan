@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
-import { ProposalDetailResponse, CosmosMessage, ChartTooltipProps } from '../types/inference'
-import { apiFetch, formatCompact, formatMessageTypes, formatInt, formatDateTime } from '../utils'
+import { ProposalDetailResponse, CosmosMessage, ChartTooltipProps, GovernanceProposal } from '../types/inference'
+import { apiFetch, formatCompact, formatMessageTypes, formatInt, formatDateTime, toGonka } from '../utils'
 import { MessageBlock } from './common/StructRenderer'
 import { JsonSection } from './common/JsonViewer'
 import { ProposalMetadata } from './ProposalMetadata'
@@ -64,6 +64,99 @@ function parseVoteType(tx: VoteTx): VoteType {
     default:
       return 'UNKNOWN'
   }
+}
+
+// The 500 GNK proposal deposit is locked by the gov module at submission and
+// returned (or burned) automatically in EndBlock when the proposal ends. Those
+// module transfers never appear in the Transfers tab, so we derive the deposit's
+// fate from the proposal's final status here instead.
+type DepositState = {
+  amountGnk: number
+  tone: 'locked' | 'refunded' | 'burned'
+  label: string
+  note: string
+}
+
+function computeDepositState(proposal: GovernanceProposal): DepositState | null {
+  const deposit = (proposal.total_deposit ?? []).find((c) => c.denom === 'ngonka')
+  if (!deposit) return null
+
+  const amountGnk = toGonka(deposit.amount)
+  if (amountGnk <= 0) return null
+
+  const status = proposal.status
+
+  if (
+    status === 'PROPOSAL_STATUS_VOTING_PERIOD' ||
+    status === 'PROPOSAL_STATUS_DEPOSIT_PERIOD'
+  ) {
+    return {
+      amountGnk,
+      tone: 'locked',
+      label: 'Locked',
+      note: 'Held by the governance module during voting. Returned automatically once the proposal ends (unless vetoed).',
+    }
+  }
+
+  // A rejected proposal only burns its deposit when the No-With-Veto share
+  // exceeds the veto threshold; a plain rejection still refunds the proposer.
+  if (status === 'PROPOSAL_STATUS_REJECTED') {
+    const tally = proposal.final_tally_result || {}
+    const yes = Number(tally.yes_count || 0)
+    const no = Number(tally.no_count || 0)
+    const veto = Number(tally.no_with_veto_count || 0)
+    const abstain = Number(tally.abstain_count || 0)
+    const total = yes + no + veto + abstain
+    const vetoThreshold = Number(proposal.tally_params?.veto_threshold || 0)
+    const vetoed = total > 0 && vetoThreshold > 0 && veto / total > vetoThreshold
+
+    if (vetoed) {
+      return {
+        amountGnk,
+        tone: 'burned',
+        label: 'Burned',
+        note: 'The proposal was vetoed (No-With-Veto exceeded the veto threshold), so the deposit was burned rather than refunded.',
+      }
+    }
+
+    return {
+      amountGnk,
+      tone: 'refunded',
+      label: 'Refunded',
+      note: 'The proposal was rejected without a veto, so the deposit was returned to the proposer automatically.',
+    }
+  }
+
+  if (
+    status === 'PROPOSAL_STATUS_PASSED' ||
+    status === 'PROPOSAL_STATUS_FAILED'
+  ) {
+    return {
+      amountGnk,
+      tone: 'refunded',
+      label: 'Refunded',
+      note: 'The proposal reached the end of voting, so the deposit was returned to the proposer automatically.',
+    }
+  }
+
+  return {
+    amountGnk,
+    tone: 'locked',
+    label: 'Locked',
+    note: 'Held by the governance module.',
+  }
+}
+
+const DEPOSIT_TONE_STYLES: Record<DepositState['tone'], string> = {
+  locked: 'bg-amber-500/10 text-amber-300 border border-amber-400/25',
+  refunded: 'bg-accent-500/12 text-accent-300 border border-accent-400/30',
+  burned: 'bg-red-500/10 text-red-300 border border-red-400/25',
+}
+
+const DEPOSIT_TONE_DOT: Record<DepositState['tone'], string> = {
+  locked: 'bg-amber-400',
+  refunded: 'bg-accent-400',
+  burned: 'bg-red-400',
 }
 
 const CustomTooltip = ({ active, payload }: ChartTooltipProps) => {
@@ -372,6 +465,40 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
               </a>
             )}
           </section>
+
+          {/* Deposit — where the proposal's locked GNK deposit ended up */}
+          {(() => {
+            const deposit = computeDepositState(proposal)
+            if (!deposit) return null
+            return (
+              <section className="surface p-5 sm:p-6">
+                <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-4">Deposit</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-1.5">Amount</p>
+                    <p className="font-bold text-slate-50 text-base sm:text-lg tabular-nums tracking-tight">
+                      {formatInt(deposit.amountGnk)} <span className="text-slate-500 text-sm font-semibold">GNK</span>
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-md tracking-wide ${DEPOSIT_TONE_STYLES[deposit.tone]}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${DEPOSIT_TONE_DOT[deposit.tone]}`} />
+                    {deposit.label}
+                  </span>
+                </div>
+                <p className="mt-3 text-[12.5px] text-slate-400 leading-relaxed">{deposit.note}</p>
+                {proposal.proposer && deposit.tone === 'refunded' && (
+                  <p className="mt-1.5 text-[12.5px] text-slate-500 leading-relaxed break-all">
+                    Returned to proposer <span className="font-mono text-slate-400">{proposal.proposer}</span>
+                  </p>
+                )}
+                <p className="mt-3 text-[11.5px] text-slate-500 leading-relaxed">
+                  The deposit is moved by the governance module in a block's finalize step, not as a regular send, so it does not appear in the Transfers tab.
+                </p>
+              </section>
+            )
+          })()}
 
           {/* Messages / Diff */}
           {((Array.isArray(diff_params) && diff_params.length > 0) || updateMsgs.length > 0 || otherMsgs.length > 0) && (

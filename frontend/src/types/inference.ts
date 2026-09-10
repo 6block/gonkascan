@@ -489,17 +489,24 @@ export interface TallyResult {
   no_with_veto_count: string
 }
 
+export interface CoinAmount {
+  denom: string
+  amount: string
+}
+
 export interface GovernanceProposal {
   id: number
   title: string
   summary: string
   status: string
+  proposer?: string
   submit_time: string
   voting_start_time?: string
   voting_end_time?: string
   messages: CosmosMessage[]
   metadata: string
   epoch_id: number
+  total_deposit?: CoinAmount[]
   final_tally_result: TallyResult
   tally_params?: {
     quorum?: string
