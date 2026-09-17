@@ -61,7 +61,7 @@ def test_all_participants_structure(all_participants_data):
 def test_client_initialization():
     client = GonkaClient(base_urls=["http://node1.example.com", "http://node2.example.com"])
     assert len(client.base_urls) == 2
-    assert client.current_url_index == 0
+    assert client._get_current_url() == "http://node1.example.com"
 
 
 def test_url_rotation():

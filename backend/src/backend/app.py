@@ -43,6 +43,9 @@ POLL_INF_TOP_MODELS_INTERVAL = int(os.getenv("POLL_INF_TOP_MODELS_INTERVAL", "12
 POLL_INF_TIMESERIES_INTERVAL = int(os.getenv("POLL_INF_TIMESERIES_INTERVAL", "300"))
 POLL_INF_EPOCH_HISTORY_INTERVAL = int(os.getenv("POLL_INF_EPOCH_HISTORY_INTERVAL", "300"))
 
+RPC_PROBE_INTERVAL = float(os.getenv("RPC_PROBE_INTERVAL", "30"))
+RPC_PARTICIPANT_FALLBACK = os.getenv("RPC_PARTICIPANT_FALLBACK", "false").strip().lower() in ("1", "true", "yes", "on")
+
 background_task = None
 inference_stats_polling_tasks = []
 jail_polling_task = None
@@ -300,7 +303,15 @@ async def lifespan(app: FastAPI):
     # inference_urls.extend(database_inference_urls)
     logger.info(f"Initializing with all Participant inference_urls, total: {len(inference_urls)}")
     
-    client = GonkaClient(base_urls=inference_urls)
+    client = GonkaClient(
+        base_urls=inference_urls,
+        probe_interval=RPC_PROBE_INTERVAL,
+        participant_fallback=RPC_PARTICIPANT_FALLBACK,
+    )
+    logger.info(
+        f"Chain nodes: {client.base_urls} (probe every {RPC_PROBE_INTERVAL}s, "
+        f"participant fallback {'on' if RPC_PARTICIPANT_FALLBACK else 'off'})"
+    )
     gonka_gg_client = GonkaGGClient(base_url=GONKA_GG_API_BASE, api_key=GONKA_GG_API_KEY)
     if gonka_gg_client.is_configured:
         logger.info(f"gonka.gg inference stats enabled (base: {GONKA_GG_API_BASE})")
@@ -452,6 +463,8 @@ async def lifespan(app: FastAPI):
             await market_stats_polling_task
         except asyncio.CancelledError:
             logger.info("Market stats polling task cancelled")
+
+    await client.aclose()
 
 
 app = FastAPI(lifespan=lifespan)

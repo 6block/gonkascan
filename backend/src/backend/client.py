@@ -6,9 +6,9 @@ import logging
 import time
 import bech32
 import asyncio
-import random
 import json
 
+from backend.node_pool import LAG_TOLERANCE_BLOCKS, NodePool, Outcome, classify_error
 from backend.dex import (
     ETH_RPC_URL,
     GECKOTERMINAL_POOL_URL,
@@ -22,41 +22,136 @@ logger = logging.getLogger(__name__)
 BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
 
+HEIGHT_HEADER = "X-Cosmos-Block-Height"
+PROBE_PATH = "/chain-rpc/status"
+PROBE_TIMEOUT_SECONDS = 5.0
+BLOCK_RACE_WIDTH = 2
+ROTATE_DEMOTE_SECONDS = 10.0
+ERROR_BODY_LIMIT = 2000
+FALLBACK_REFRESH_SECONDS = 600.0
+FALLBACK_POOL_SIZE = 10
+FALLBACK_ATTEMPTS = 3
+FALLBACK_PROBE_CONCURRENCY = 20
+
+
+class NodeRequestError(Exception):
+    def __init__(self, outcome: Outcome, cause: Exception):
+        super().__init__(str(cause))
+        self.outcome = outcome
+        self.cause = cause
+
+
+def _normalize_urls(urls: List[str]) -> List[str]:
+    normalized: List[str] = []
+    for url in urls:
+        cleaned = url.strip().rstrip("/")
+        if cleaned and cleaned not in normalized:
+            normalized.append(cleaned)
+    if not normalized:
+        raise ValueError("GonkaClient needs at least one node URL")
+    return normalized
+
+
+def _state_height_from(headers: Optional[Dict[str, str]]) -> Optional[int]:
+    if not headers or HEIGHT_HEADER not in headers:
+        return None
+    try:
+        return int(headers[HEIGHT_HEADER])
+    except (TypeError, ValueError):
+        return None
+
+
 class GonkaClient:
-    def __init__(self, base_urls: List[str], timeout: float = 30.0, max_concurrency: int =50):
-        self.base_urls = base_urls
+    def __init__(
+        self,
+        base_urls: List[str],
+        timeout: float = 30.0,
+        max_concurrency: int = 50,
+        probe_interval: float = 30.0,
+        participant_fallback: bool = False,
+    ):
+        self.base_urls = _normalize_urls(base_urls)
         self.timeout = timeout
-        self.current_url_index = 0
+        self.probe_interval = probe_interval
+        self.participant_fallback = participant_fallback
+        self.node_pool = NodePool(self.base_urls)
         self.pool_semaphore = asyncio.Semaphore(max_concurrency)
-        self.pool_node_health = {u: {"score": 100, "latency": 1.0} for u in base_urls}
+        # One long-lived client so requests reuse TCP/TLS connections instead of
+        # paying a fresh handshake each time. Connections are left unbounded to
+        # match the old one-client-per-request concurrency.
+        self.http_client = httpx.AsyncClient(
+            timeout=timeout,
+            limits=httpx.Limits(max_connections=None, max_keepalive_connections=100),
+        )
         self.pool_http_client = httpx.AsyncClient(
             timeout=timeout,
             http2=True,
             limits=httpx.Limits(max_connections=max_concurrency, max_keepalive_connections=max_concurrency)
         )
-        
-    def pool_pick_nodes(self, num_candidates=5):
-        sorted_nodes = sorted(self.pool_node_health.items(), key=lambda x: (-x[1]["score"], x[1]["latency"]))
-        candidates = [u for u, _ in sorted_nodes[:num_candidates]]
-        random.shuffle(candidates)
-        return candidates
-    
+        self._refresh_task: Optional[asyncio.Task] = None
+        self._last_probe_at: Optional[float] = None
+        self._fallback_urls: List[str] = []
+        self._fallback_refreshed_at: Optional[float] = None
+
+    async def aclose(self) -> None:
+        if self._refresh_task and not self._refresh_task.done():
+            self._refresh_task.cancel()
+        await self.http_client.aclose()
+        await self.pool_http_client.aclose()
+
+    async def _fetch_json(
+        self,
+        http_client: httpx.AsyncClient,
+        base_url: str,
+        url: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+        state_height: Optional[int] = None,
+        track_health: bool = True,
+    ) -> Any:
+        try:
+            response = await http_client.get(url, params=params, headers=headers)
+        except Exception as e:
+            logger.warning(f"Request failed to {url}: {e}")
+            if track_health:
+                self.node_pool.record_failure(base_url)
+            raise NodeRequestError(Outcome.NODE_FAILURE, e) from e
+
+        if not response.is_success:
+            body = response.text[:ERROR_BODY_LIMIT]
+            outcome = classify_error(response.status_code, body)
+            error = httpx.HTTPStatusError(
+                f"HTTP {response.status_code} from {url}: {body[:300]}",
+                request=response.request,
+                response=response,
+            )
+            if outcome is Outcome.DATA_UNAVAILABLE:
+                logger.info(f"{base_url} lacks data for {url} (height={state_height}); trying next node")
+                if track_health:
+                    self.node_pool.record_data_unavailable(base_url, body, state_height)
+            else:
+                logger.warning(f"Request failed to {url}: {error}")
+                if track_health and outcome is Outcome.NODE_FAILURE:
+                    self.node_pool.record_failure(base_url)
+            raise NodeRequestError(outcome, error)
+
+        try:
+            data = response.json()
+        except ValueError as e:
+            logger.warning(f"Non-JSON response from {url}: {e}")
+            if track_health:
+                self.node_pool.record_failure(base_url)
+            raise NodeRequestError(Outcome.NODE_FAILURE, e) from e
+
+        if track_health:
+            self.node_pool.record_success(base_url)
+        return data
+
     async def pool_fetch_one(self, base_url: str, full_url: str) -> Optional[dict]:
         async with self.pool_semaphore:
-            start = time.perf_counter()
             try:
-                resp = await self.pool_http_client.get(full_url)
-                latency = time.perf_counter() - start
-                resp.raise_for_status()
-                health = self.pool_node_health.get(base_url)
-                if health is not None:
-                    health["latency"] = latency
-                    health["score"] = min(health["score"] + 5, 200)
-                return resp.json()
-            except Exception:
-                health = self.pool_node_health.get(base_url)
-                if health is not None:
-                    health["score"] = max(health["score"] - 20, 0)
+                return await self._fetch_json(self.pool_http_client, base_url, full_url)
+            except NodeRequestError:
                 return None
 
     async def pool_race_first(self, pairs: List[tuple[str, str]]) -> dict:
@@ -67,37 +162,142 @@ class GonkaClient:
                 return result
 
         raise Exception("All RPC nodes failed")
-    
+
+    async def _fetch_block_rpc(self, endpoint: str, height: int) -> dict:
+        self._schedule_node_refresh()
+        ordered = self.node_pool.order(block_height=height)
+        raced = ordered[:BLOCK_RACE_WIDTH]
+        try:
+            return await self.pool_race_first(
+                [(base, f"{base}/chain-rpc/{endpoint}?height={height}") for base in raced]
+            )
+        except Exception:
+            logger.warning(f"Racing nodes failed for {endpoint} at height {height}; trying remaining nodes")
+        for base in ordered[BLOCK_RACE_WIDTH:]:
+            result = await self.pool_fetch_one(base, f"{base}/chain-rpc/{endpoint}?height={height}")
+            if result is not None:
+                return result
+        raise Exception("All RPC nodes failed")
+
     def _get_current_url(self) -> str:
-        return self.base_urls[self.current_url_index]
-    
+        return self.node_pool.order()[0]
+
     def _rotate_url(self) -> None:
-        self.current_url_index = (self.current_url_index + 1) % len(self.base_urls)
+        # Callers rotate to retry on a different node. Demote the preferred one
+        # briefly instead of reordering permanently, so latency-based ordering
+        # takes over again once the retry window has passed.
+        self.node_pool.demote(self._get_current_url(), ROTATE_DEMOTE_SECONDS)
         logger.info(f"Rotated to URL: {self._get_current_url()}")
-    
+
+    def _schedule_node_refresh(self) -> None:
+        if len(self.base_urls) < 2 and not self.participant_fallback:
+            return
+        if self._refresh_task and not self._refresh_task.done():
+            return
+        now = time.monotonic()
+        if self._last_probe_at is not None and now - self._last_probe_at < self.probe_interval:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._last_probe_at = now
+        self._refresh_task = loop.create_task(self._refresh_nodes())
+
+    async def _refresh_nodes(self) -> None:
+        try:
+            await asyncio.gather(*(self._probe_primary(url) for url in self.base_urls))
+            fallback_is_stale = (
+                self._fallback_refreshed_at is None
+                or time.monotonic() - self._fallback_refreshed_at >= FALLBACK_REFRESH_SECONDS
+            )
+            if self.participant_fallback and fallback_is_stale:
+                await self._refresh_fallback_nodes()
+        except Exception as e:
+            logger.warning(f"Node refresh failed: {e}")
+
+    async def _probe_status(self, base_url: str) -> Optional[Dict[str, Any]]:
+        start = time.perf_counter()
+        try:
+            response = await self.http_client.get(
+                f"{base_url}{PROBE_PATH}", timeout=PROBE_TIMEOUT_SECONDS
+            )
+            response.raise_for_status()
+            sync_info = response.json()["result"]["sync_info"]
+            return {
+                "latency": time.perf_counter() - start,
+                "latest_height": int(sync_info["latest_block_height"]),
+                "earliest_block_height": int(sync_info["earliest_block_height"]),
+                "catching_up": bool(sync_info.get("catching_up", False)),
+            }
+        except Exception as e:
+            logger.debug(f"Probe failed for {base_url}: {e}")
+            return None
+
+    async def _probe_primary(self, base_url: str) -> None:
+        status = await self._probe_status(base_url)
+        if status is None:
+            self.node_pool.record_failure(base_url)
+            return
+        self.node_pool.record_probe(base_url, **status)
+
+    async def _refresh_fallback_nodes(self) -> None:
+        discovered = await self.discover_urls()
+        semaphore = asyncio.Semaphore(FALLBACK_PROBE_CONCURRENCY)
+
+        async def probe(url: str) -> Optional[Dict[str, Any]]:
+            async with semaphore:
+                return await self._probe_status(url)
+
+        statuses = await asyncio.gather(*(probe(url) for url in discovered))
+        tip = self.node_pool.tip_height()
+        healthy = [
+            (status["latency"], url)
+            for url, status in zip(discovered, statuses)
+            if status is not None
+            and not status["catching_up"]
+            and (tip is None or tip - status["latest_height"] <= LAG_TOLERANCE_BLOCKS)
+        ]
+        self._fallback_urls = [url for _, url in sorted(healthy)][:FALLBACK_POOL_SIZE]
+        self._fallback_refreshed_at = time.monotonic()
+        logger.info(f"Participant fallback nodes refreshed: {len(self._fallback_urls)} healthy of {len(discovered)}")
+
     async def _make_request(
-        self, 
-        path: str, 
-        params: Optional[Dict[str, Any]] = None, 
+        self,
+        path: str,
+        params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        attempts = len(self.base_urls)
-        last_error = None
-        
-        for attempt in range(attempts):
-            url = self._get_current_url().rstrip('/') + '/' + path.lstrip('/')
-            
+        self._schedule_node_refresh()
+        state_height = _state_height_from(headers)
+        last_error: Optional[Exception] = None
+        only_node_failures = True
+
+        for base_url in self.node_pool.order(state_height=state_height):
+            url = f"{base_url}/{path.lstrip('/')}"
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    logger.debug(f"Request to {url} with params {params}, headers {headers}")
-                    response = await client.get(url, params=params, headers=headers)
-                    response.raise_for_status()
-                    return response.json()
-            except Exception as e:
-                last_error = e
-                logger.warning(f"Request failed to {url}: {e}")
-                self._rotate_url()
-        
+                return await self._fetch_json(
+                    self.http_client, base_url, url, params, headers, state_height
+                )
+            except NodeRequestError as e:
+                last_error = e.cause
+                only_node_failures = only_node_failures and e.outcome is Outcome.NODE_FAILURE
+
+        # Participant nodes are third-party, so they only serve when every
+        # configured node is down, never to work around missing history.
+        if self.participant_fallback and only_node_failures:
+            for base_url in self._fallback_urls[:FALLBACK_ATTEMPTS]:
+                url = f"{base_url}/{path.lstrip('/')}"
+                try:
+                    data = await self._fetch_json(
+                        self.http_client, base_url, url, params, headers, state_height,
+                        track_health=False,
+                    )
+                    logger.warning(f"All configured nodes failed; served {path} from participant node {base_url}")
+                    return data
+                except NodeRequestError as e:
+                    last_error = e.cause
+
         raise Exception(f"All URLs failed. Last error: {last_error}")
     
     async def get_current_epoch_participants(self) -> Dict[str, Any]:
@@ -386,14 +586,10 @@ class GonkaClient:
             return []
     
     async def get_block(self, height: int) -> dict:
-        nodes = self.pool_pick_nodes(num_candidates=2)
-        pairs = [(base, f"{base}/chain-rpc/block?height={height}") for base in nodes]
-        return await self.pool_race_first(pairs)
+        return await self._fetch_block_rpc("block", height)
 
     async def get_block_results(self, height: int) -> dict:
-        nodes = self.pool_pick_nodes(num_candidates=2)
-        pairs = [(base, f"{base}/chain-rpc/block_results?height={height}") for base in nodes]
-        return await self.pool_race_first(pairs)
+        return await self._fetch_block_rpc("block_results", height)
     
     async def get_restrictions_params(self) -> Dict[str, Any]:
         return await self._make_request("/chain-api/productscience/inference/restrictions/params")
