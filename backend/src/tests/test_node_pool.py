@@ -221,14 +221,31 @@ async def test_pruned_node_hands_historical_query_to_node_with_history():
 
 
 @pytest.mark.asyncio
-async def test_not_found_is_raised_after_trying_every_node():
+async def test_not_found_is_raised_without_asking_other_nodes():
+    calls = []
+
     def handler(request):
+        calls.append(request.url.host)
         return httpx.Response(404, json={"code": 5, "message": "tx not found"})
 
     client = make_client(handler, [G1, G4])
     with pytest.raises(Exception, match="All URLs failed"):
         await client._make_request("/chain-api/cosmos/tx/v1beta1/txs/ABC")
+    assert calls == ["gonka01.example"]
     assert client.node_pool.order() == [G1, G4]
+
+
+@pytest.mark.asyncio
+async def test_block_fetch_asks_one_node_at_a_time():
+    calls = []
+
+    def handler(request):
+        calls.append(request.url.host)
+        return httpx.Response(200, json={"result": {"block": {"height": "6100000"}}})
+
+    client = make_client(handler, [G1, G4])
+    await client.get_block(6100000)
+    assert calls == ["gonka01.example"]
 
 
 @pytest.mark.asyncio

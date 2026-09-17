@@ -25,7 +25,6 @@ BECH32_CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 HEIGHT_HEADER = "X-Cosmos-Block-Height"
 PROBE_PATH = "/chain-rpc/status"
 PROBE_TIMEOUT_SECONDS = 5.0
-BLOCK_RACE_WIDTH = 2
 ROTATE_DEMOTE_SECONDS = 10.0
 ERROR_BODY_LIMIT = 2000
 FALLBACK_REFRESH_SECONDS = 600.0
@@ -154,26 +153,9 @@ class GonkaClient:
             except NodeRequestError:
                 return None
 
-    async def pool_race_first(self, pairs: List[tuple[str, str]]) -> dict:
-        coros = [self.pool_fetch_one(base, full) for base, full in pairs]
-        for coro in asyncio.as_completed(coros):
-            result = await coro
-            if result is not None:
-                return result
-
-        raise Exception("All RPC nodes failed")
-
     async def _fetch_block_rpc(self, endpoint: str, height: int) -> dict:
         self._schedule_node_refresh()
-        ordered = self.node_pool.order(block_height=height)
-        raced = ordered[:BLOCK_RACE_WIDTH]
-        try:
-            return await self.pool_race_first(
-                [(base, f"{base}/chain-rpc/{endpoint}?height={height}") for base in raced]
-            )
-        except Exception:
-            logger.warning(f"Racing nodes failed for {endpoint} at height {height}; trying remaining nodes")
-        for base in ordered[BLOCK_RACE_WIDTH:]:
+        for base in self.node_pool.order(block_height=height):
             result = await self.pool_fetch_one(base, f"{base}/chain-rpc/{endpoint}?height={height}")
             if result is not None:
                 return result
@@ -282,6 +264,10 @@ class GonkaClient:
             except NodeRequestError as e:
                 last_error = e.cause
                 only_node_failures = only_node_failures and e.outcome is Outcome.NODE_FAILURE
+                # A healthy node's real answer (e.g. 404 "doesn't exist") holds on
+                # every node, so asking the others only adds load and latency.
+                if e.outcome is Outcome.APP_ERROR:
+                    break
 
         # Participant nodes are third-party, so they only serve when every
         # configured node is down, never to work around missing history.
