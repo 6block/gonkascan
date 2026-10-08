@@ -4,6 +4,7 @@ import { ProposalDetailResponse, CosmosMessage, ChartTooltipProps, GovernancePro
 import { apiFetch, formatCompact, formatMessageTypes, formatInt, formatDateTime, toGonka } from '../utils'
 import { MessageBlock } from './common/StructRenderer'
 import { JsonSection } from './common/JsonViewer'
+import { MarkdownViewer } from './common/MarkdownViewer'
 import { ProposalMetadata } from './ProposalMetadata'
 import { VoteBubblePack } from './VoteBubblePack'
 import LoadingScreen from './common/LoadingScreen'
@@ -444,9 +445,9 @@ export function GovernanceDetail({ proposalId }: { proposalId: string }) {
             <h3 className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-slate-500 mb-3">Description</h3>
 
             {proposal.summary ? (
-              <p className="text-slate-200 text-sm sm:text-[15px] leading-relaxed mb-4">
-                {proposal.summary}
-              </p>
+              <div className="prose-gonka mb-4">
+                <MarkdownViewer content={proposal.summary} />
+              </div>
             ) : (
               <p className="text-slate-500 text-sm italic mb-4">No description provided.</p>
             )}
