@@ -124,7 +124,7 @@ export default function FeeCheck() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {issueParticipants.map((p) => (
+            {issueParticipants.map((p: ParticipantFeeStatus) => (
               <ParticipantCard key={p.participant_id} participant={p} hasIssue={true} />
             ))}
           </CardContent>
@@ -140,7 +140,7 @@ export default function FeeCheck() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {healthyParticipants.slice(0, 5).map((p) => (
+          {healthyParticipants.slice(0, 5).map((p: ParticipantFeeStatus) => (
             <ParticipantCard key={p.participant_id} participant={p} hasIssue={false} />
           ))}
           {healthyParticipants.length > 5 && (
@@ -192,7 +192,7 @@ function ParticipantCard({
       {participant.fee_payers.length > 0 && (
         <div className="space-y-2">
           <p className="text-sm font-medium">Fee Payers ({participant.fee_payers.length})</p>
-          {participant.fee_payers.map((payer, idx) => (
+          {participant.fee_payers.map((payer: FeePayerInfo, idx: number) => (
             <div key={idx} className="pl-4 border-l-2 border-muted text-sm space-y-1">
               <code className="text-xs break-all">{payer.warm_address}</code>
               <div className="flex flex-wrap gap-2 mt-1">
@@ -225,7 +225,7 @@ function ParticipantCard({
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription className="text-sm">
             <ul className="list-disc pl-4 space-y-1">
-              {participant.warnings.map((warning, idx) => (
+              {participant.warnings.map((warning: string, idx: number) => (
                 <li key={idx}>{warning}</li>
               ))}
             </ul>
