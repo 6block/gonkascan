@@ -550,3 +550,10 @@ class MarketStats(BaseModel):
     # Uniswap WGNK/USDT — the headline price. None until the first poll lands
     # or when both the API and the on-chain fallback are unreachable.
     dex_stats: Optional[DexStats] = None
+
+class H100BaselineResponse(BaseModel):
+    h100_baseline: float
+    denominator: float
+    sample_size: int
+    reference_model: str
+    calculation_method: str
