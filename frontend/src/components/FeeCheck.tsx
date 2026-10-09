@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Badge } from "./ui/badge";
 import { CheckCircle2, XCircle, AlertTriangle, Loader2 } from "lucide-react";
-import { FeeCheckResponse, ParticipantFeeStatus } from "@/types/fee";
-import { formatGNK } from "@/utils";
+import { FeeCheckResponse, ParticipantFeeStatus, FeePayerInfo } from "../types/fee";
+import { formatGNK } from "../utils";
 
 export default function FeeCheck() {
   const [data, setData] = useState<FeeCheckResponse | null>(null);
