@@ -591,3 +591,12 @@ export interface TransactionDetailResponse {
     }
   }
 }
+
+export interface H100BaselineResponse {
+  h100_baseline: number
+  denominator: number
+  sample_size: number
+  reference_model: string
+  calculation_method: string
+}
+

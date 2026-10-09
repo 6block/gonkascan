@@ -8,6 +8,7 @@ import LoadingScreen from './components/common/LoadingScreen'
 import ErrorScreen from './components/common/ErrorScreen'
 import { ActiveProposals } from './components/ActiveProposals'
 import { MarketStats } from './components/MarketStats'
+import { useH100Baseline } from './hooks/useH100Baseline'
 
 // Non-dashboard pages are lazy-loaded so they don't bloat the critical bundle
 // (recharts, d3, react-markdown, react-json-view, etc. all hide behind these).
@@ -57,20 +58,6 @@ type AddressParticipantStatus = {
   epochId: number
 } | null
 
-function weightToH100(weight: number, epoch: number) {
-  let BASELINE: number
-
-  if (epoch <= 158) {
-    BASELINE = 437
-  } else if (epoch <= 176) {
-    BASELINE = 292.88
-  } else {
-    BASELINE = 254.5
-  }
-
-  return weight / BASELINE
-}
-
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard')
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
@@ -100,6 +87,18 @@ function App() {
     staleTime: 30000,
     enabled: currentPage === 'dashboard' && selectedEpochId !== null,
   })
+
+  // 获取当前显示的 epoch 的 H100 基准线
+  const displayEpochId = selectedEpochId ?? currentEpochId
+  const { data: h100BaselineData } = useH100Baseline(displayEpochId ?? undefined)
+
+  // 动态计算 H100 等效值
+  const weightToH100 = (weight: number): number => {
+    if (!h100BaselineData?.denominator || h100BaselineData.denominator === 0) {
+      return 0
+    }
+    return weight / h100BaselineData.denominator
+  }
 
   const estimatedBlock = useEstimatedBlock(
     data?.current_block_height ?? 0,
@@ -652,7 +651,7 @@ function App() {
                     <div className="lg:border-l lg:border-white/[0.06] lg:pl-6">
                       <StatItem label="Equivalent H100" subText="">
                         {Math.round(weightToH100(
-                          data.participants.reduce((sum, p) => sum + p.weight, 0), data.epoch_id,
+                          data.participants.reduce((sum, p) => sum + p.weight, 0),
                         )).toLocaleString()}{' '}
                         <span className="text-sm font-semibold text-slate-500">GPUs</span>
                       </StatItem>

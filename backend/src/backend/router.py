@@ -1,12 +1,12 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional, Any
-from backend.models import ( 
-    InferenceResponse, 
-    ParticipantDetailsResponse, 
-    TimelineResponse, 
-    ModelsResponse, 
-    ParticipantInferencesResponse, 
-    TransactionResponse, 
+from backend.models import (
+    InferenceResponse,
+    ParticipantDetailsResponse,
+    TimelineResponse,
+    ModelsResponse,
+    ParticipantInferencesResponse,
+    TransactionResponse,
     ParticipantMapResponse,
     AssetsResponse,
     AddressTransactionsResponse,
@@ -22,7 +22,8 @@ from backend.models import (
     ProposalTransactions,
     MarketStats,
     InferenceStatsResponse,
-    TokenStats
+    TokenStats,
+    H100BaselineResponse
 )
 
 router = APIRouter(prefix="/v1")
@@ -55,19 +56,41 @@ async def get_current_inference_stats(reload: bool = False):
 async def get_epoch_inference_stats(epoch_id: int, height: Optional[int] = None):
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
-    
+
     if epoch_id < 1:
         raise HTTPException(status_code=400, detail="Invalid epoch ID")
-    
+
     if height is not None and height < 1:
         raise HTTPException(status_code=400, detail="Invalid height")
-    
+
     try:
         return await inference_service.get_historical_epoch_stats(epoch_id, height=height)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch epoch {epoch_id} stats: {str(e)}")
+
+@router.get("/inference/h100-baseline/{epoch_index}", response_model=H100BaselineResponse)
+async def get_h100_baseline(epoch_index: int):
+    """
+    获取指定 epoch 的 H100 基准线
+
+    v0.2.16+ 动态计算:
+    - 基于纯 H100 80GB HBM3 主机的中位数权重
+    - 只使用固定系数模型作为参考
+    - 主机数 <3 时 fallback 到上一 epoch
+    """
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    if epoch_index < 0:
+        raise HTTPException(status_code=400, detail="Invalid epoch index")
+
+    try:
+        result = await inference_service.get_h100_baseline(epoch_index)
+        return H100BaselineResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to calculate H100 baseline: {str(e)}")
 
 @router.get("/participants/map", response_model=ParticipantMapResponse)
 async def get_participants_map():

@@ -621,7 +621,15 @@ class GonkaClient:
     
     async def get_models_stats(self) -> Dict[str, Any]:
         return await self._make_request("/chain-api/productscience/inference/inference/models_stats_by_time")
-    
+
+    async def get_hardware_nodes_all(self) -> Dict[str, Any]:
+        """获取所有硬件节点信息 (v0.2.16+)"""
+        return await self._make_request("/chain-api/productscience/inference/inference/hardware_nodes_all")
+
+    async def get_dynamic_coefficients(self, epoch_index: int) -> Dict[str, Any]:
+        """获取指定 epoch 的动态系数 (v0.2.16+)"""
+        return await self._make_request(f"/chain-api/productscience/inference/inference/dynamic_coefficients/{epoch_index}")
+
     async def get_all_inferences(
         self, 
         epoch_id: Optional[int] = None,
@@ -1004,3 +1012,46 @@ class GonkaClient:
                 "response_time_ms": None,
                 "data": None
             }
+
+    async def get_hardware_nodes_all(self) -> Dict[str, Any]:
+        """
+        获取所有硬件节点信息 (v0.2.16+)
+
+        Returns:
+            包含所有硬件节点的响应,格式:
+            {
+                "hardware_nodes": [
+                    {
+                        "participant_address": "gonka1...",
+                        "local_id": "0",
+                        "hardware": ["h100_80gb_hbm3"],
+                        "models": ["llama3-70b-instruct"],
+                        "weight": "123456",
+                        ...
+                    }
+                ]
+            }
+        """
+        return await self._make_request("/chain-api/productscience/inference/inference/hardware_nodes_all")
+
+    async def get_dynamic_coefficients(self, epoch_index: int) -> Dict[str, Any]:
+        """
+        获取指定 epoch 的动态系数 (v0.2.16+)
+
+        Args:
+            epoch_index: epoch 索引
+
+        Returns:
+            包含模型动态系数的响应,格式:
+            {
+                "model_coefficients": [
+                    {
+                        "model_id": "llama3-70b-instruct",
+                        "effective_coefficient": {"value": "100", "exponent": "-2"},
+                        "coeff_min": {"value": "50", "exponent": "-2"},
+                        "coeff_max": {"value": "150", "exponent": "-2"}
+                    }
+                ]
+            }
+        """
+        return await self._make_request(f"/chain-api/productscience/inference/inference/dynamic_coefficients/{epoch_index}")

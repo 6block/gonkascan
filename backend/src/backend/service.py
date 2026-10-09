@@ -4608,3 +4608,142 @@ class InferenceService:
 
         except Exception as e:
             logger.error(f"Error during epoch total rewards repair: {e}")
+
+    async def get_h100_baseline(self, epoch_index: int, _depth: int = 0) -> Dict[str, Any]:
+        """
+        计算指定 epoch 的 H100 基准线
+
+        算法:
+        1. 从 dynamic_coefficients 获取固定模型(coeff_min == coeff_max)
+        2. 从 hardware_nodes_all 筛选纯 H100 80GB HBM3 主机
+        3. 选择托管主机数 ≥3 的参考模型
+        4. 计算中位数权重作为分母
+        5. 主机 <3 时 fallback 到上一 epoch
+
+        Args:
+            epoch_index: epoch 索引
+            _depth: 内部递归深度追踪(用户不应设置此参数)
+
+        Returns:
+            {
+                "h100_baseline": float,  # 标准化后的基准线值
+                "denominator": float,    # 中位数权重分母
+                "sample_size": int,      # 样本主机数
+                "reference_model": str,  # 参考模型ID
+                "calculation_method": str # 计算方法描述
+            }
+        """
+        # 防止无限递归
+        MAX_FALLBACK_DEPTH = 10
+        if _depth >= MAX_FALLBACK_DEPTH:
+            return self._error_h100_baseline(f"Exceeded max fallback depth ({MAX_FALLBACK_DEPTH})")
+
+        # 1. 获取动态系数
+        coeffs_resp = await self.client.get_dynamic_coefficients(epoch_index)
+        model_coeffs = coeffs_resp.get("model_coefficients", [])
+
+        if not model_coeffs:
+            # 无系数数据时尝试 fallback
+            if epoch_index > 0:
+                return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
+            return self._error_h100_baseline(f"No coefficients available for epoch {epoch_index}")
+
+        # 2. 筛选固定模型(coeff_min == coeff_max)
+        fixed_models = {}
+        for coeff in model_coeffs:
+            model_id = coeff.get("model_id")
+            coeff_min = _decode_fixed_point(coeff.get("coeff_min"))
+            coeff_max = _decode_fixed_point(coeff.get("coeff_max"))
+
+            if model_id and coeff_min == coeff_max:
+                fixed_models[model_id] = coeff_min
+
+        if not fixed_models:
+            if epoch_index > 0:
+                return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
+            return self._error_h100_baseline(f"No fixed models found in epoch {epoch_index}")
+
+        # 3. 获取所有硬件节点
+        hardware_resp = await self.client.get_hardware_nodes_all()
+        hardware_nodes = hardware_resp.get("hardware_nodes", [])
+
+        if not hardware_nodes:
+            if epoch_index > 0:
+                return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
+            return self._error_h100_baseline(f"No hardware nodes available for epoch {epoch_index}")
+
+        # 4. 按模型分组统计纯 H100 80GB HBM3 主机
+        H100_VALID_TYPES = {"h100_80gb_hbm3"}  # 排除 PCIe/NVL/未标记
+
+        model_h100_weights = {}  # {model_id: [weight1, weight2, ...]}
+
+        for node in hardware_nodes:
+            hardware_list = node.get("hardware", [])
+            models_list = node.get("models", [])
+            weight_str = node.get("weight", "0")
+
+            # 只统计纯 H100 80GB HBM3 硬件
+            if len(hardware_list) != 1 or hardware_list[0] not in H100_VALID_TYPES:
+                continue
+
+            try:
+                weight = float(weight_str)
+            except (ValueError, TypeError):
+                continue
+
+            if weight <= 0:
+                continue
+
+            # 为该节点支持的每个固定模型记录权重
+            for model_id in models_list:
+                if model_id in fixed_models:
+                    if model_id not in model_h100_weights:
+                        model_h100_weights[model_id] = []
+                    model_h100_weights[model_id].append(weight)
+
+        # 5. 选择托管主机数 ≥3 的参考模型
+        valid_reference_models = {
+            model_id: weights
+            for model_id, weights in model_h100_weights.items()
+            if len(weights) >= 3
+        }
+
+        if not valid_reference_models:
+            # 所有模型的主机数都 <3, fallback
+            if epoch_index > 0:
+                return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
+            return self._error_h100_baseline(f"No model has ≥3 H100 hosts in epoch {epoch_index}")
+
+        # 6. 选择样本最多的模型作为参考模型
+        reference_model = max(valid_reference_models.keys(),
+                             key=lambda m: len(valid_reference_models[m]))
+        reference_weights = valid_reference_models[reference_model]
+
+        # 7. 计算中位数
+        sorted_weights = sorted(reference_weights)
+        n = len(sorted_weights)
+        if n % 2 == 0:
+            denominator = (sorted_weights[n//2 - 1] + sorted_weights[n//2]) / 2
+        else:
+            denominator = sorted_weights[n//2]
+
+        # 8. 计算标准化基准线(假设标准权重为1.0)
+        h100_baseline = 1.0 / denominator if denominator > 0 else 0.0
+
+        return {
+            "h100_baseline": float(h100_baseline),
+            "denominator": float(denominator),
+            "sample_size": len(reference_weights),
+            "reference_model": reference_model,
+            "calculation_method": f"median of {len(reference_weights)} pure H100 80GB HBM3 hosts"
+        }
+
+    def _error_h100_baseline(self, error_msg: str) -> Dict[str, Any]:
+        """返回错误状态的基准线"""
+        return {
+            "h100_baseline": 0.0,
+            "denominator": 0.0,
+            "sample_size": 0,
+            "reference_model": "",
+            "calculation_method": f"error: {error_msg}"
+        }
