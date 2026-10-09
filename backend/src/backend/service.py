@@ -4611,23 +4611,28 @@ class InferenceService:
 
     async def get_h100_baseline(self, epoch_index: int, _depth: int = 0) -> Dict[str, Any]:
         """
-        计算指定 epoch 的 H100 基准线
+        计算指定 epoch 的 H100 基准线 (v0.2.16+ 官方算法)
 
-        算法:
-        1. 从 dynamic_coefficients 获取固定模型(coeff_min == coeff_max)
-        2. 从 hardware_nodes_all 筛选纯 H100 80GB HBM3 主机
-        3. 选择托管主机数 ≥3 的参考模型
-        4. 计算中位数权重作为分母
-        5. 主机 <3 时 fallback 到上一 epoch
+        算法(按官方文档):
+        1. 获取当前 epoch 的 validation_weights (参与者列表)
+        2. 从 dynamic_coefficients 获取固定模型(coeff_min == coeff_max)
+        3. 从 hardware_nodes_all 筛选:
+           - 属于当前 epoch 的节点
+           - 纯 H100 80GB HBM3 硬件
+           - 单一模型托管 (len(models) == 1)
+        4. 按模型分组,计算每个主机的 sample = weight ÷ H100_count
+        5. 选择托管主机数 ≥3 的参考模型(优先固定系数+最多主机)
+        6. 计算 samples 的中位数作为分母
+        7. 主机 <3 时 fallback 到上一 epoch
 
         Args:
-            epoch_index: epoch 索引
-            _depth: 内部递归深度追踪(用户不应设置此参数)
+            epoch_index: epoch 索引 (0 表示当前 epoch)
+            _depth: 内部递归深度追踪
 
         Returns:
             {
-                "h100_baseline": float,  # 标准化后的基准线值
-                "denominator": float,    # 中位数权重分母
+                "h100_baseline": float,  # 标准化基准线值
+                "denominator": float,    # 中位数 sample (weight/H100_count)
                 "sample_size": int,      # 样本主机数
                 "reference_model": str,  # 参考模型ID
                 "calculation_method": str # 计算方法描述
@@ -4638,22 +4643,42 @@ class InferenceService:
         if _depth >= MAX_FALLBACK_DEPTH:
             return self._error_h100_baseline(f"Exceeded max fallback depth ({MAX_FALLBACK_DEPTH})")
 
-        # 1. 获取动态系数
-        coeffs_resp = await self.client.get_dynamic_coefficients(epoch_index)
-        model_coeffs = coeffs_resp.get("model_coefficients", [])
+        # 1. 获取当前 epoch 的参与者列表
+        if epoch_index == 0:
+            epoch_data = await self.client.get_current_epoch_group_data()
+        else:
+            epoch_data = await self.client.get_epoch_group_data(epoch_index)
 
-        if not model_coeffs:
-            # 无系数数据时尝试 fallback
+        epoch_group_data = epoch_data.get("epoch_group_data", {})
+        validation_weights = epoch_group_data.get("validation_weights", [])
+
+        if not validation_weights:
             if epoch_index > 0:
                 return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
-            return self._error_h100_baseline(f"No coefficients available for epoch {epoch_index}")
+            return self._error_h100_baseline(f"No validation_weights for epoch {epoch_index}")
 
-        # 2. 筛选固定模型(coeff_min == coeff_max)
+        # 构建参与者地址集合
+        participant_addresses = {vw.get("member_address") for vw in validation_weights}
+
+        # 2. 从 epoch_group_data 中提取模型系数 (confirmation_weight_scales)
+        confirmation_weight_scales = epoch_group_data.get("confirmation_weight_scales", [])
+
+        if not confirmation_weight_scales:
+            if epoch_index > 0:
+                return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
+            return self._error_h100_baseline(f"No confirmation_weight_scales for epoch {epoch_index}")
+
+        # 3. 筛选固定模型(coeff_min == coeff_max)
         fixed_models = {}
-        for coeff in model_coeffs:
-            model_id = coeff.get("model_id")
-            coeff_min = _decode_fixed_point(coeff.get("coeff_min"))
-            coeff_max = _decode_fixed_point(coeff.get("coeff_max"))
+        for scale in confirmation_weight_scales:
+            model_id = scale.get("model_id")
+            config = scale.get("config", {})
+            coeff_min_obj = config.get("coeff_min", {})
+            coeff_max_obj = config.get("coeff_max", {})
+
+            # 解析 {value: "3024", exponent: -4} 格式
+            coeff_min = _decode_fixed_point(coeff_min_obj)
+            coeff_max = _decode_fixed_point(coeff_max_obj)
 
             if model_id and coeff_min == coeff_max:
                 fixed_models[model_id] = coeff_min
@@ -4663,49 +4688,86 @@ class InferenceService:
                 return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
             return self._error_h100_baseline(f"No fixed models found in epoch {epoch_index}")
 
-        # 3. 获取所有硬件节点
+        # 4. 获取所有硬件节点
         hardware_resp = await self.client.get_hardware_nodes_all()
-        hardware_nodes = hardware_resp.get("hardware_nodes", [])
+        nodes = hardware_resp.get("nodes", [])
 
-        if not hardware_nodes:
+        if not nodes:
             if epoch_index > 0:
                 return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
             return self._error_h100_baseline(f"No hardware nodes available for epoch {epoch_index}")
 
-        # 4. 按模型分组统计纯 H100 80GB HBM3 主机
-        H100_VALID_TYPES = {"h100_80gb_hbm3"}  # 排除 PCIe/NVL/未标记
+        # 5. 按模型分组统计纯 H100 80GB HBM3 主机的 samples
+        model_samples = {}  # {model_id: [sample1, sample2, ...]}
 
-        model_h100_weights = {}  # {model_id: [weight1, weight2, ...]}
+        for node in nodes:
+            participant_addr = node.get("participant")
 
-        for node in hardware_nodes:
-            hardware_list = node.get("hardware", [])
-            models_list = node.get("models", [])
-            weight_str = node.get("weight", "0")
-
-            # 只统计纯 H100 80GB HBM3 硬件
-            if len(hardware_list) != 1 or hardware_list[0] not in H100_VALID_TYPES:
+            # 只保留当前 epoch 的参与者节点
+            if participant_addr not in participant_addresses:
                 continue
 
-            try:
-                weight = float(weight_str)
-            except (ValueError, TypeError):
-                continue
+            hardware_nodes = node.get("hardware_nodes", [])
 
-            if weight <= 0:
-                continue
+            for hw_node in hardware_nodes:
+                models_list = hw_node.get("models", [])
+                hardware_list = hw_node.get("hardware", [])
 
-            # 为该节点支持的每个固定模型记录权重
-            for model_id in models_list:
-                if model_id in fixed_models:
-                    if model_id not in model_h100_weights:
-                        model_h100_weights[model_id] = []
-                    model_h100_weights[model_id].append(weight)
+                # 只统计单一模型托管
+                if len(models_list) != 1:
+                    continue
 
-        # 5. 选择托管主机数 ≥3 的参考模型
+                model_id = models_list[0]
+
+                # 只统计固定系数模型
+                if model_id not in fixed_models:
+                    continue
+
+                # 检查是否为纯 H100 80GB HBM3 硬件
+                # hardware 格式: [{"type": "...", "count": N}]
+                h100_count = 0
+                is_pure_h100 = True
+
+                for hw in hardware_list:
+                    hw_type = hw.get("type", "").lower()
+                    hw_count = hw.get("count", 0)
+
+                    # 标准化硬件类型名称 - 检查是否包含 h100 和 80gb
+                    if "h100" in hw_type and "80" in hw_type:
+                        h100_count += hw_count
+                    else:
+                        # 包含非 H100 80GB 硬件
+                        is_pure_h100 = False
+                        break
+
+                if not is_pure_h100 or h100_count == 0:
+                    continue
+
+                # 从 validation_weights 获取该参与者的 weight
+                weight = 0
+                for vw in validation_weights:
+                    if vw.get("member_address") == participant_addr:
+                        try:
+                            weight = float(vw.get("weight", "0"))
+                        except (ValueError, TypeError):
+                            continue
+                        break
+
+                if weight <= 0:
+                    continue
+
+                # 计算 sample = weight / H100_count
+                sample = weight / h100_count
+
+                if model_id not in model_samples:
+                    model_samples[model_id] = []
+                model_samples[model_id].append(sample)
+
+        # 6. 选择托管主机数 ≥3 的参考模型
         valid_reference_models = {
-            model_id: weights
-            for model_id, weights in model_h100_weights.items()
-            if len(weights) >= 3
+            model_id: samples
+            for model_id, samples in model_samples.items()
+            if len(samples) >= 3
         }
 
         if not valid_reference_models:
@@ -4714,28 +4776,28 @@ class InferenceService:
                 return await self.get_h100_baseline(epoch_index - 1, _depth + 1)
             return self._error_h100_baseline(f"No model has ≥3 H100 hosts in epoch {epoch_index}")
 
-        # 6. 选择样本最多的模型作为参考模型
+        # 7. 选择样本最多的固定模型作为参考模型
         reference_model = max(valid_reference_models.keys(),
                              key=lambda m: len(valid_reference_models[m]))
-        reference_weights = valid_reference_models[reference_model]
+        reference_samples = valid_reference_models[reference_model]
 
-        # 7. 计算中位数
-        sorted_weights = sorted(reference_weights)
-        n = len(sorted_weights)
+        # 8. 计算中位数
+        sorted_samples = sorted(reference_samples)
+        n = len(sorted_samples)
         if n % 2 == 0:
-            denominator = (sorted_weights[n//2 - 1] + sorted_weights[n//2]) / 2
+            denominator = (sorted_samples[n//2 - 1] + sorted_samples[n//2]) / 2
         else:
-            denominator = sorted_weights[n//2]
+            denominator = sorted_samples[n//2]
 
-        # 8. 计算标准化基准线(假设标准权重为1.0)
+        # 9. 计算标准化基准线(假设标准权重为1.0)
         h100_baseline = 1.0 / denominator if denominator > 0 else 0.0
 
         return {
             "h100_baseline": float(h100_baseline),
             "denominator": float(denominator),
-            "sample_size": len(reference_weights),
+            "sample_size": len(reference_samples),
             "reference_model": reference_model,
-            "calculation_method": f"median of {len(reference_weights)} pure H100 80GB HBM3 hosts"
+            "calculation_method": f"median of {len(reference_samples)} pure H100 80GB HBM3 single-model hosts (v0.2.16)"
         }
 
     def _error_h100_baseline(self, error_msg: str) -> Dict[str, Any]:

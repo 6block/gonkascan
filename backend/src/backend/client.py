@@ -630,6 +630,17 @@ class GonkaClient:
         """获取指定 epoch 的动态系数 (v0.2.16+)"""
         return await self._make_request(f"/chain-api/productscience/inference/inference/dynamic_coefficients/{epoch_index}")
 
+    async def get_current_epoch_group_data(self) -> Dict[str, Any]:
+        """获取当前 epoch group 数据 (v0.2.16+)"""
+        return await self._make_request("/chain-api/productscience/inference/inference/current_epoch_group_data")
+
+    async def get_epoch_group_data(self, epoch_index: int, model_id: Optional[str] = None) -> Dict[str, Any]:
+        """获取指定 epoch 的 group 数据 (v0.2.16+)"""
+        url = f"/chain-api/productscience/inference/inference/epoch_group_data/{epoch_index}"
+        if model_id:
+            url += f"?model_id={model_id}"
+        return await self._make_request(url)
+
     async def get_all_inferences(
         self, 
         epoch_id: Optional[int] = None,
