@@ -172,15 +172,15 @@ function ParticipantCard({
       <div className="grid grid-cols-3 gap-2 mb-3 text-sm">
         <div>
           <p className="text-neutral-600 dark:text-neutral-400">Spendable</p>
-          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(participant.cold_spendable_ngonka)}</p>
+          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(Number(participant.cold_spendable_ngonka) / 1e9)}</p>
         </div>
         <div>
           <p className="text-neutral-600 dark:text-neutral-400">Total</p>
-          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(participant.cold_total_ngonka)}</p>
+          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(Number(participant.cold_total_ngonka) / 1e9)}</p>
         </div>
         <div>
           <p className="text-neutral-600 dark:text-neutral-400">Vesting</p>
-          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(participant.cold_vesting_ngonka)}</p>
+          <p className="font-mono text-neutral-900 dark:text-neutral-100">{formatGNK(Number(participant.cold_vesting_ngonka) / 1e9)}</p>
         </div>
       </div>
 
@@ -204,7 +204,7 @@ function ParticipantCard({
                 )}
                 {payer.has_feegrant && !payer.feegrant_expired && (
                   <span className="px-2 py-1 text-xs border border-neutral-300 dark:border-neutral-600 rounded bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300">
-                    {payer.is_unlimited ? "Unlimited" : `${formatGNK(payer.remaining_allowance_ngonka || "0")} left`}
+                    {payer.is_unlimited ? "Unlimited" : `${formatGNK(Number(payer.remaining_allowance_ngonka || "0") / 1e9)} left`}
                   </span>
                 )}
                 {payer.feegrant_expired && (
@@ -214,7 +214,7 @@ function ParticipantCard({
                 )}
               </div>
               <p className="text-neutral-600 dark:text-neutral-400 text-xs">
-                Warm balance: {formatGNK(payer.warm_spendable_ngonka)}
+                Warm balance: {formatGNK(Number(payer.warm_spendable_ngonka) / 1e9)}
               </p>
             </div>
           ))}
