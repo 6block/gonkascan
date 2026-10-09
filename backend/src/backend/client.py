@@ -772,9 +772,86 @@ class GonkaClient:
 
     async def get_total_vesting(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/total_vesting/{address}")
-    
+
     async def get_vesting_schedule(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
+
+    async def get_spendable_balances(self, address: str) -> Dict[str, Any]:
+        """获取可花费余额"""
+        return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/spendable_balances/{address}")
+
+    async def get_feegrant_allowance(self, granter: str, grantee: str) -> Optional[Dict[str, Any]]:
+        """获取 feegrant allowance，不存在时返回 None"""
+        try:
+            return await self._make_request(f"/chain-api/cosmos/feegrant/v1beta1/allowance/{granter}/{grantee}")
+        except Exception as e:
+            if "not found" in str(e).lower():
+                return None
+            raise
+
+    async def get_feegrant_allowances_by_granter(self, granter: str) -> List[Dict[str, Any]]:
+        """获取某个 granter 签发的所有 feegrant allowances"""
+        allowances = []
+        next_key = None
+
+        while True:
+            params = {"pagination.limit": "100"}
+            if next_key:
+                params["pagination.key"] = next_key
+
+            try:
+                data = await self._make_request(
+                    f"/chain-api/cosmos/feegrant/v1beta1/issued/{granter}",
+                    params=params
+                )
+
+                batch = data.get("allowances", [])
+                if not batch:
+                    break
+
+                allowances.extend(batch)
+
+                next_key = data.get("pagination", {}).get("next_key")
+                if not next_key:
+                    break
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch feegrant allowances for {granter}: {e}")
+                break
+
+        return allowances
+
+    async def get_authz_grants_by_granter(self, granter: str) -> List[Dict[str, Any]]:
+        """获取某个 granter 的所有 authz grants（用于 fee 检查）"""
+        grants = []
+        next_key = None
+
+        while True:
+            params = {"pagination.limit": "100"}
+            if next_key:
+                params["pagination.key"] = next_key
+
+            try:
+                data = await self._make_request(
+                    f"/chain-api/cosmos/authz/v1beta1/grants/granter/{granter}",
+                    params=params
+                )
+
+                batch = data.get("grants", [])
+                if not batch:
+                    break
+
+                grants.extend(batch)
+
+                next_key = data.get("pagination", {}).get("next_key")
+                if not next_key:
+                    break
+
+            except Exception as e:
+                logger.warning(f"Failed to fetch authz grants for {granter}: {e}")
+                break
+
+        return grants
     
     async def get_inference_params(self, height: Optional[int] = None) -> Dict[str, Any]:
         path = "/chain-api/productscience/inference/inference/params"

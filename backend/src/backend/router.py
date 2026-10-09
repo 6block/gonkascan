@@ -23,7 +23,8 @@ from backend.models import (
     MarketStats,
     InferenceStatsResponse,
     TokenStats,
-    H100BaselineResponse
+    H100BaselineResponse,
+    FeeCheckResponse
 )
 
 router = APIRouter(prefix="/v1")
@@ -91,6 +92,33 @@ async def get_h100_baseline(epoch_index: int):
         return H100BaselineResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to calculate H100 baseline: {str(e)}")
+
+@router.get("/participants/fee-check", response_model=FeeCheckResponse)
+async def check_participant_fees():
+    """
+    检查当前 epoch 所有参与者的费用支付能力 (v0.2.16)
+
+    检查内容:
+    - 是否有授权的 warm key (MsgPoCV2StoreCommit 或 MsgSubmitHardwareDiff)
+    - 是否有 cold->warm feegrant 且未过期
+    - 冷账户可花费余额是否充足
+    - feegrant allowance 是否充足
+
+    返回:
+    - 每个参与者的详细费用状态
+    - 冷账户余额、vesting 状态
+    - warm key 信息和 allowance 状态
+    - 警告信息
+    """
+    if inference_service is None:
+        raise HTTPException(status_code=503, detail="Service not initialized")
+
+    try:
+        result = await inference_service.check_participant_fees()
+        return FeeCheckResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to check participant fees: {str(e)}")
+
 
 @router.get("/participants/map", response_model=ParticipantMapResponse)
 async def get_participants_map():

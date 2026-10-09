@@ -4809,3 +4809,254 @@ class InferenceService:
             "reference_model": "",
             "calculation_method": f"error: {error_msg}"
         }
+
+    async def check_participant_fees(self) -> Dict[str, Any]:
+        """
+        检查当前 epoch 所有参与者的费用支付能力 (v0.2.16)
+
+        检查逻辑:
+        1. 获取当前 epoch 所有参与者 (validation_weights)
+        2. 对每个参与者(冷账户):
+           - 查找付费 warm key (authz grants 中有 MsgPoCV2StoreCommit 或 MsgSubmitHardwareDiff)
+           - 检查冷->warm feegrant allowance
+           - 读取冷账户和 warm key 的余额
+        3. 判断是否有足够的费用支付能力
+        """
+        # 1. 获取当前 epoch group data
+        epoch_data = await self.client.get_current_epoch_group_data()
+        epoch_index = epoch_data.get("epoch_group_data", {}).get("epoch_index", 0)
+
+        # 获取 validation_weights (当前 epoch 参与者)
+        validation_weights = epoch_data.get("epoch_group_data", {}).get("validation_weights", [])
+
+        if not validation_weights:
+            return {
+                "epoch_index": epoch_index,
+                "current_block_height": 0,
+                "current_block_time": "",
+                "total_participants": 0,
+                "participants_with_issues": 0,
+                "participants": []
+            }
+
+        # 2. 获取当前区块信息 (用于判断 allowance 是否过期)
+        latest_height = await self.client.get_latest_height()
+        block_data = await self.client.get_block(latest_height)
+        current_block_time = block_data.get("block", {}).get("header", {}).get("time", "")
+
+        # 3. 对每个参与者进行检查
+        participants_status = []
+
+        # 需要检查的 authz 消息类型
+        FEE_RELEVANT_MESSAGES = {
+            "/inference.inference.MsgPoCV2StoreCommit",
+            "/inference.inference.MsgSubmitHardwareDiff"
+        }
+
+        for vw in validation_weights:
+            cold_address = vw.get("member_address")
+            if not cold_address:
+                continue
+
+            try:
+                # 并行获取冷账户的基本信息
+                cold_spendable_data, cold_balance_data, cold_vesting_data, authz_grants = await asyncio.gather(
+                    self.client.get_spendable_balances(cold_address),
+                    self.client.get_balances(cold_address),
+                    self.client.get_total_vesting(cold_address),
+                    self.client.get_authz_grants_by_granter(cold_address),
+                    return_exceptions=True
+                )
+
+                # 提取冷账户余额
+                cold_spendable_ngonka = "0"
+                if not isinstance(cold_spendable_data, Exception):
+                    for bal in cold_spendable_data.get("balances", []):
+                        if bal.get("denom") == "ngonka":
+                            cold_spendable_ngonka = bal.get("amount", "0")
+                            break
+
+                cold_total_ngonka = "0"
+                if not isinstance(cold_balance_data, Exception):
+                    for bal in cold_balance_data.get("balances", []):
+                        if bal.get("denom") == "ngonka":
+                            cold_total_ngonka = bal.get("amount", "0")
+                            break
+
+                cold_vesting_ngonka = "0"
+                if not isinstance(cold_vesting_data, Exception):
+                    vesting_coins = cold_vesting_data.get("vesting_coins", [])
+                    for coin in vesting_coins:
+                        if coin.get("denom") == "ngonka":
+                            cold_vesting_ngonka = coin.get("amount", "0")
+                            break
+
+                # 查找付费 warm keys
+                fee_payers = []
+                if not isinstance(authz_grants, Exception):
+                    # 找到所有持有 StoreCommit 或 HardwareDiff 授权的 grantee
+                    warm_keys = set()
+                    for grant in authz_grants:
+                        msg_type = grant.get("authorization", {}).get("msg", "")
+                        if msg_type in FEE_RELEVANT_MESSAGES:
+                            grantee = grant.get("grantee")
+                            if grantee:
+                                warm_keys.add(grantee)
+
+                    # 对每个 warm key 检查 feegrant 和余额
+                    for warm_address in warm_keys:
+                        # 并行获取 feegrant 和 warm key 余额
+                        allowance_data, warm_spendable_data, warm_balance_data = await asyncio.gather(
+                            self.client.get_feegrant_allowance(cold_address, warm_address),
+                            self.client.get_spendable_balances(warm_address),
+                            self.client.get_balances(warm_address),
+                            return_exceptions=True
+                        )
+
+                        # 解析 feegrant allowance
+                        has_feegrant = False
+                        feegrant_expired = False
+                        feegrant_expiration = None
+                        remaining_allowance_ngonka = None
+                        is_unlimited = False
+
+                        if not isinstance(allowance_data, Exception) and allowance_data:
+                            allowance = allowance_data.get("allowance", {}).get("allowance", {})
+
+                            # 检查 spend_limit
+                            spend_limit = allowance.get("spend_limit", [])
+                            if not spend_limit:  # 空数组表示 unlimited
+                                is_unlimited = True
+                                has_feegrant = True
+                            else:
+                                for limit in spend_limit:
+                                    if limit.get("denom") == "ngonka":
+                                        remaining_allowance_ngonka = limit.get("amount", "0")
+                                        has_feegrant = True
+                                        break
+
+                            # 检查过期时间
+                            expiration = allowance.get("expiration")
+                            if expiration:
+                                feegrant_expiration = expiration
+                                # 简单比较: 如果 expiration < current_block_time 则过期
+                                if expiration < current_block_time:
+                                    feegrant_expired = True
+
+                        # 解析 warm key 余额
+                        warm_spendable_ngonka = "0"
+                        if not isinstance(warm_spendable_data, Exception):
+                            for bal in warm_spendable_data.get("balances", []):
+                                if bal.get("denom") == "ngonka":
+                                    warm_spendable_ngonka = bal.get("amount", "0")
+                                    break
+
+                        warm_total_ngonka = "0"
+                        if not isinstance(warm_balance_data, Exception):
+                            for bal in warm_balance_data.get("balances", []):
+                                if bal.get("denom") == "ngonka":
+                                    warm_total_ngonka = bal.get("amount", "0")
+                                    break
+
+                        # 收集该 warm key 持有的授权消息类型
+                        authz_messages = []
+                        for grant in authz_grants:
+                            if grant.get("grantee") == warm_address:
+                                msg_type = grant.get("authorization", {}).get("msg", "")
+                                if msg_type in FEE_RELEVANT_MESSAGES:
+                                    authz_messages.append(msg_type)
+
+                        fee_payers.append({
+                            "warm_address": warm_address,
+                            "has_authz": True,
+                            "authz_messages": authz_messages,
+                            "has_feegrant": has_feegrant,
+                            "feegrant_expired": feegrant_expired,
+                            "feegrant_expiration": feegrant_expiration,
+                            "remaining_allowance_ngonka": remaining_allowance_ngonka,
+                            "is_unlimited": is_unlimited,
+                            "warm_spendable_ngonka": warm_spendable_ngonka,
+                            "warm_total_ngonka": warm_total_ngonka
+                        })
+
+                # 判断是否有有效的 fee payer
+                has_valid_fee_payer = False
+                warnings = []
+
+                if not fee_payers:
+                    warnings.append("No warm key with MsgPoCV2StoreCommit or MsgSubmitHardwareDiff authorization")
+                else:
+                    valid_payer_found = False
+                    for payer in fee_payers:
+                        if not payer["has_feegrant"]:
+                            warnings.append(f"Warm key {payer['warm_address']} has no feegrant from cold account")
+                        elif payer["feegrant_expired"]:
+                            warnings.append(f"Warm key {payer['warm_address']} feegrant expired at {payer['feegrant_expiration']}")
+                        else:
+                            # 有 feegrant 且未过期
+                            # 检查是否有足够余额 (简化版: 只检查冷账户可花费余额 > 0)
+                            try:
+                                cold_spendable = int(cold_spendable_ngonka)
+                                if payer["is_unlimited"]:
+                                    if cold_spendable > 0:
+                                        valid_payer_found = True
+                                    else:
+                                        warnings.append(f"Cold account has 0 spendable balance (unlimited allowance exists)")
+                                else:
+                                    remaining = int(payer["remaining_allowance_ngonka"] or "0")
+                                    if cold_spendable > 0 and remaining > 0:
+                                        valid_payer_found = True
+                                    else:
+                                        if cold_spendable == 0:
+                                            warnings.append(f"Cold account has 0 spendable balance")
+                                        if remaining == 0:
+                                            warnings.append(f"Warm key {payer['warm_address']} allowance depleted")
+                            except ValueError:
+                                warnings.append(f"Invalid balance format for warm key {payer['warm_address']}")
+
+                    has_valid_fee_payer = valid_payer_found
+
+                # 添加 vesting 警告
+                try:
+                    cold_vesting = int(cold_vesting_ngonka)
+                    cold_spendable = int(cold_spendable_ngonka)
+                    if cold_vesting > 0 and cold_spendable == 0:
+                        warnings.append(f"Has {cold_vesting} ngonka in vesting but 0 spendable (rewards locked)")
+                except ValueError:
+                    pass
+
+                participants_status.append({
+                    "participant_id": cold_address,
+                    "cold_address": cold_address,
+                    "cold_spendable_ngonka": cold_spendable_ngonka,
+                    "cold_total_ngonka": cold_total_ngonka,
+                    "cold_vesting_ngonka": cold_vesting_ngonka,
+                    "fee_payers": fee_payers,
+                    "has_valid_fee_payer": has_valid_fee_payer,
+                    "warnings": warnings
+                })
+
+            except Exception as e:
+                logger.error(f"Failed to check fees for participant {cold_address}: {e}")
+                participants_status.append({
+                    "participant_id": cold_address,
+                    "cold_address": cold_address,
+                    "cold_spendable_ngonka": "0",
+                    "cold_total_ngonka": "0",
+                    "cold_vesting_ngonka": "0",
+                    "fee_payers": [],
+                    "has_valid_fee_payer": False,
+                    "warnings": [f"Failed to fetch data: {str(e)}"]
+                })
+
+        # 统计有问题的参与者数量
+        participants_with_issues = sum(1 for p in participants_status if not p["has_valid_fee_payer"])
+
+        return {
+            "epoch_index": epoch_index,
+            "current_block_height": latest_height,
+            "current_block_time": current_block_time,
+            "total_participants": len(participants_status),
+            "participants_with_issues": participants_with_issues,
+            "participants": participants_status
+        }

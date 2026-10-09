@@ -557,3 +557,36 @@ class H100BaselineResponse(BaseModel):
     sample_size: int
     reference_model: str
     calculation_method: str
+
+class FeePayerInfo(BaseModel):
+    """单个付费 warm key 的详细信息"""
+    warm_address: str
+    has_authz: bool
+    authz_messages: List[str] = []
+    has_feegrant: bool
+    feegrant_expired: bool = False
+    feegrant_expiration: Optional[str] = None
+    remaining_allowance_ngonka: Optional[str] = None
+    is_unlimited: bool = False
+    warm_spendable_ngonka: str = "0"
+    warm_total_ngonka: str = "0"
+
+class ParticipantFeeStatus(BaseModel):
+    """单个参与者的 fee 检查状态"""
+    participant_id: str
+    cold_address: str
+    cold_spendable_ngonka: str
+    cold_total_ngonka: str
+    cold_vesting_ngonka: str
+    fee_payers: List[FeePayerInfo]
+    has_valid_fee_payer: bool
+    warnings: List[str] = []
+
+class FeeCheckResponse(BaseModel):
+    """Fee 检查响应"""
+    epoch_index: int
+    current_block_height: int
+    current_block_time: str
+    total_participants: int
+    participants_with_issues: int
+    participants: List[ParticipantFeeStatus]
