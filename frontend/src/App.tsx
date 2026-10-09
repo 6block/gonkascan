@@ -26,6 +26,7 @@ const Governance = lazy(() => import('./components/Governance').then(m => ({ def
 const GovernanceDetail = lazy(() => import('./components/GovernanceDetail').then(m => ({ default: m.GovernanceDetail })))
 const Resource = lazy(() => import('./components/Resource').then(m => ({ default: m.Resource })))
 const BountyProgram = lazy(() => import('./components/BountyProgram').then(m => ({ default: m.BountyProgram })))
+const FeeCheck = lazy(() => import('./components/FeeCheck'))
 import { StatItem } from './components/common/StatItem'
 import { EpochIdDisplay } from './components/common/EpochIdDisplay'
 import { RefreshControlFooter } from './components/common/RefreshControlFooter'
@@ -50,6 +51,7 @@ type Page =
   | 'governance'
   | 'resource'
   | 'bounty'
+  | 'feecheck'
 
 const EPOCH_AWARE_PAGES: Page[] = ['dashboard', 'address']
 
@@ -190,6 +192,7 @@ function App() {
         pageParam === 'transactions' ||
         pageParam === 'nodemap' ||
         pageParam === 'bounty' ||
+        pageParam === 'feecheck' ||
         pageParam === 'resource'
       ) {
         setCurrentPage(pageParam)
@@ -471,12 +474,13 @@ function App() {
                 />
                 <NavDropdown
                   label="Participants"
-                  active={['models', 'hardware', 'nodemap', 'inference'].includes(currentPage)}
+                  active={['models', 'hardware', 'nodemap', 'inference', 'feecheck'].includes(currentPage)}
                   items={[
                     { page: 'models', label: 'Models' },
                     { page: 'hardware', label: 'Hardware' },
                     { page: 'nodemap', label: 'Node Map' },
                     { page: 'inference', label: 'Inference' },
+                    { page: 'feecheck', label: 'Fee Check' },
                   ]}
                   activePage={currentPage}
                   onSelect={(page) => handlePageChange(page as Page)}
@@ -543,12 +547,13 @@ function App() {
               />
               <NavDropdown
                 label="Participants"
-                active={['models', 'hardware', 'nodemap', 'inference'].includes(currentPage)}
+                active={['models', 'hardware', 'nodemap', 'inference', 'feecheck'].includes(currentPage)}
                 items={[
                   { page: 'models', label: 'Models' },
                   { page: 'hardware', label: 'Hardware' },
                   { page: 'nodemap', label: 'Node Map' },
                   { page: 'inference', label: 'Inference' },
+                  { page: 'feecheck', label: 'Fee Check' },
                 ]}
                 activePage={currentPage}
                 onSelect={(page) => handlePageChange(page as Page)}
@@ -586,6 +591,8 @@ function App() {
             <Resource onNavigate={(page) => handlePageChange(page as Page)} />
           ) : currentPage === 'bounty' ? (
             <BountyProgram />
+          ) : currentPage === 'feecheck' ? (
+            <FeeCheck />
           ) : currentPage === 'address' ? (
             selectedAddress ? (
               <AddressRoute
