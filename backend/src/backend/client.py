@@ -1101,6 +1101,34 @@ class GonkaClient:
                 "data": None
             }
 
+    async def get_validators(self, height: Optional[int] = None) -> Dict[str, Any]:
+        """
+        获取验证者集合
+
+        Args:
+            height: 可选的区块高度
+
+        Returns:
+            验证者列表
+        """
+        url = "/chain-rpc/validators"
+        if height:
+            url += f"?height={height}"
+        return await self._make_request(url)
+
+    async def get_epoch_group_data_by_model(self, epoch_index: int, model_id: str) -> Dict[str, Any]:
+        """
+        获取指定 epoch 和模型的 group 数据 (包含 ml_nodes)
+
+        Args:
+            epoch_index: epoch 索引
+            model_id: 模型 ID (URL 编码)
+
+        Returns:
+            模型级别的 epoch group 数据
+        """
+        return await self.get_epoch_group_data(epoch_index, model_id=model_id)
+
     async def get_hardware_nodes_all(self) -> Dict[str, Any]:
         """
         获取所有硬件节点信息 (v0.2.16+)
