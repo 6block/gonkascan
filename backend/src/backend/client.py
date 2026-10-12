@@ -1111,9 +1111,10 @@ class GonkaClient:
         Returns:
             验证者列表
         """
-        url = "/chain-rpc/validators"
+        # 使用 Cosmos SDK 的 validatorsets 端点，返回 pub_key.key 字段
+        url = "/chain-api/cosmos/base/tendermint/v1beta1/validatorsets/latest"
         if height:
-            url += f"?height={height}"
+            url = f"/chain-api/cosmos/base/tendermint/v1beta1/validatorsets/{height}"
         return await self._make_request(url)
 
     async def get_epoch_group_data_by_model(self, epoch_index: int, model_id: str) -> Dict[str, Any]:
