@@ -20,6 +20,9 @@ import statistics
 from typing import Dict, List, Any, Optional, Tuple
 from decimal import Decimal
 
+# 调试开关（生产环境设为 False）
+DEBUG = False
+
 
 def _decode_fixed_point(obj: Dict[str, Any]) -> float:
     """解析 {value: "3024", exponent: -4} -> 0.3024"""
@@ -142,7 +145,7 @@ async def calculate_h100_baseline_v0216(
 
         if not effective_coeff_obj:
             # Fallback to config.coeff_min if effective_coefficient is missing
-            config = scale.get("config", {})
+            config = scale.get("config") or {}
             effective_coeff_obj = config.get("coeff_min", {})
 
         if model_id and effective_coeff_obj:
@@ -156,15 +159,39 @@ async def calculate_h100_baseline_v0216(
         return {"error": f"No model coefficients for epoch {epoch_index}"}
 
     # 3. 获取 validatorset (只统计活跃验证者)
-    try:
-        validators_resp = await client.get_validators()
-        validators = validators_resp.get("result", {}).get("validators", [])
-        validator_pubkeys = {v.get("pub_key", {}).get("value") for v in validators if v.get("pub_key")}
-    except Exception:
-        # 如果获取 validators 失败，不做验证者筛选
-        validator_pubkeys = None
+    # TODO: Validator 过滤暂时禁用，因为 pubkey 匹配有问题
+    # 需要 Gonka 官方确认正确的匹配方式
+    validator_participants = None  # 禁用 validator 过滤
 
-    # 4. 获取所有硬件节点
+    # validator_participants = set()  # 存储是验证者的 participant 地址
+    #
+    # try:
+    #     validators_resp = await client.get_validators()
+    #     # 新端点的响应结构：validators 在顶层，而不是 result 下
+    #     validators = validators_resp.get("validators", [])
+    #
+    #     # 使用 pub_key.key 字段（Cosmos SDK 标准端点）
+    #     validator_pubkeys = {v.get("pub_key", {}).get("key") for v in validators if v.get("pub_key", {}).get("key")}
+    #
+    #     if validator_pubkeys:
+    #         # 获取所有 participants 并建立 validator_key 到 participant 的映射
+    #         all_participants_resp = await client.get_all_participants()
+    #         all_participants = all_participants_resp.get("participant", [])
+    #
+    #         # 直接比较完整的字符串，无需解码或地址派生
+    #         for p in all_participants:
+    #             # 尝试不同的字段名
+    #             participant_addr = p.get("member_address") or p.get("address") or p.get("participant_address")
+    #             validator_key = p.get("validator_key")
+    #
+    #             if participant_addr and validator_key and validator_key in validator_pubkeys:
+    #                 validator_participants.add(participant_addr)
+    #
+    # except Exception as e:
+    #     # 如果获取 validators 失败，不做验证者筛选
+    #     validator_participants = None
+
+    # 4. 获取所有硬件节点，并按官方文档的顺序过滤
     hardware_resp = await client.get_hardware_nodes_all()
     all_hardware_nodes = hardware_resp.get("nodes", [])
 
@@ -175,20 +202,90 @@ async def calculate_h100_baseline_v0216(
             )
         return {"error": f"No hardware_nodes_all for epoch {epoch_index}"}
 
-    # 构建硬件查找映射: {(participant, local_id): hardware_info}
-    hardware_map = {}
+    # 步骤 1 & 2 & 3: 过滤硬件节点
+    # - participant 必须是 validator（如果启用了 validator 过滤）
+    # - status 必须是 INFERENCE
+    # - 必须有 H100 80GB HBM3 卡
+    eligible_nodes = []  # [(participant, node_id, h100_count, hw_info)]
+
+    # 调试计数器
+    debug_filter_stats = {
+        "total_hw_nodes": 0,
+        "not_validator": 0,
+        "wrong_status": 0,
+        "no_h100": 0,
+        "passed": 0
+    }
+
     for node_entry in all_hardware_nodes:
         participant = node_entry.get("participant")
+
         for hw_node in node_entry.get("hardware_nodes", []):
+            if epoch_index == 420:
+                debug_filter_stats["total_hw_nodes"] += 1
+
             local_id = hw_node.get("local_id")
-            if participant and local_id:
-                hardware_map[(participant, local_id)] = hw_node
+            status = hw_node.get("status", "")
 
-    # 5. 对每个模型查询 ml_nodes 和 poc_weight
-    samples = []  # [(poc_weight × coeff / h100_count), ...]
-    node_details = []  # 用于调试和显示
-    processed_nodes = set()  # (participant, local_id, model_id)
+            # 过滤 1: 必须是 validator（如果启用）
+            if validator_participants is not None:
+                if participant not in validator_participants:
+                    if epoch_index == 420:
+                        debug_filter_stats["not_validator"] += 1
+                    continue
 
+            # 过滤 2: 状态必须是 INFERENCE
+            if status != "INFERENCE":
+                if epoch_index == 420:
+                    debug_filter_stats["wrong_status"] += 1
+                continue
+
+            # 过滤 3: 统计 H100 80GB HBM3 卡数
+            hardware_list = hw_node.get("hardware", [])
+            h100_count = 0
+            for hw in hardware_list:
+                hw_type = hw.get("type", "")  # 正确字段名是 "type"，不是 "hardware_type"
+                hw_count = hw.get("count", 0)  # 正确字段名是 "count"，不是 "hardware_count"
+                if hw_type.startswith("NVIDIA H100 80GB HBM3"):
+                    h100_count += hw_count
+
+            if h100_count == 0:
+                if epoch_index == 420:
+                    debug_filter_stats["no_h100"] += 1
+                continue
+
+            if epoch_index == 420:
+                debug_filter_stats["passed"] += 1
+
+            # 通过所有过滤！
+            eligible_nodes.append((participant, local_id, h100_count, hw_node))
+
+    if epoch_index == 420:
+        print(f"\n[DEBUG] Hardware filtering breakdown:")
+        print(f"  - Total hardware nodes: {debug_filter_stats['total_hw_nodes']}")
+        print(f"  - Filtered (not validator): {debug_filter_stats['not_validator']}")
+        print(f"  - Filtered (wrong status): {debug_filter_stats['wrong_status']}")
+        print(f"  - Filtered (no H100): {debug_filter_stats['no_h100']}")
+        print(f"  - Passed all filters: {debug_filter_stats['passed']}")
+        print(f"\n[DEBUG] Eligible nodes after hardware filtering:")
+        print(f"  - Total eligible nodes: {len(eligible_nodes)}")
+        print(f"  - Total H100 cards: {sum(n[2] for n in eligible_nodes)}")
+        print(f"  - Validator participants: {len(validator_participants) if validator_participants else 'disabled'}\n")
+
+    # 步骤 4: 对每个 eligible node，去各个模型中查找对应的 poc_weight
+    node_data = {}  # {(participant, node_id): {total_weighted_poc, h100_count, models}}
+
+    for participant, node_id, h100_count, hw_info in eligible_nodes:
+        node_key = (participant, node_id)
+        node_data[node_key] = {
+            "total_weighted_poc": 0.0,
+            "h100_count": h100_count,
+            "models": [],
+            "participant": participant,
+            "node_id": node_id
+        }
+
+    # 现在对每个模型查询 ml_nodes，找到匹配的节点
     for model_id in sub_group_models:
         if model_id not in model_coefficients:
             continue
@@ -216,47 +313,56 @@ async def calculate_h100_baseline_v0216(
                 if poc_weight <= 0:
                     continue
 
-                # 避免重复统计
-                node_key = (participant, node_id, model_id)
-                if node_key in processed_nodes:
-                    continue
-                processed_nodes.add(node_key)
+                node_key = (participant, node_id)
 
-                # 查找硬件信息
-                hw_info = hardware_map.get((participant, node_id))
-                if not hw_info:
+                # 这个节点在我们的 eligible nodes 列表中吗？
+                if node_key not in node_data:
                     continue
 
-                # 检查状态
-                status = hw_info.get("status", "")
-                if status != "INFERENCE":
-                    continue
+                # 累加这个模型对该节点的贡献
+                weighted_poc = poc_weight * effective_coeff
+                node_data[node_key]["total_weighted_poc"] += weighted_poc
+                node_data[node_key]["models"].append(model_id)
 
-                # 统计 H100 80GB HBM3 卡数
-                h100_count = 0
-                for hw in hw_info.get("hardware", []):
-                    hw_type = hw.get("type", "")
-                    hw_count = hw.get("count", 0)
+    # 步骤 6: 生成样本（只包含有 poc_weight 的节点）
+    samples = []
+    node_details = []
 
-                    if _is_h100_80gb_hbm3(hw_type):
-                        h100_count += hw_count
+    nodes_with_weight = 0
+    nodes_without_weight = 0
 
-                if h100_count == 0:
-                    continue
+    for node_key, data in node_data.items():
+        total_weighted_poc = data["total_weighted_poc"]
 
-                # 计算每张卡的权重
-                sample = (poc_weight * effective_coeff) / h100_count
-                samples.append(sample)
+        if total_weighted_poc <= 0:
+            nodes_without_weight += 1
+            continue  # 跳过没有 poc_weight 的节点
 
-                node_details.append({
-                    "participant": participant,
-                    "node_id": node_id,
-                    "model_id": model_id,
-                    "poc_weight": poc_weight,
-                    "effective_coeff": effective_coeff,
-                    "h100_count": h100_count,
-                    "sample": sample
-                })
+        nodes_with_weight += 1
+
+        # 核心公式：聚合该节点上所有模型的贡献，再除以 H100 卡数
+        sample = total_weighted_poc / data["h100_count"]
+        samples.append(sample)
+
+        node_details.append({
+            "participant": data["participant"],
+            "node_id": data["node_id"],
+            "models": data["models"],
+            "total_weighted_poc": total_weighted_poc,
+            "h100_count": data["h100_count"],
+            "sample": sample
+        })
+
+    # 调试：打印节点和卡数统计
+    if DEBUG:
+        total_cards = sum(d["h100_count"] for d in node_details)
+        print(f"\n[DEBUG] Final node statistics:")
+        print(f"  - Eligible nodes (has H100): {len(node_data)}")
+        print(f"  - Nodes with poc_weight > 0: {nodes_with_weight}")
+        print(f"  - Nodes without poc_weight: {nodes_without_weight}")
+        print(f"  - Total H100 cards (with weight): {total_cards}")
+        print(f"  - Expected: 11 nodes, 64 cards")
+        print(f"  - Difference: {11 - nodes_with_weight} nodes, {64 - total_cards} cards")
 
     # 6. 计算中位数
     if len(samples) < 3:
