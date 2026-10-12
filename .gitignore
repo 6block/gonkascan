@@ -40,3 +40,6 @@ inference-gateway.png
 # Local-only vite config used to proxy the API when running the frontend
 # against a locally started backend (avoids CORS during manual testing).
 vite.local-test.config.ts
+
+# Backend docs and notes
+backend/docs/
