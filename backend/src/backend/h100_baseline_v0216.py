@@ -76,7 +76,8 @@ async def calculate_h100_baseline_v0216(
     client,
     epoch_index: int,
     max_fallback_depth: int = 10,
-    _depth: int = 0
+    _depth: int = 0,
+    enable_validator_filter: bool = True,
 ) -> Dict[str, Any]:
     """
     计算 H100 基准线 (v0.2.16+ 完整算法)
@@ -158,41 +159,59 @@ async def calculate_h100_baseline_v0216(
             )
         return {"error": f"No model coefficients for epoch {epoch_index}"}
 
-    # 3. 获取 validatorset (只统计活跃验证者)
-    # TODO: Validator 过滤暂时禁用，因为 pubkey 匹配有问题
-    # 需要 Gonka 官方确认正确的匹配方式
-    validator_participants = None  # 禁用 validator 过滤
-
-    # validator_participants = set()  # 存储是验证者的 participant 地址
-    #
-    # try:
-    #     validators_resp = await client.get_validators()
-    #     # 新端点的响应结构：validators 在顶层，而不是 result 下
-    #     validators = validators_resp.get("validators", [])
-    #
-    #     # 使用 pub_key.key 字段（Cosmos SDK 标准端点）
-    #     validator_pubkeys = {v.get("pub_key", {}).get("key") for v in validators if v.get("pub_key", {}).get("key")}
-    #
-    #     if validator_pubkeys:
-    #         # 获取所有 participants 并建立 validator_key 到 participant 的映射
-    #         all_participants_resp = await client.get_all_participants()
-    #         all_participants = all_participants_resp.get("participant", [])
-    #
-    #         # 直接比较完整的字符串，无需解码或地址派生
-    #         for p in all_participants:
-    #             # 尝试不同的字段名
-    #             participant_addr = p.get("member_address") or p.get("address") or p.get("participant_address")
-    #             validator_key = p.get("validator_key")
-    #
-    #             if participant_addr and validator_key and validator_key in validator_pubkeys:
-    #                 validator_participants.add(participant_addr)
-    #
-    # except Exception as e:
-    #     # 如果获取 validators 失败，不做验证者筛选
-    #     validator_participants = None
-
-    # 4. 获取所有硬件节点，并按官方文档的顺序过滤
+    # 3. 获取所有硬件节点
     hardware_resp = await client.get_hardware_nodes_all()
+    all_hardware_nodes = hardware_resp.get("nodes", [])
+
+    if not all_hardware_nodes:
+        if epoch_index > 0:
+            return await calculate_h100_baseline_v0216(
+                client, epoch_index - 1, max_fallback_depth, _depth + 1
+            )
+        return {"error": f"No hardware_nodes_all for epoch {epoch_index}"}
+
+    # 4. 获取 epoch participants 数据并过滤出 validator participants
+    # 使用官方推荐的 /v1/epochs/{epoch}/participants API
+    validator_participants = None
+
+    if enable_validator_filter:
+        try:
+            # 一次 API 调用获取所有数据（官方推荐方式）
+            epoch_data = await client.get_epoch_participants(epoch_index)
+
+            # 提取 participants 和 validators
+            participants = epoch_data.get("active_participants", {}).get("participants", [])
+            validators = epoch_data.get("validators", [])
+
+            # 构建 validator pubkey 集合（使用 pub_key 字段，不是 key）
+            validator_pubkeys = {
+                v.get("pub_key")
+                for v in validators
+                if v.get("pub_key")
+            }
+
+            if validator_pubkeys and participants:
+                # 找出所有 validator_key 匹配的 participants
+                validator_participants = {
+                    p.get("index")
+                    for p in participants
+                    if p.get("validator_key") in validator_pubkeys
+                }
+
+                if epoch_index in [420, 422]:
+                    print(f"\n[DEBUG] Validator filtering for epoch {epoch_index}:")
+                    print(f"  - Total validators: {len(validator_pubkeys)}")
+                    print(f"  - Total participants: {len(participants)}")
+                    print(f"  - Eligible (validator participants): {len(validator_participants)}\n")
+
+        except Exception as e:
+            # 如果获取失败，不做验证者筛选
+            print(f"[WARNING] Failed to get epoch participants data: {e}")
+            validator_participants = None
+    else:
+        print(f"\n[INFO] Validator filtering is disabled for epoch {epoch_index}\n")
+
+    # 5. 按官方文档的顺序过滤硬件节点
     all_hardware_nodes = hardware_resp.get("nodes", [])
 
     if not all_hardware_nodes:

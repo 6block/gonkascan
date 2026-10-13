@@ -4609,7 +4609,7 @@ class InferenceService:
         except Exception as e:
             logger.error(f"Error during epoch total rewards repair: {e}")
 
-    async def get_h100_baseline(self, epoch_index: int, _depth: int = 0) -> Dict[str, Any]:
+    async def get_h100_baseline(self, epoch_index: int, _depth: int = 0, enable_validator_filter: bool = True) -> Dict[str, Any]:
         """
         计算指定 epoch 的 H100 基准线 (v0.2.16+ 官方算法)
 
@@ -4644,7 +4644,8 @@ class InferenceService:
             client=self.client,
             epoch_index=epoch_index,
             max_fallback_depth=10,
-            _depth=_depth
+            _depth=_depth,
+            enable_validator_filter=enable_validator_filter
         )
 
     async def check_participant_fees(self) -> Dict[str, Any]:

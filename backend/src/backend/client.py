@@ -770,6 +770,40 @@ class GonkaClient:
             )
             return await self._make_request(path)
 
+    async def get_participant(self, participant_address: str) -> Dict[str, Any]:
+        """Get participant information including validator_key."""
+        path = f"/chain-api/productscience/inference/inference/participant/{participant_address}"
+        return await self._make_request(path)
+
+    async def get_epoch_participants(self, epoch: int) -> Dict[str, Any]:
+        """
+        Get complete epoch participants data including validators.
+
+        This endpoint returns both active_participants and validators in one call,
+        which is the official recommended way to get validator filtering data.
+
+        Returns:
+            {
+                "active_participants": {
+                    "participants": [
+                        {
+                            "index": "gonka1...",
+                            "validator_key": "base64_pubkey",
+                            ...
+                        }
+                    ]
+                },
+                "validators": [
+                    {
+                        "pub_key": "base64_pubkey",
+                        ...
+                    }
+                ]
+            }
+        """
+        path = f"/v1/epochs/{epoch}/participants"
+        return await self._make_request(path)
+
     async def get_total_vesting(self, address: str) -> Dict[str, Any]:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/total_vesting/{address}")
 

@@ -28,13 +28,16 @@ async def test_h100_baseline():
     service = InferenceService(client, cache_db)
 
     # 测试 epoch 418, 419, 420
+    # 现在使用官方 /v1/epochs/{epoch}/participants API，可以获取历史 epoch 的 validator 信息
     for epoch_index in [418, 419, 420]:
         print(f"\n{'='*60}")
         print(f"测试 Epoch {epoch_index}")
         print('='*60)
 
         try:
-            result = await service.get_h100_baseline(epoch_index)
+            # Epoch 420+ 启用 validator 过滤（使用新的 API）
+            enable_filter = epoch_index >= 420
+            result = await service.get_h100_baseline(epoch_index, enable_validator_filter=enable_filter)
 
             if "error" in result:
                 print(f"✗ 错误: {result['error']}")
