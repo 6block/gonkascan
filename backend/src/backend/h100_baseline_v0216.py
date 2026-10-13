@@ -182,8 +182,9 @@ async def calculate_h100_baseline_v0216(
 
         try:
             epoch_participants_data = await client.get_epoch_participants(epoch_index)
-            participants = epoch_participants_data.get("active_participants", {}).get("participants", [])
-            validators = epoch_participants_data.get("validators", [])
+            if epoch_participants_data:
+                participants = epoch_participants_data.get("active_participants", {}).get("participants", [])
+                validators = epoch_participants_data.get("validators", [])
 
 
         except Exception as e:
@@ -196,10 +197,12 @@ async def calculate_h100_baseline_v0216(
                     if block_height:
                         # 使用 block_height 查询该 epoch 的 validators 和 participants
                         validators_data = await client.get_validators(int(block_height))
-                        validators = validators_data.get("validators", [])
+                        if validators_data:
+                            validators = validators_data.get("validators", [])
 
                         participants_data = await client.get_all_participants(int(block_height))
-                        participants = participants_data.get("participant", [])
+                        if participants_data:
+                            participants = participants_data.get("participant", [])
 
                 except Exception as fallback_error:
                     pass
