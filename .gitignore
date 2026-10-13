@@ -25,6 +25,7 @@ test_data/
 .env.*.local
 .vite/
 .idea/
+.claude
 gonkascan.code-workspace
 
 # Playwright MCP scratch (snapshots, console logs, debug screenshots)
