@@ -269,6 +269,34 @@ def _validation_weight_map(epoch_group_data: Dict[str, Any]) -> Dict[str, Dict[s
 
 
 def _model_scale_factors(params: Dict[str, Any]) -> Dict[str, Decimal]:
+    """
+    v0.2.16+: Read effective_coefficient from confirmation_weight_scales
+    Pre-v0.2.16: Fall back to weight_scale_factor from poc_params.models
+    """
+    # Try v0.2.16+ path first
+    scales = params.get("confirmation_weight_scales", [])
+    if scales:
+        result = {}
+        for scale in scales:
+            model_id = scale.get("model_id")
+            if not model_id:
+                continue
+
+            # Try effective_coefficient first (v0.2.16+)
+            coeff = scale.get("effective_coefficient")
+            if coeff:
+                result[model_id] = _decode_fixed_point(coeff)
+            else:
+                # Fallback to config.coeff_min if effective_coefficient is missing
+                config = scale.get("config") or {}
+                coeff_min = config.get("coeff_min")
+                if coeff_min:
+                    result[model_id] = _decode_fixed_point(coeff_min)
+
+        if result:
+            return result
+
+    # Fallback to legacy weight_scale_factor (pre-v0.2.16)
     return {
         model["model_id"]: _decode_fixed_point(model.get("weight_scale_factor"))
         for model in (params.get("poc_params") or {}).get("models") or []
@@ -279,6 +307,10 @@ def _model_scale_factors(params: Dict[str, Any]) -> Dict[str, Decimal]:
 def _confirmation_weight_scale_entries(
     epoch_group_data: Dict[str, Any],
 ) -> List[Dict[str, Any]]:
+    """
+    v0.2.16+: Read effective_coefficient from confirmation_weight_scales
+    Pre-v0.2.16: Fall back to weight_scale_factor
+    """
     scales = (
         epoch_group_data.get("confirmation_weight_scales")
         or epoch_group_data.get("confirmationWeightScales")
@@ -296,10 +328,19 @@ def _confirmation_weight_scale_entries(
         if not model_id:
             continue
 
+        # Try v0.2.16+ effective_coefficient first
+        coeff = scale.get("effective_coefficient")
+        if not coeff:
+            # Fallback to config.coeff_min
+            config = scale.get("config") or {}
+            coeff = config.get("coeff_min")
+
+        # Final fallback to legacy weight_scale_factor (pre-v0.2.16)
+        if not coeff:
+            coeff = scale.get("weight_scale_factor") or scale.get("weightScaleFactor")
+
         try:
-            scale_factor = _decode_fixed_point(
-                scale.get("weight_scale_factor") or scale.get("weightScaleFactor")
-            )
+            scale_factor = _decode_fixed_point(coeff)
         except (KeyError, TypeError, ValueError):
             continue
 
