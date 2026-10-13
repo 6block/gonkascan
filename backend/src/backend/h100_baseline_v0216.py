@@ -16,6 +16,7 @@ H100 基准线计算 v0.2.16 (完整重写)
 6. 取所有样本的中位数作为 weight_per_h100
 7. H100_equivalent = total_weight / weight_per_h100
 """
+import base64
 import statistics
 from typing import Dict, List, Any, Optional, Tuple
 from decimal import Decimal
@@ -175,41 +176,85 @@ async def calculate_h100_baseline_v0216(
     validator_participants = None
 
     if enable_validator_filter:
+        # 尝试方案 1: 使用官方推荐的 /v1/epochs/{epoch}/participants API
+        participants = []
+        validators = []
+
         try:
-            # 一次 API 调用获取所有数据（官方推荐方式）
-            epoch_data = await client.get_epoch_participants(epoch_index)
+            epoch_participants_data = await client.get_epoch_participants(epoch_index)
+            participants = epoch_participants_data.get("active_participants", {}).get("participants", [])
+            validators = epoch_participants_data.get("validators", [])
 
-            # 提取 participants 和 validators
-            participants = epoch_data.get("active_participants", {}).get("participants", [])
-            validators = epoch_data.get("validators", [])
-
-            # 构建 validator pubkey 集合（使用 pub_key 字段，不是 key）
-            validator_pubkeys = {
-                v.get("pub_key")
-                for v in validators
-                if v.get("pub_key")
-            }
-
-            if validator_pubkeys and participants:
-                # 找出所有 validator_key 匹配的 participants
-                validator_participants = {
-                    p.get("index")
-                    for p in participants
-                    if p.get("validator_key") in validator_pubkeys
-                }
-
-                if epoch_index in [420, 422]:
-                    print(f"\n[DEBUG] Validator filtering for epoch {epoch_index}:")
-                    print(f"  - Total validators: {len(validator_pubkeys)}")
-                    print(f"  - Total participants: {len(participants)}")
-                    print(f"  - Eligible (validator participants): {len(validator_participants)}\n")
 
         except Exception as e:
-            # 如果获取失败，不做验证者筛选
-            print(f"[WARNING] Failed to get epoch participants data: {e}")
+            # 方案 2: 使用历史区块高度查询（备用方案）
+            if "404" in str(e) or "not found" in str(e).lower():
+                try:
+                    # 从 epoch_group_data 获取区块高度（使用 last_block_height）
+                    block_height = epoch_group_data.get("last_block_height") or epoch_group_data.get("effective_block_height")
+
+                    if block_height:
+                        # 使用 block_height 查询该 epoch 的 validators 和 participants
+                        validators_data = await client.get_validators(int(block_height))
+                        validators = validators_data.get("validators", [])
+
+                        participants_data = await client.get_all_participants(int(block_height))
+                        participants = participants_data.get("participant", [])
+
+                except Exception as fallback_error:
+                    pass
+            else:
+                pass
+
+        # 如果成功获取了 validators 和 participants，执行匹配
+        if validators and participants:
+            # 构建 validator pubkey 集合（解码 Base64 后比较）
+            # 根据官方回复：使用 pub_key.value 或 pub_key.key（取决于 JSON 结构）
+            # 将两者都解码为二进制后再比较
+            validator_pubkeys_decoded = set()
+            for v in validators:
+                pub_key = v.get("pub_key")
+                if not pub_key:
+                    continue
+
+                # 处理两种可能的 JSON 结构
+                if isinstance(pub_key, dict):
+                    # 结构: {"@type": "...", "key": "base64"} 或 {"@type": "...", "value": "base64"}
+                    pub_key_b64 = pub_key.get("value") or pub_key.get("key")
+                else:
+                    # 直接是字符串
+                    pub_key_b64 = pub_key
+
+                if pub_key_b64:
+                    try:
+                        # Base64 解码
+                        decoded = base64.b64decode(pub_key_b64)
+                        validator_pubkeys_decoded.add(decoded)
+                    except Exception:
+                        pass
+
+            if validator_pubkeys_decoded:
+                # 找出所有 validator_key 匹配的 participants
+                # 同样需要将 validator_key 解码后再比较
+                validator_participants = set()
+                for p in participants:
+                    validator_key_b64 = p.get("validator_key")
+                    participant_index = p.get("index")
+
+                    if not validator_key_b64 or not participant_index:
+                        continue
+
+                    try:
+                        # Base64 解码
+                        decoded = base64.b64decode(validator_key_b64)
+                        if decoded in validator_pubkeys_decoded:
+                            validator_participants.add(participant_index)
+                    except Exception:
+                        pass
+        else:
             validator_participants = None
     else:
-        print(f"\n[INFO] Validator filtering is disabled for epoch {epoch_index}\n")
+        validator_participants = None
 
     # 5. 按官方文档的顺序过滤硬件节点
     all_hardware_nodes = hardware_resp.get("nodes", [])
@@ -278,18 +323,6 @@ async def calculate_h100_baseline_v0216(
 
             # 通过所有过滤！
             eligible_nodes.append((participant, local_id, h100_count, hw_node))
-
-    if epoch_index == 420:
-        print(f"\n[DEBUG] Hardware filtering breakdown:")
-        print(f"  - Total hardware nodes: {debug_filter_stats['total_hw_nodes']}")
-        print(f"  - Filtered (not validator): {debug_filter_stats['not_validator']}")
-        print(f"  - Filtered (wrong status): {debug_filter_stats['wrong_status']}")
-        print(f"  - Filtered (no H100): {debug_filter_stats['no_h100']}")
-        print(f"  - Passed all filters: {debug_filter_stats['passed']}")
-        print(f"\n[DEBUG] Eligible nodes after hardware filtering:")
-        print(f"  - Total eligible nodes: {len(eligible_nodes)}")
-        print(f"  - Total H100 cards: {sum(n[2] for n in eligible_nodes)}")
-        print(f"  - Validator participants: {len(validator_participants) if validator_participants else 'disabled'}\n")
 
     # 步骤 4: 对每个 eligible node，去各个模型中查找对应的 poc_weight
     node_data = {}  # {(participant, node_id): {total_weighted_poc, h100_count, models}}
@@ -372,17 +405,7 @@ async def calculate_h100_baseline_v0216(
             "sample": sample
         })
 
-    # 调试：打印节点和卡数统计
-    if DEBUG:
-        total_cards = sum(d["h100_count"] for d in node_details)
-        print(f"\n[DEBUG] Final node statistics:")
-        print(f"  - Eligible nodes (has H100): {len(node_data)}")
-        print(f"  - Nodes with poc_weight > 0: {nodes_with_weight}")
-        print(f"  - Nodes without poc_weight: {nodes_without_weight}")
-        print(f"  - Total H100 cards (with weight): {total_cards}")
-        print(f"  - Expected: 11 nodes, 64 cards")
-        print(f"  - Difference: {11 - nodes_with_weight} nodes, {64 - total_cards} cards")
-
+    # 步骤 5: 从所有节点样本中计算中位数
     # 6. 计算中位数
     if len(samples) < 3:
         if epoch_index > 0:

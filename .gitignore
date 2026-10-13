@@ -43,3 +43,11 @@ vite.local-test.config.ts
 
 # Backend docs and notes
 backend/docs/
+# 项目临时文档
+backend/IMPLEMENTATION_STATUS.md
+backend/REPLY_TO_GONKA_v2.md
+backend/完成总结.md
+backend/ALGORITHM_FIX_NOTES.py
+backend/IMPLEMENTATION_GUIDE.md
+backend/QUICK_REF.txt
+backend/src/backend/h100_baseline_v0216.py.backup
