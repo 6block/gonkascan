@@ -13,8 +13,8 @@ H100 基准线计算 v0.2.16 (完整重写)
    - 包含 H100 80GB HBM3 卡 (混合主机也算)
    - participant 的 validator_key 在 validatorset 中
 5. 计算每张 H100 卡的权重: (poc_weight × effective_coefficient) / H100_card_count
-6. 取所有样本的中位数作为 weight_per_h100
-7. H100_equivalent = total_weight / weight_per_h100
+6. 取所有样本的中位数作为 denominator
+7. h100_baseline = total_weight / denominator
 """
 import base64
 import statistics
@@ -91,24 +91,24 @@ async def calculate_h100_baseline_v0216(
 
     Returns:
         {
-            "h100_equivalent": float,      # total_weight / weight_per_h100
-            "weight_per_h100": float,       # 中位数
-            "total_weight": int,            # epoch 总权重
-            "sample_count": int,            # 样本数 (H100 卡数)
-            "node_count": int,              # 节点数
-            "card_count": int,              # H100 80GB HBM3 卡数
-            "model_ids": list,              # 参与计算的模型
+            "h100_baseline": float,        # total_weight / denominator
+            "denominator": float,          # 中位数 (weight_per_h100)
+            "total_weight": int,           # epoch 总权重
+            "sample_size": int,            # 样本数 (H100 卡数)
+            "node_count": int,             # 节点数
+            "card_count": int,             # H100 80GB HBM3 卡数
+            "model_ids": list,             # 参与计算的模型
             "epoch_index": int,
             "calculation_method": str,
-            "mixed_hosts_included": bool    # 是否包含混合主机
+            "mixed_hosts_included": bool   # 是否包含混合主机
         }
     """
     # 防止无限递归
     if _depth >= max_fallback_depth:
         return {
             "error": f"Exceeded max fallback depth ({max_fallback_depth})",
-            "h100_equivalent": None,
-            "weight_per_h100": None,
+            "h100_baseline": None,
+            "denominator": None,
             "epoch_index": epoch_index
         }
 
@@ -414,8 +414,8 @@ async def calculate_h100_baseline_v0216(
             )
         return {
             "error": f"Insufficient H100 samples for epoch {epoch_index} (found {len(samples)}, need ≥3)",
-            "h100_equivalent": None,
-            "weight_per_h100": None,
+            "h100_baseline": None,
+            "denominator": None,
             "epoch_index": actual_epoch_index
         }
 
@@ -441,15 +441,17 @@ async def calculate_h100_baseline_v0216(
             break
 
     return {
-        "h100_equivalent": round(h100_equivalent, 2),
-        "weight_per_h100": round(weight_per_h100, 2),
+        "h100_baseline": round(h100_equivalent, 2),
+        "denominator": round(weight_per_h100, 2),
+        "sample_size": len(samples),
+        "reference_model": "H100",
+        "calculation_method": "v0.2.16: poc_weight × effective_coefficient / H100_card_count, median",
+        # 保留额外的调试信息
         "total_weight": total_weight,
-        "sample_count": len(samples),
         "node_count": len(unique_nodes),
         "card_count": total_h100_cards,
         "model_ids": list(sub_group_models),
         "epoch_index": actual_epoch_index,
-        "calculation_method": "v0.2.16: poc_weight × effective_coefficient / H100_card_count, median",
         "mixed_hosts_included": mixed_hosts_included,
         "samples_min": round(min(samples), 2),
         "samples_max": round(max(samples), 2),

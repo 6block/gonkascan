@@ -593,10 +593,19 @@ export interface TransactionDetailResponse {
 }
 
 export interface H100BaselineResponse {
-  h100_baseline: number
-  denominator: number
-  sample_size: number
-  reference_model: string
-  calculation_method: string
+  h100_baseline: number | null;
+  denominator: number | null;
+  sample_size?: number;
+  reference_model?: string;
+  calculation_method?: string;
+  total_weight?: number;
+  node_count?: number;
+  card_count?: number;
+  model_ids?: string[];
+  epoch_index?: number;
+  mixed_hosts_included?: boolean;
+  samples_min?: number;
+  samples_max?: number;
+  error?: string;
 }
 

@@ -4626,16 +4626,16 @@ class InferenceService:
 
         Returns:
             {
-                "h100_equivalent": float,      # total_weight / weight_per_h100
-                "weight_per_h100": float,       # 中位数
-                "total_weight": int,            # epoch 总权重
-                "sample_count": int,            # 样本数 (H100 卡权重样本数)
-                "node_count": int,              # 节点数
-                "card_count": int,              # H100 80GB HBM3 卡数
-                "model_ids": list,              # 参与计算的模型
+                "h100_baseline": float,        # total_weight / denominator
+                "denominator": float,          # 中位数 (weight_per_h100)
+                "total_weight": int,           # epoch 总权重
+                "sample_size": int,            # 样本数 (H100 卡数)
+                "node_count": int,             # 节点数
+                "card_count": int,             # H100 80GB HBM3 卡数
+                "model_ids": list,             # 参与计算的模型
                 "epoch_index": int,
                 "calculation_method": str,
-                "mixed_hosts_included": bool    # 是否包含混合主机
+                "mixed_hosts_included": bool   # 是否包含混合主机
             }
         """
         from backend.h100_baseline_v0216 import calculate_h100_baseline_v0216

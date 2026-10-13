@@ -5,6 +5,7 @@
 import asyncio
 import sys
 import os
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
@@ -12,6 +13,7 @@ from backend.client import GonkaClient
 from backend.service import InferenceService
 from backend.database import CacheDB
 
+@pytest.mark.asyncio
 async def test_h100_baseline():
     """测试 H100 基准线计算"""
 
@@ -43,12 +45,12 @@ async def test_h100_baseline():
                 print(f"✗ 错误: {result['error']}")
                 continue
 
-            print(f"✓ H100 Equivalent: {result.get('h100_equivalent')}")
-            print(f"✓ Weight per H100: {result.get('weight_per_h100')}")
+            print(f"✓ H100 Baseline: {result.get('h100_baseline')}")
+            print(f"✓ Denominator: {result.get('denominator')}")
             print(f"✓ Total Weight: {result.get('total_weight')}")
             print(f"✓ Node Count: {result.get('node_count')}")
             print(f"✓ Card Count: {result.get('card_count')}")
-            print(f"✓ Sample Count: {result.get('sample_count')}")
+            print(f"✓ Sample Size: {result.get('sample_size')}")
             print(f"✓ Mixed Hosts Included: {result.get('mixed_hosts_included')}")
             print(f"✓ Models: {', '.join(result.get('model_ids', []))}")
             print(f"✓ Sample Range: {result.get('samples_min')} - {result.get('samples_max')}")
@@ -62,7 +64,7 @@ async def test_h100_baseline():
             }
 
             if expected[epoch_index]:
-                actual = result.get('h100_equivalent')
+                actual = result.get('h100_baseline')
                 diff = abs(actual - expected[epoch_index])
                 if diff < 50:  # 允许小误差
                     print(f"✅ 匹配期望值 {expected[epoch_index]} (误差: {diff:.1f})")
