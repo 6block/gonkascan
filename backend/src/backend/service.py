@@ -4652,31 +4652,31 @@ class InferenceService:
 
     async def get_h100_baseline(self, epoch_index: int, _depth: int = 0, enable_validator_filter: bool = True) -> Dict[str, Any]:
         """
-        计算指定 epoch 的 H100 基准线 (v0.2.16+ 官方算法)
+        Calculate H100 baseline for specified epoch (v0.2.16+ official algorithm)
 
-        使用新的计算方法:
-        - 基于每个节点在每个模型上的 poc_weight × effective_coefficient
-        - 包含混合主机 (不再要求纯 H100 主机)
-        - 统计每张 H100 80GB HBM3 卡
-        - 只统计状态为 INFERENCE 的节点
-        - 只统计活跃验证者的节点
+        Using new calculation method:
+        - Based on poc_weight × effective_coefficient for each node in each model
+        - Include mixed hosts (no longer require pure H100 hosts)
+        - Count each H100 80GB HBM3 card
+        - Only count nodes with INFERENCE status
+        - Only count nodes of active validators
 
         Args:
-            epoch_index: epoch 索引 (0 表示当前 epoch)
-            _depth: 内部递归深度追踪
+            epoch_index: epoch index (0 means current epoch)
+            _depth: internal recursion depth tracking
 
         Returns:
             {
                 "h100_baseline": float,        # total_weight / denominator
-                "denominator": float,          # 中位数 (weight_per_h100)
-                "total_weight": int,           # epoch 总权重
-                "sample_size": int,            # 样本数 (H100 卡数)
-                "node_count": int,             # 节点数
-                "card_count": int,             # H100 80GB HBM3 卡数
-                "model_ids": list,             # 参与计算的模型
+                "denominator": float,          # median (weight_per_h100)
+                "total_weight": int,           # epoch total weight
+                "sample_size": int,            # sample count (H100 card count)
+                "node_count": int,             # node count
+                "card_count": int,             # H100 80GB HBM3 card count
+                "model_ids": list,             # models participating in calculation
                 "epoch_index": int,
                 "calculation_method": str,
-                "mixed_hosts_included": bool   # 是否包含混合主机
+                "mixed_hosts_included": bool   # whether mixed hosts are included
             }
         """
         from backend.h100_baseline_v0216 import calculate_h100_baseline_v0216
@@ -4691,21 +4691,21 @@ class InferenceService:
 
     async def check_participant_fees(self) -> Dict[str, Any]:
         """
-        检查当前 epoch 所有参与者的费用支付能力 (v0.2.16)
+        Check fee payment capability of all participants in current epoch (v0.2.16)
 
-        检查逻辑:
-        1. 获取当前 epoch 所有参与者 (validation_weights)
-        2. 对每个参与者(冷账户):
-           - 查找付费 warm key (authz grants 中有 MsgPoCV2StoreCommit 或 MsgSubmitHardwareDiff)
-           - 检查冷->warm feegrant allowance
-           - 读取冷账户和 warm key 的余额
-        3. 判断是否有足够的费用支付能力
+        Check logic:
+        1. Get all participants in current epoch (validation_weights)
+        2. For each participant (cold account):
+           - Find paying warm key (has MsgPoCV2StoreCommit or MsgSubmitHardwareDiff in authz grants)
+           - Check cold->warm feegrant allowance
+           - Read balance of cold account and warm key
+        3. Determine if there is sufficient fee payment capability
         """
-        # 1. 获取当前 epoch group data
+        # 1. Get current epoch group data
         epoch_data = await self.client.get_current_epoch_group_data()
         epoch_index = epoch_data.get("epoch_group_data", {}).get("epoch_index", 0)
 
-        # 获取 validation_weights (当前 epoch 参与者)
+        # Get validation_weights (current epoch participants)
         validation_weights = epoch_data.get("epoch_group_data", {}).get("validation_weights", [])
 
         if not validation_weights:
@@ -4718,15 +4718,15 @@ class InferenceService:
                 "participants": []
             }
 
-        # 2. 获取当前区块信息 (用于判断 allowance 是否过期)
+        # 2. Get current block info (to determine if allowance is expired)
         latest_height = await self.client.get_latest_height()
         block_data = await self.client.get_block(latest_height)
         current_block_time = block_data.get("block", {}).get("header", {}).get("time", "")
 
-        # 3. 对每个参与者进行检查
+        # 3. Check each participant
         participants_status = []
 
-        # 需要检查的 authz 消息类型
+        # authz message types to check
         FEE_RELEVANT_MESSAGES = {
             "/inference.inference.MsgPoCV2StoreCommit",
             "/inference.inference.MsgSubmitHardwareDiff"
@@ -4738,7 +4738,7 @@ class InferenceService:
                 continue
 
             try:
-                # 并行获取冷账户的基本信息
+                # Get cold account basic info in parallel
                 cold_spendable_data, cold_balance_data, cold_vesting_data, authz_grants = await asyncio.gather(
                     self.client.get_spendable_balances(cold_address),
                     self.client.get_balances(cold_address),
@@ -4747,7 +4747,7 @@ class InferenceService:
                     return_exceptions=True
                 )
 
-                # 提取冷账户余额
+                # Extract cold account balance
                 cold_spendable_ngonka = "0"
                 if not isinstance(cold_spendable_data, Exception):
                     for bal in cold_spendable_data.get("balances", []):
@@ -4770,10 +4770,10 @@ class InferenceService:
                             cold_vesting_ngonka = coin.get("amount", "0")
                             break
 
-                # 查找付费 warm keys
+                # Find paying warm keys
                 fee_payers = []
                 if not isinstance(authz_grants, Exception):
-                    # 找到所有持有 StoreCommit 或 HardwareDiff 授权的 grantee
+                    # Find all grantees with StoreCommit or HardwareDiff authorization
                     warm_keys = set()
                     for grant in authz_grants:
                         msg_type = grant.get("authorization", {}).get("msg", "")
@@ -4782,9 +4782,9 @@ class InferenceService:
                             if grantee:
                                 warm_keys.add(grantee)
 
-                    # 对每个 warm key 检查 feegrant 和余额
+                    # Check feegrant and balance for each warm key
                     for warm_address in warm_keys:
-                        # 并行获取 feegrant 和 warm key 余额
+                        # Get feegrant and warm key balance in parallel
                         allowance_data, warm_spendable_data, warm_balance_data = await asyncio.gather(
                             self.client.get_feegrant_allowance(cold_address, warm_address),
                             self.client.get_spendable_balances(warm_address),
@@ -4792,7 +4792,7 @@ class InferenceService:
                             return_exceptions=True
                         )
 
-                        # 解析 feegrant allowance
+                        # Parse feegrant allowance
                         has_feegrant = False
                         feegrant_expired = False
                         feegrant_expiration = None
@@ -4802,9 +4802,9 @@ class InferenceService:
                         if not isinstance(allowance_data, Exception) and allowance_data:
                             allowance = allowance_data.get("allowance", {}).get("allowance", {})
 
-                            # 检查 spend_limit
+                            # Check spend_limit
                             spend_limit = allowance.get("spend_limit", [])
-                            if not spend_limit:  # 空数组表示 unlimited
+                            if not spend_limit:  # empty array means unlimited
                                 is_unlimited = True
                                 has_feegrant = True
                             else:
@@ -4814,15 +4814,15 @@ class InferenceService:
                                         has_feegrant = True
                                         break
 
-                            # 检查过期时间
+                            # Check expiration time
                             expiration = allowance.get("expiration")
                             if expiration:
                                 feegrant_expiration = expiration
-                                # 简单比较: 如果 expiration < current_block_time 则过期
+                                # Simple comparison: expired if expiration < current_block_time
                                 if expiration < current_block_time:
                                     feegrant_expired = True
 
-                        # 解析 warm key 余额
+                        # Parse warm key balance
                         warm_spendable_ngonka = "0"
                         if not isinstance(warm_spendable_data, Exception):
                             for bal in warm_spendable_data.get("balances", []):
@@ -4837,7 +4837,7 @@ class InferenceService:
                                     warm_total_ngonka = bal.get("amount", "0")
                                     break
 
-                        # 收集该 warm key 持有的授权消息类型
+                        # Collect authorization message types held by this warm key
                         authz_messages = []
                         for grant in authz_grants:
                             if grant.get("grantee") == warm_address:
@@ -4858,7 +4858,7 @@ class InferenceService:
                             "warm_total_ngonka": warm_total_ngonka
                         })
 
-                # 判断是否有有效的 fee payer
+                # Determine if there is a valid fee payer
                 has_valid_fee_payer = False
                 warnings = []
 
@@ -4872,8 +4872,8 @@ class InferenceService:
                         elif payer["feegrant_expired"]:
                             warnings.append(f"Warm key {payer['warm_address']} feegrant expired at {payer['feegrant_expiration']}")
                         else:
-                            # 有 feegrant 且未过期
-                            # 检查是否有足够余额 (简化版: 只检查冷账户可花费余额 > 0)
+                            # Has feegrant and not expired
+                            # Check if there is sufficient balance (simplified: only check cold account spendable balance > 0)
                             try:
                                 cold_spendable = int(cold_spendable_ngonka)
                                 if payer["is_unlimited"]:
@@ -4895,7 +4895,7 @@ class InferenceService:
 
                     has_valid_fee_payer = valid_payer_found
 
-                # 添加 vesting 警告
+                # Add vesting warning
                 try:
                     cold_vesting = int(cold_vesting_ngonka)
                     cold_spendable = int(cold_spendable_ngonka)
@@ -4928,7 +4928,7 @@ class InferenceService:
                     "warnings": [f"Failed to fetch data: {str(e)}"]
                 })
 
-        # 统计有问题的参与者数量
+        # Count participants with issues
         participants_with_issues = sum(1 for p in participants_status if not p["has_valid_fee_payer"])
 
         return {

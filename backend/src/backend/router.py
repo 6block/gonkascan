@@ -74,12 +74,12 @@ async def get_epoch_inference_stats(epoch_id: int, height: Optional[int] = None)
 @router.get("/inference/h100-baseline/{epoch_index}", response_model=H100BaselineResponse)
 async def get_h100_baseline(epoch_index: int):
     """
-    获取指定 epoch 的 H100 基准线
+    Get H100 baseline for specified epoch
 
-    v0.2.16+ 动态计算:
-    - 基于纯 H100 80GB HBM3 主机的中位数权重
-    - 只使用固定系数模型作为参考
-    - 主机数 <3 时 fallback 到上一 epoch
+    v0.2.16+ dynamic calculation:
+    - Based on median weight of pure H100 80GB HBM3 hosts
+    - Only use fixed coefficient models as reference
+    - Fallback to previous epoch when host count <3
     """
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")
@@ -96,19 +96,19 @@ async def get_h100_baseline(epoch_index: int):
 @router.get("/participants/fee-check", response_model=FeeCheckResponse)
 async def check_participant_fees():
     """
-    检查当前 epoch 所有参与者的费用支付能力 (v0.2.16)
+    Check fee payment capability of all participants in current epoch (v0.2.16)
 
-    检查内容:
-    - 是否有授权的 warm key (MsgPoCV2StoreCommit 或 MsgSubmitHardwareDiff)
-    - 是否有 cold->warm feegrant 且未过期
-    - 冷账户可花费余额是否充足
-    - feegrant allowance 是否充足
+    Check content:
+    - Whether there is an authorized warm key (MsgPoCV2StoreCommit or MsgSubmitHardwareDiff)
+    - Whether there is a cold->warm feegrant and not expired
+    - Whether cold account spendable balance is sufficient
+    - Whether feegrant allowance is sufficient
 
-    返回:
-    - 每个参与者的详细费用状态
-    - 冷账户余额、vesting 状态
-    - warm key 信息和 allowance 状态
-    - 警告信息
+    Returns:
+    - Detailed fee status for each participant
+    - Cold account balance, vesting status
+    - Warm key info and allowance status
+    - Warning messages
     """
     if inference_service is None:
         raise HTTPException(status_code=503, detail="Service not initialized")

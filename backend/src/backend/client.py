@@ -623,19 +623,19 @@ class GonkaClient:
         return await self._make_request("/chain-api/productscience/inference/inference/models_stats_by_time")
 
     async def get_hardware_nodes_all(self) -> Dict[str, Any]:
-        """获取所有硬件节点信息 (v0.2.16+)"""
+        """Get all hardware nodes info (v0.2.16+)"""
         return await self._make_request("/chain-api/productscience/inference/inference/hardware_nodes_all")
 
     async def get_dynamic_coefficients(self, epoch_index: int) -> Dict[str, Any]:
-        """获取指定 epoch 的动态系数 (v0.2.16+)"""
+        """Get dynamic coefficients for specified epoch (v0.2.16+)"""
         return await self._make_request(f"/chain-api/productscience/inference/inference/dynamic_coefficients/{epoch_index}")
 
     async def get_current_epoch_group_data(self) -> Dict[str, Any]:
-        """获取当前 epoch group 数据 (v0.2.16+)"""
+        """Get current epoch group data (v0.2.16+)"""
         return await self._make_request("/chain-api/productscience/inference/inference/current_epoch_group_data")
 
     async def get_epoch_group_data(self, epoch_index: int, model_id: Optional[str] = None) -> Dict[str, Any]:
-        """获取指定 epoch 的 group 数据 (v0.2.16+)"""
+        """Get group data for specified epoch (v0.2.16+)"""
         url = f"/chain-api/productscience/inference/inference/epoch_group_data/{epoch_index}"
         if model_id:
             url += f"?model_id={model_id}"
@@ -811,11 +811,11 @@ class GonkaClient:
         return await self._make_request(f"/chain-api/productscience/inference/streamvesting/vesting_schedule/{address}")
 
     async def get_spendable_balances(self, address: str) -> Dict[str, Any]:
-        """获取可花费余额"""
+        """Get spendable balance"""
         return await self._make_request(f"/chain-api/cosmos/bank/v1beta1/spendable_balances/{address}")
 
     async def get_feegrant_allowance(self, granter: str, grantee: str) -> Optional[Dict[str, Any]]:
-        """获取 feegrant allowance，不存在时返回 None"""
+        """Get feegrant allowance, returns None if not exists"""
         try:
             return await self._make_request(f"/chain-api/cosmos/feegrant/v1beta1/allowance/{granter}/{grantee}")
         except Exception as e:
@@ -824,7 +824,7 @@ class GonkaClient:
             raise
 
     async def get_feegrant_allowances_by_granter(self, granter: str) -> List[Dict[str, Any]]:
-        """获取某个 granter 签发的所有 feegrant allowances"""
+        """Get all feegrant allowances issued by a granter"""
         allowances = []
         next_key = None
 
@@ -856,7 +856,7 @@ class GonkaClient:
         return allowances
 
     async def get_authz_grants_by_granter(self, granter: str) -> List[Dict[str, Any]]:
-        """获取某个 granter 的所有 authz grants（用于 fee 检查）"""
+        """Get all authz grants from a granter (for fee checking)"""
         grants = []
         next_key = None
 
@@ -1137,15 +1137,15 @@ class GonkaClient:
 
     async def get_validators(self, height: Optional[int] = None) -> Dict[str, Any]:
         """
-        获取验证者集合
+        Get validator set
 
         Args:
-            height: 可选的区块高度
+            height: Optional block height
 
         Returns:
-            验证者列表
+            Validator list
         """
-        # 使用 Cosmos SDK 的 validatorsets 端点，返回 pub_key.key 字段
+        # Use Cosmos SDK validatorsets endpoint, returns pub_key.key field
         url = "/chain-api/cosmos/base/tendermint/v1beta1/validatorsets/latest"
         if height:
             url = f"/chain-api/cosmos/base/tendermint/v1beta1/validatorsets/{height}"
@@ -1153,23 +1153,23 @@ class GonkaClient:
 
     async def get_epoch_group_data_by_model(self, epoch_index: int, model_id: str) -> Dict[str, Any]:
         """
-        获取指定 epoch 和模型的 group 数据 (包含 ml_nodes)
+        Get group data for specified epoch and model (includes ml_nodes)
 
         Args:
-            epoch_index: epoch 索引
-            model_id: 模型 ID (URL 编码)
+            epoch_index: epoch index
+            model_id: model ID (URL encoded)
 
         Returns:
-            模型级别的 epoch group 数据
+            Model-level epoch group data
         """
         return await self.get_epoch_group_data(epoch_index, model_id=model_id)
 
     async def get_hardware_nodes_all(self) -> Dict[str, Any]:
         """
-        获取所有硬件节点信息 (v0.2.16+)
+        Get all hardware nodes info (v0.2.16+)
 
         Returns:
-            包含所有硬件节点的响应,格式:
+            Response containing all hardware nodes, format:
             {
                 "hardware_nodes": [
                     {
@@ -1187,13 +1187,13 @@ class GonkaClient:
 
     async def get_dynamic_coefficients(self, epoch_index: int) -> Dict[str, Any]:
         """
-        获取指定 epoch 的动态系数 (v0.2.16+)
+        Get dynamic coefficients for specified epoch (v0.2.16+)
 
         Args:
-            epoch_index: epoch 索引
+            epoch_index: epoch index
 
         Returns:
-            包含模型动态系数的响应,格式:
+            Response containing model dynamic coefficients, format:
             {
                 "model_coefficients": [
                     {

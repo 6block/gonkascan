@@ -559,7 +559,7 @@ class H100BaselineResponse(BaseModel):
     calculation_method: str
 
 class FeePayerInfo(BaseModel):
-    """单个付费 warm key 的详细信息"""
+    """Details of a single paying warm key"""
     warm_address: str
     has_authz: bool
     authz_messages: List[str] = []
@@ -572,7 +572,7 @@ class FeePayerInfo(BaseModel):
     warm_total_ngonka: str = "0"
 
 class ParticipantFeeStatus(BaseModel):
-    """单个参与者的 fee 检查状态"""
+    """Fee check status of a single participant"""
     participant_id: str
     cold_address: str
     cold_spendable_ngonka: str
@@ -583,7 +583,7 @@ class ParticipantFeeStatus(BaseModel):
     warnings: List[str] = []
 
 class FeeCheckResponse(BaseModel):
-    """Fee 检查响应"""
+    """Fee check response"""
     epoch_index: int
     current_block_height: int
     current_block_time: str
