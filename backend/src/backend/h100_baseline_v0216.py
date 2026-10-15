@@ -239,10 +239,11 @@ async def calculate_h100_baseline_v0216(
             if validator_pubkeys_decoded:
                 # Find all participants whose validator_key matches
                 # Also need to decode validator_key before comparing
+                # Note: "index" field contains the participant address, not a numeric index
                 validator_participants = set()
                 for p in participants:
                     validator_key_b64 = p.get("validator_key")
-                    participant_index = p.get("index")
+                    participant_index = p.get("index")  # This is actually the address
 
                     if not validator_key_b64 or not participant_index:
                         continue
