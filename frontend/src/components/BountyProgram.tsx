@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { FaGithub, FaDiscord } from 'react-icons/fa'
 import { FiExternalLink } from 'react-icons/fi'
 import { BackNavigation } from './common/BackNavigation'
 import { TabBar } from './common/TabBar'
-import { GITHUB_URL_OVERRIDES, REWARD_DATA, CONTRIBUTOR_SUMMARY } from '../data/bountyData'
+import { DISCORD_USER_IDS, GITHUB_URL_OVERRIDES, REWARD_DATA, type PayoutCurrency } from '../data/bountyData'
+import { buildAddressRanking, sortRanking, totalByCurrency } from '../data/bountyRank'
 
 const DISCORD_INVITE_CODE = 'RADwCT2U6R'
 
@@ -46,48 +47,79 @@ function useDiscordStats() {
   return stats
 }
 
-// --- Discord ID map (built from CONTRIBUTOR_SUMMARY discord fields) ---
-const DISCORD_ID_MAP: Record<string, string> = {}
-for (const c of CONTRIBUTOR_SUMMARY) {
-  if (!c.discord) continue
-  const m = c.discord.match(/^(@[^"[]+)\["(\d+)"\]/)
-  if (m) DISCORD_ID_MAP[m[1]] = m[2]
-}
-
 function resolveDiscordUrl(displayName: string): string | null {
-  const id = DISCORD_ID_MAP[displayName]
+  const id = DISCORD_USER_IDS[displayName]
   return id ? `https://discord.com/users/${id}` : null
 }
 
-// --- Shared link style ---
-const linkClass = 'text-slate-50 hover:text-accent-300 underline decoration-gray-300 hover:decoration-blue-600 underline-offset-2'
-
-// --- Contributor field parsing ---
-// Fields use format: DisplayName["url_or_id"]
-
-function parseGithubEntries(raw: string): { display: string; url: string }[] {
-  const tokenRe = /(\S+)\["(https:\/\/github\.com\/[^"]+)"\]/g
-  const entries: { display: string; url: string }[] = []
-  let m
-  while ((m = tokenRe.exec(raw)) !== null) {
-    entries.push({ display: m[1], url: m[2] })
-  }
-  if (entries.length === 0) {
-    return [{ display: raw, url: `https://github.com/${raw}` }]
-  }
-  return entries
+function formatAmount(amount: number): string {
+  return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-function parseDiscordField(raw: string): { display: string; url: string | null } {
-  const m = raw.match(/^(@[^"[]+)\["(\d+)"\]$/)
-  if (m) return { display: m[1], url: `https://discord.com/users/${m[2]}` }
-  return { display: raw, url: null }
+const CURRENCIES: PayoutCurrency[] = ['USDT', 'GNK']
+
+// --- Shared link style ---
+const linkClass = 'text-slate-50 hover:text-accent-300 underline decoration-gray-300 hover:decoration-blue-600 underline-offset-2'
+const mutedDash = <span className="text-slate-500">-</span>
+
+function GithubLinks({ names }: { names: string[] }) {
+  if (names.length === 0) return mutedDash
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5">
+      {names.map((name, i) => (
+        <span key={name} className="inline-flex items-center">
+          <a
+            href={GITHUB_URL_OVERRIDES[name] ?? `https://github.com/${name}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={linkClass}
+          >
+            {name}
+            <GitHubSmallIcon />
+          </a>
+          {i < names.length - 1 && <span className="text-slate-500">,</span>}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+function DiscordLinks({ names }: { names: string[] }) {
+  if (names.length === 0) return mutedDash
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-1.5">
+      {names.map((name) => {
+        const url = resolveDiscordUrl(name)
+        return url ? (
+          <a key={name} href={url} target="_blank" rel="noopener noreferrer" className={linkClass}>
+            {name}
+            <DiscordSmallIcon />
+          </a>
+        ) : (
+          <span key={name} className="text-slate-50">{name}</span>
+        )
+      })}
+    </span>
+  )
+}
+
+function AddressLink({ address }: { address: string }) {
+  return (
+    <a
+      href={`?page=address&address=${address}`}
+      className="text-accent-300 hover:text-accent-200 font-mono text-xs"
+      title={address}
+    >
+      {truncateAddress(address)}
+    </a>
+  )
 }
 
 type Tab = 'records' | 'rank'
 
 export function BountyProgram() {
   const [activeTab, setActiveTab] = useState<Tab>('records')
+  const [rankSort, setRankSort] = useState<PayoutCurrency>('USDT')
   const discordStats = useDiscordStats()
 
   const handleBack = () => {
@@ -95,10 +127,8 @@ export function BountyProgram() {
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  const totalDistributed = REWARD_DATA.reduce(
-    (sum, group) => sum + group.records.reduce((s, r) => s + r.amount, 0),
-    0,
-  )
+  const ranking = useMemo(() => sortRanking(buildAddressRanking(REWARD_DATA), rankSort), [rankSort])
+  const totalDistributed = useMemo(() => totalByCurrency(REWARD_DATA), [])
 
   return (
     <div className="space-y-6">
@@ -132,6 +162,13 @@ export function BountyProgram() {
         </p>
       </div>
 
+      <p className="text-xs text-slate-400 leading-relaxed">
+        Addresses and amounts are taken from on-chain payouts (upgrade handlers and governance proposals).
+        Payouts up to v0.2.11 were made in GNK, and later payouts in USDT. GitHub and Discord handles come
+        from Discord announcements and are for reference only. The only sources of truth for exact details
+        are on-chain transactions and GitHub records.
+      </p>
+
       {/* Tabs */}
       <TabBar
         tabs={['records', 'rank'] as Tab[]}
@@ -147,7 +184,12 @@ export function BountyProgram() {
             <div key={gi} className="surface overflow-hidden">
               <div className="bg-white/[0.02] border-b border-white/[0.06] px-5 py-3">
                 <div className="font-semibold text-slate-50">{group.title}</div>
-                <div className="text-xs text-slate-400 mt-0.5">{group.time}</div>
+                <div className="text-xs text-slate-400 mt-0.5">
+                  Paid in {group.currency} &bull; {group.time} &bull;&nbsp;
+                  <a href={`?page=governance&proposal_id=${group.proposalId}`} className={linkClass}>
+                    Proposal #{group.proposalId}
+                  </a>
+                </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm min-w-[860px]">
@@ -161,7 +203,7 @@ export function BountyProgram() {
                   <thead>
                     <tr className="border-b border-white/[0.06]">
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Address</th>
-                      <th className="text-right py-2.5 px-4 font-medium text-slate-300">Amount (USDT)</th>
+                      <th className="text-right py-2.5 px-4 font-medium text-slate-300">Amount ({group.currency})</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">GitHub</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Task</th>
                       <th className="text-left py-2.5 px-4 font-medium text-slate-300">Discord</th>
@@ -169,58 +211,16 @@ export function BountyProgram() {
                   </thead>
                   <tbody>
                     {group.records.map((r, ri) => {
-                      const discordUrl = r.discord ? resolveDiscordUrl(r.discord) : null
                       return (
                         <tr key={ri} className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02] align-top">
                           <td className="py-2.5 px-4">
-                            {r.address ? (
-                              <a
-                                href={`?page=address&address=${r.address}`}
-                                className="text-accent-300 hover:text-accent-200 font-mono text-xs"
-                                title={r.address}
-                              >
-                                {truncateAddress(r.address)}
-                              </a>
-                            ) : (
-                              <span className="text-slate-500">-</span>
-                            )}
+                            <AddressLink address={r.address} />
                           </td>
                           <td className="py-2.5 px-4 text-right font-mono text-slate-50 whitespace-nowrap">
-                            {r.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatAmount(r.amount)}
                           </td>
                           <td className="py-2.5 px-4">
-                            {r.githubUsername ? (
-                              r.githubUsername.includes(', ') ? (
-                                <span className="inline-flex flex-wrap items-center gap-x-1.5">
-                                  {r.githubUsername.split(', ').map((name, i, arr) => (
-                                    <span key={name} className="inline-flex items-center">
-                                      <a
-                                        href={GITHUB_URL_OVERRIDES[name] ?? `https://github.com/${name}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className={linkClass}
-                                      >
-                                        {name}
-                                        <GitHubSmallIcon />
-                                      </a>
-                                      {i < arr.length - 1 && <span className="text-slate-500">,</span>}
-                                    </span>
-                                  ))}
-                                </span>
-                              ) : (
-                                <a
-                                  href={GITHUB_URL_OVERRIDES[r.githubUsername] ?? `https://github.com/${r.githubUsername}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className={linkClass}
-                                >
-                                  {r.githubUsername}
-                                  <GitHubSmallIcon />
-                                </a>
-                              )
-                            ) : (
-                              <span className="text-slate-500">-</span>
-                            )}
+                            <GithubLinks names={r.githubUsername ? r.githubUsername.split(', ') : []} />
                           </td>
                           <td className="py-2.5 px-4 text-slate-300 break-words">
                             {r.task ? (
@@ -241,18 +241,7 @@ export function BountyProgram() {
                             )}
                           </td>
                           <td className="py-2.5 px-4">
-                            {r.discord ? (
-                              discordUrl ? (
-                                <a href={discordUrl} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                                  {r.discord}
-                                  <DiscordSmallIcon />
-                                </a>
-                              ) : (
-                                <span className="text-slate-50">{r.discord}</span>
-                              )
-                            ) : (
-                              <span className="text-slate-500">-</span>
-                            )}
+                            <DiscordLinks names={r.discord ? [r.discord] : []} />
                           </td>
                         </tr>
                       )
@@ -266,76 +255,61 @@ export function BountyProgram() {
       ) : (
         <div className="surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[600px]">
+            <table className="w-full text-sm min-w-[760px]">
               <colgroup>
-                <col className="w-[10%]" />
-                <col className="w-[30%]" />
-                <col className="w-[30%]" />
-                <col className="w-[30%]" />
+                <col className="w-[6%]" />
+                <col className="w-[18%]" />
+                <col className="w-[26%]" />
+                <col className="w-[18%]" />
+                <col className="w-[16%]" />
+                <col className="w-[16%]" />
               </colgroup>
               <thead>
                 <tr className="bg-white/[0.02] border-b border-white/[0.06]">
                   <th className="text-left py-3 px-4 font-medium text-slate-300">#</th>
-                  <th className="text-left py-3 px-4 font-medium text-slate-300">Github / Name</th>
+                  <th className="text-left py-3 px-4 font-medium text-slate-300">Address</th>
+                  <th className="text-left py-3 px-4 font-medium text-slate-300">GitHub</th>
                   <th className="text-left py-3 px-4 font-medium text-slate-300">Discord</th>
-                  <th className="text-center py-3 px-4 font-medium text-slate-300">Amount (USDT)</th>
+                  {CURRENCIES.map((currency) => (
+                    <th key={currency} className="text-right py-3 px-4 font-medium" aria-sort={rankSort === currency ? 'descending' : 'none'}>
+                      <button
+                        type="button"
+                        onClick={() => setRankSort(currency)}
+                        className={`inline-flex items-center gap-1 transition-colors ${
+                          rankSort === currency ? 'text-slate-50' : 'text-slate-400 hover:text-slate-200'
+                        }`}
+                      >
+                        {currency}
+                        <span aria-hidden="true" className="text-[10px]">{rankSort === currency ? '▼' : '↕'}</span>
+                      </button>
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {CONTRIBUTOR_SUMMARY.map((c, i) => {
-                  const ghEntries = c.github ? parseGithubEntries(c.github) : []
-                  const dc = c.discord ? parseDiscordField(c.discord) : null
-                  return (
-                    <tr key={i} className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02]">
-                      <td className="py-2.5 px-4 text-slate-500">{i + 1}</td>
-                      <td className="py-2.5 px-4 font-medium">
-                        {ghEntries.length > 0 ? (
-                          <span className="inline-flex flex-wrap items-center gap-x-1">
-                            {c.name && <span className="text-slate-50">{c.name} </span>}
-                            {ghEntries.map((gh, gi) => (
-                              <span key={gi} className="inline-flex items-center">
-                                <a href={gh.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                                  {gh.display}
-                                  <GitHubSmallIcon />
-                                </a>
-                                {gi < ghEntries.length - 1 && <span className="text-slate-500">,</span>}
-                              </span>
-                            ))}
-                          </span>
-                        ) : c.name ? (
-                          <span className="text-slate-50">{c.name}</span>
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
+                {ranking.map((row, i) => (
+                  <tr key={row.address} className="border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02]">
+                    <td className="py-2.5 px-4 text-slate-500">{i + 1}</td>
+                    <td className="py-2.5 px-4"><AddressLink address={row.address} /></td>
+                    <td className="py-2.5 px-4 font-medium"><GithubLinks names={row.githubUsernames} /></td>
+                    <td className="py-2.5 px-4 font-medium"><DiscordLinks names={row.discordNames} /></td>
+                    {CURRENCIES.map((currency) => (
+                      <td key={currency} className="py-2.5 px-4 text-right font-mono whitespace-nowrap text-slate-50">
+                        {row.totals[currency] > 0 ? formatAmount(row.totals[currency]) : mutedDash}
                       </td>
-                      <td className="py-2.5 px-4 font-medium">
-                        {dc ? (
-                          dc.url ? (
-                            <a href={dc.url} target="_blank" rel="noopener noreferrer" className={linkClass}>
-                              {dc.display}
-                              <DiscordSmallIcon />
-                            </a>
-                          ) : (
-                            <span className="text-slate-50">{dc.display}</span>
-                          )
-                        ) : (
-                          <span className="text-slate-500">-</span>
-                        )}
-                      </td>
-                      <td className="py-2.5 px-4 text-center text-slate-50 font-mono">
-                        {c.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  )
-                })}
+                    ))}
+                  </tr>
+                ))}
               </tbody>
               <tfoot>
                 <tr className="bg-white/[0.02] border-t border-white/[0.06]">
                   <td className="py-3 px-4" />
-                  <td className="py-3 px-4 font-semibold text-slate-50" colSpan={2}>Total Distributed</td>
-                  <td className="py-3 px-4 text-center font-semibold text-slate-50 font-mono">
-                    {totalDistributed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
+                  <td className="py-3 px-4 font-semibold text-slate-50" colSpan={3}>Total Distributed</td>
+                  {CURRENCIES.map((currency) => (
+                    <td key={currency} className="py-3 px-4 text-right font-semibold text-slate-50 font-mono whitespace-nowrap">
+                      {formatAmount(totalDistributed[currency])}
+                    </td>
+                  ))}
                 </tr>
               </tfoot>
             </table>
