@@ -5,6 +5,7 @@ import { ChartTooltipProps } from '../../types/inference'
 
 interface EpochAreaChartProps {
   title: string
+  subtitle?: string
   data: Array<{ epoch: number; [key: string]: number }>
 }
 
@@ -68,7 +69,7 @@ const AreaTooltip = ({ active, payload, label }: ChartTooltipProps) => {
   )
 }
 
-export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
+export function EpochAreaChart({ title, subtitle, data }: EpochAreaChartProps) {
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(new Set())
   const [activeEpoch, setActiveEpoch] = useState<number | null>(null)
 
@@ -103,7 +104,10 @@ export function EpochAreaChart({ title, data }: EpochAreaChartProps) {
   return (
     <div className="surface p-4 sm:p-5">
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-        <h3 className="text-base sm:text-lg font-bold text-slate-50 shrink-0 leading-tight tracking-tight">{title}</h3>
+        <div className="shrink-0">
+          <h3 className="text-base sm:text-lg font-bold text-slate-50 leading-tight tracking-tight">{title}</h3>
+          {subtitle && <p className="mt-1 text-xs text-slate-500 leading-relaxed max-w-md">{subtitle}</p>}
+        </div>
 
         <div className="flex flex-wrap sm:justify-end gap-x-3 sm:gap-x-4 gap-y-2 w-full sm:w-auto sm:max-w-[70%]">
           {getSortedKeys().map((key) => {

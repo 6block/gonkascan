@@ -42,6 +42,9 @@ POLL_INF_GATEWAYS_INTERVAL = int(os.getenv("POLL_INF_GATEWAYS_INTERVAL", "60"))
 POLL_INF_TOP_MODELS_INTERVAL = int(os.getenv("POLL_INF_TOP_MODELS_INTERVAL", "120"))
 POLL_INF_TIMESERIES_INTERVAL = int(os.getenv("POLL_INF_TIMESERIES_INTERVAL", "300"))
 POLL_INF_EPOCH_HISTORY_INTERVAL = int(os.getenv("POLL_INF_EPOCH_HISTORY_INTERVAL", "300"))
+# Per-epoch model traffic for the models page; the first run backfills
+# history in 7-day windows, later runs refresh only the running epoch.
+POLL_INF_MODEL_USAGE_INTERVAL = int(os.getenv("POLL_INF_MODEL_USAGE_INTERVAL", "600"))
 
 RPC_PROBE_INTERVAL = float(os.getenv("RPC_PROBE_INTERVAL", "30"))
 RPC_PARTICIPANT_FALLBACK = os.getenv("RPC_PARTICIPANT_FALLBACK", "false").strip().lower() in ("1", "true", "yes", "on")
@@ -348,6 +351,8 @@ async def lifespan(app: FastAPI):
             "timeseries", "poll_inference_timeseries", POLL_INF_TIMESERIES_INTERVAL, 30)),
         asyncio.create_task(_poll_inference_stats_loop(
             "epoch_history", "poll_inference_epoch_history", POLL_INF_EPOCH_HISTORY_INTERVAL, 36)),
+        asyncio.create_task(_poll_inference_stats_loop(
+            "model_usage", "sync_model_epoch_usage", POLL_INF_MODEL_USAGE_INTERVAL, 42)),
     ]
     logger.info("Background polling tasks started")
     

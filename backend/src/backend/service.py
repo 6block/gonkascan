@@ -28,6 +28,22 @@ from backend.client import GonkaClient
 from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
 from backend.dex import WGNK_PAIR_LABEL, WGNK_POOL_URL
+from backend.model_usage import (
+    EXACT_RANGE_MIN_AGE,
+    HOURLY_DATA_START,
+    TRAILING_REQUEST_SPAN,
+    MAX_HOURLY_WINDOW,
+    EpochSpan,
+    aggregate_hourly_into_epochs,
+    covered_epoch_ids,
+    floor_hour,
+    is_final,
+    parse_iso_utc,
+    response_window,
+)
+
+# Epochs shown in a model's token-usage history (the model details modal).
+TOKEN_USAGE_EPOCHS = 30
 from backend.denoms import (
     ibc_hash,
     is_ibc_denom,
@@ -2308,13 +2324,7 @@ class InferenceService:
                     validation_threshold=model.get("validation_threshold", {})
                 ))
             
-            stats_info = []
-            for stat in stats_list:
-                stats_info.append(ModelStats(
-                    model=stat.get("model", ""),
-                    ai_tokens=stat.get("ai_tokens", "0"),
-                    inferences=stat.get("inferences", 0)
-                ))
+            stats_info = await self._model_stats_for_epoch(epoch_id, stats_list)
             
             current_block_timestamp = None
             avg_block_time = None
@@ -2417,13 +2427,7 @@ class InferenceService:
                 validation_threshold=model.get("validation_threshold", {})
             ))
         
-        stats_info = []
-        for stat in stats_list:
-            stats_info.append(ModelStats(
-                model=stat.get("model", ""),
-                ai_tokens=stat.get("ai_tokens", "0"),
-                inferences=stat.get("inferences", 0)
-            ))
+        stats_info = await self._model_stats_for_epoch(epoch_id, stats_list)
         
         current_block_timestamp = None
         avg_block_time = None
@@ -2526,13 +2530,7 @@ class InferenceService:
                 validation_threshold=model.get("validation_threshold", {})
             ))
         
-        stats_info = []
-        for stat in stats_list:
-            stats_info.append(ModelStats(
-                model=stat.get("model", ""),
-                ai_tokens=stat.get("ai_tokens", "0"),
-                inferences=stat.get("inferences", 0)
-            ))
+        stats_info = await self._model_stats_for_epoch(epoch_id, stats_list)
         
         current_block_timestamp = None
         avg_block_time = None
@@ -3612,16 +3610,29 @@ class InferenceService:
             series["total_weight"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=cache_model["total_weight"]))
             series["hosts"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=cache_model["participant_count"]))
 
+        chain_stat_epochs = set()
         for row in cached_api_data:
             epoch_id = row["epoch_id"]
             models_stats_data = json.loads(row["models_stats_json"])
             stats_list = models_stats_data.get("stats_models", [])
+            if stats_list:
+                chain_stat_epochs.add(epoch_id)
             for stat in stats_list:
                 model_id = stat.get("model", "")
                 ai_tokens=stat.get("ai_tokens", "0")
                 inferences=stat.get("inferences", 0)
                 series["inferences"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=int(inferences)))
                 series["ai_tokens"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id,value=int(ai_tokens)))
+
+        # The chain stopped reporting per-model traffic at v0.2.11; continue the
+        # series from gonka.gg for every epoch the chain left empty.
+        for row in await self.cache_db.get_all_model_epoch_usage():
+            epoch_id = row["epoch_id"]
+            if epoch_id in chain_stat_epochs:
+                continue
+            model_id = row["model_id"]
+            series["inferences"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=row["inferences"]))
+            series["ai_tokens"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=row["ai_tokens"]))
 
         return ModelEpochSeriesResponse(
             models=sorted(models_set),
@@ -3634,19 +3645,30 @@ class InferenceService:
         )
     
     async def get_model_token_usage(self, model: str) -> ModelEpochTokenUsageResponse:
-        token_usage_data = await self.cache_db.get_model_token_usage_all_epochs(model)
-
-        data = [
-            ModelEpochTokenUsageItem(
-                epoch=token_usage["epoch_id"],
-                prompt_token=token_usage["total_prompt_tokens"],
-                completion_token=token_usage["total_completion_tokens"],
-                inference_count=token_usage["inference_count"],
+        # participant_inferences only ever held the inferences our pollers
+        # sampled from active participants — a sliver of network traffic, and
+        # nothing at all since the move to DevShard sessions (last epoch 311).
+        # Where gonka.gg covers an epoch its network-wide totals win; the
+        # sample remains the only source for older epochs.
+        by_epoch = {
+            row["epoch_id"]: ModelEpochTokenUsageItem(
+                epoch=row["epoch_id"],
+                prompt_token=row["total_prompt_tokens"],
+                completion_token=row["total_completion_tokens"],
+                inference_count=row["inference_count"],
             )
-            for token_usage in token_usage_data
-        ]
+            for row in await self.cache_db.get_model_token_usage_all_epochs(model)
+        }
+        for row in await self.cache_db.get_model_epoch_usage_for_model(model, limit=TOKEN_USAGE_EPOCHS):
+            by_epoch[row["epoch_id"]] = ModelEpochTokenUsageItem(
+                epoch=row["epoch_id"],
+                prompt_token=row["prompt_tokens"],
+                completion_token=row["completion_tokens"],
+                inference_count=row["inferences"],
+            )
 
-        return ModelEpochTokenUsageResponse(model=model,data=data)
+        data = [by_epoch[epoch] for epoch in sorted(by_epoch)][-TOKEN_USAGE_EPOCHS:]
+        return ModelEpochTokenUsageResponse(model=model, data=data)
 
     async def get_current_hardware(self) -> HardwaresResponse:
         if self.current_epoch_id is None:
@@ -4413,6 +4435,161 @@ class InferenceService:
                 f"timeseries_{breakdown}",
                 self.gonka_gg_client.get_timeseries(time_from, time_to, breakdown),
             )
+
+    async def _usage_epoch_spans(self) -> List[EpochSpan]:
+        """Epoch time ranges from the indexed PoC start blocks, oldest first.
+
+        An epoch ends where the next one starts; the last epoch is still open.
+        Epochs whose start block is not indexed yet are skipped rather than
+        guessed, since a wrong boundary would misattribute traffic.
+        """
+        rows = await self.cache_db.get_epoch_start_times(from_epoch=0)
+        starts = [
+            (int(row["epoch_id"]), parse_iso_utc(row["time"]) if row["time"] else None)
+            for row in rows
+        ]
+
+        spans = []
+        for index, (epoch_id, start) in enumerate(starts):
+            if start is None:
+                continue
+            is_last = index == len(starts) - 1
+            if is_last:
+                spans.append(EpochSpan(epoch_id=epoch_id, start=start, end=None))
+                continue
+            next_epoch_id, next_start = starts[index + 1]
+            if next_start is None or next_epoch_id != epoch_id + 1:
+                continue
+            spans.append(EpochSpan(epoch_id=epoch_id, start=start, end=next_start))
+        return spans
+
+    async def _sync_usage_window(
+        self,
+        pending: List[EpochSpan],
+        window_from: datetime,
+        window_to: datetime,
+    ) -> Optional[set]:
+        """Fetch one hourly window and persist every pending epoch it fully covers.
+
+        Returns the covered epoch ids, or None when the request failed or the
+        upstream answered with something other than hourly buckets.
+        """
+        result = await self.gonka_gg_client.get_timeseries(
+            window_from.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            window_to.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            breakdown="model",
+        )
+        if not result["is_success"]:
+            logger.warning(f"Model usage sync failed: {result['error_message']}")
+            return None
+
+        payload = result["data"].get("data", result["data"])
+        window = response_window(payload)
+        if window is None:
+            logger.warning(
+                f"Model usage sync got a non-hourly response for "
+                f"{window_from.isoformat()}..{window_to.isoformat()} (bucket={payload.get('bucket')})"
+            )
+            return None
+
+        now = datetime.now(timezone.utc)
+        covered = set(covered_epoch_ids(pending, window[0], window[1], now))
+        usage = aggregate_hourly_into_epochs(payload.get("series") or [], pending, now)
+        for span in pending:
+            if span.epoch_id in covered:
+                await self.cache_db.replace_model_epoch_usage(
+                    span.epoch_id,
+                    usage.get(span.epoch_id, {}),
+                    is_final=is_final(span, now),
+                )
+        if covered:
+            logger.info(f"Synced model usage for epochs {sorted(covered)}")
+        return covered
+
+    async def sync_model_epoch_usage(
+        self,
+        max_backfill_requests: int = 40,
+        request_delay: float = 10.0,
+    ) -> None:
+        """Fold gonka.gg hourly per-model traffic into model_epoch_usage.
+
+        The upstream rewrites recent ranges into fixed presets (see
+        EXACT_RANGE_MIN_AGE), so this runs in two passes rather than one
+        oldest-first walk, which would stall at the first epoch the upstream
+        cannot serve hourly and starve the running epoch behind it:
+
+        1. The trailing 7 days, every run. Keeps the running epoch current and
+           finalises recent ones as they settle.
+        2. Exact 7-day windows for older pending epochs. Epochs started 7-31
+           days ago have no hourly source today; they are skipped and picked up
+           once they age past EXACT_RANGE_MIN_AGE.
+
+        request_delay keeps the first backfill under gonka.gg's ~10 req/min
+        soft cap alongside the other pollers.
+        """
+        if not self.gonka_gg_client or not self.gonka_gg_client.is_configured:
+            return
+
+        final_epochs = await self.cache_db.get_final_usage_epochs()
+        pending = [
+            span for span in await self._usage_epoch_spans()
+            if span.epoch_id not in final_epochs and span.start >= HOURLY_DATA_START
+        ]
+        if not pending:
+            return
+
+        now = datetime.now(timezone.utc)
+        covered = await self._sync_usage_window(pending, now - TRAILING_REQUEST_SPAN, now)
+        if covered is None:
+            return
+        pending = [span for span in pending if span.epoch_id not in covered]
+
+        for _ in range(max_backfill_requests):
+            exact_cutoff = datetime.now(timezone.utc) - EXACT_RANGE_MIN_AGE
+            backfill = [span for span in pending if span.start <= exact_cutoff]
+            if not backfill:
+                break
+
+            await asyncio.sleep(request_delay)
+            window_from = floor_hour(backfill[0].start)
+            covered = await self._sync_usage_window(
+                pending, window_from, window_from + MAX_HOURLY_WINDOW
+            )
+            if not covered:
+                # The oldest epoch does not fit any servable window (or the
+                # request failed); stop instead of re-asking the same range.
+                logger.warning(
+                    f"Model usage backfill stalled at epoch {backfill[0].epoch_id}; retrying next run"
+                )
+                break
+            pending = [span for span in pending if span.epoch_id not in covered]
+
+        if pending:
+            logger.info(
+                f"Model usage sync left {len(pending)} epochs pending "
+                f"(oldest {pending[0].epoch_id}); they are retried on later runs"
+            )
+
+    async def _model_stats_for_epoch(self, epoch_id: int, chain_stats: List[Dict[str, Any]]) -> List[ModelStats]:
+        """Per-model traffic for one epoch.
+
+        Prefer the chain's own numbers; they are empty for every epoch since
+        v0.2.11, in which case fall back to the gonka.gg-derived totals.
+        """
+        if chain_stats:
+            return [
+                ModelStats(
+                    model=stat.get("model", ""),
+                    ai_tokens=stat.get("ai_tokens", "0"),
+                    inferences=stat.get("inferences", 0),
+                )
+                for stat in chain_stats
+            ]
+
+        return [
+            ModelStats(model=row["model_id"], ai_tokens=str(row["ai_tokens"]), inferences=row["inferences"])
+            for row in await self.cache_db.get_model_epoch_usage(epoch_id)
+        ]
 
     async def get_inference_stats(self) -> InferenceStatsResponse:
         """Assemble every cached gonka.gg dataset into one response.

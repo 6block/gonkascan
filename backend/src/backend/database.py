@@ -620,6 +620,28 @@ class CacheDB:
                 );
             """)
 
+            # Per-epoch model traffic folded from gonka.gg's hourly series,
+            # replacing the chain's models_stats_by_time (empty since v0.2.11).
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS model_epoch_usage (
+                    epoch_id    INTEGER NOT NULL,
+                    model_id    TEXT NOT NULL,
+                    inferences         INTEGER NOT NULL,
+                    prompt_tokens      INTEGER NOT NULL,
+                    completion_tokens  INTEGER NOT NULL,
+                    ai_tokens          INTEGER NOT NULL,
+                    PRIMARY KEY (epoch_id, model_id)
+                );
+            """)
+
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS model_epoch_usage_status (
+                    epoch_id   INTEGER PRIMARY KEY,
+                    is_final   INTEGER NOT NULL,
+                    synced_at  TEXT NOT NULL
+                );
+            """)
+
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
 
@@ -2552,6 +2574,96 @@ class CacheDB:
             async with db.execute("SELECT * FROM dex_market_stats WHERE id = 1") as cursor:
                 row = await cursor.fetchone()
                 return dict(row) if row else None
+
+    async def get_epoch_start_times(self, from_epoch: int) -> List[Dict[str, Any]]:
+        """Epoch ids with the timestamp of their PoC start block, oldest first.
+
+        Epochs whose start block is not indexed yet come back with time=None.
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute("""
+                SELECT e.epoch_id, e.poc_start_block_height, b.time
+                FROM epoch_participants_snapshot e
+                LEFT JOIN blocks b ON b.height = e.poc_start_block_height
+                WHERE e.epoch_id >= ?
+                ORDER BY e.epoch_id ASC
+            """, (from_epoch,)) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_final_usage_epochs(self) -> set:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT epoch_id FROM model_epoch_usage_status WHERE is_final = 1"
+            ) as cursor:
+                return {row[0] for row in await cursor.fetchall()}
+
+    async def replace_model_epoch_usage(
+        self,
+        epoch_id: int,
+        usage: Dict[str, Dict[str, int]],
+        is_final: bool,
+    ):
+        """Replace one epoch's per-model totals atomically."""
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("DELETE FROM model_epoch_usage WHERE epoch_id = ?", (epoch_id,))
+            await db.executemany(
+                """
+                INSERT INTO model_epoch_usage (
+                    epoch_id, model_id, inferences, prompt_tokens, completion_tokens, ai_tokens
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        epoch_id,
+                        model_id,
+                        values["inferences"],
+                        values["prompt_tokens"],
+                        values["completion_tokens"],
+                        values["ai_tokens"],
+                    )
+                    for model_id, values in usage.items()
+                ],
+            )
+            await db.execute(
+                """
+                INSERT OR REPLACE INTO model_epoch_usage_status (epoch_id, is_final, synced_at)
+                VALUES (?, ?, ?)
+                """,
+                (epoch_id, 1 if is_final else 0, datetime.utcnow().isoformat()),
+            )
+            await db.commit()
+
+    async def get_model_epoch_usage(self, epoch_id: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT model_id, inferences, ai_tokens FROM model_epoch_usage WHERE epoch_id = ?",
+                (epoch_id,),
+            ) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_all_model_epoch_usage(self) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT epoch_id, model_id, inferences, ai_tokens FROM model_epoch_usage ORDER BY epoch_id ASC"
+            ) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
+
+    async def get_model_epoch_usage_for_model(self, model_id: str, limit: int) -> List[Dict[str, Any]]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """
+                SELECT epoch_id, inferences, prompt_tokens, completion_tokens FROM (
+                    SELECT epoch_id, inferences, prompt_tokens, completion_tokens FROM model_epoch_usage
+                    WHERE model_id = ? ORDER BY epoch_id DESC LIMIT ?
+                ) ORDER BY epoch_id ASC
+                """,
+                (model_id, limit),
+            ) as cursor:
+                return [dict(row) for row in await cursor.fetchall()]
 
     async def get_ibc_denom_metadata(self, denom: str) -> Optional[Dict[str, Any]]:
         async with aiosqlite.connect(self.db_path) as db:

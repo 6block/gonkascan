@@ -10,6 +10,12 @@ import { RefreshControlFooter } from './common/RefreshControlFooter'
 import LoadingScreen from './common/LoadingScreen'
 import ErrorScreen from './common/ErrorScreen'
 
+// The chain stopped recording per-model traffic at v0.2.11 (epoch 207); later
+// epochs are folded from gonka.gg's hourly DevShard series, which starts in
+// early May 2026 — hence the gap in between.
+const USAGE_SOURCE_NOTE =
+  'On-chain through epoch 206; from epoch 254 via gonka.gg DevShard data, folded from hourly buckets (approximate at epoch boundaries). Epochs 207–253 have no source.'
+
 export function Models() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
@@ -247,8 +253,8 @@ export function Models() {
         <div className="flex flex-col gap-6 md:gap-8">
           <EpochAreaChart title="Total Weight" data={totalWeightData} />
           <EpochAreaChart title="Hosts" data={hostsData} />
-          <EpochAreaChart title="Inferences" data={inferencesData} />
-          <EpochAreaChart title="AI Tokens" data={aiTokensData} />
+          <EpochAreaChart title="Inferences" subtitle={USAGE_SOURCE_NOTE} data={inferencesData} />
+          <EpochAreaChart title="AI Tokens" subtitle={USAGE_SOURCE_NOTE} data={aiTokensData} />
         </div>
       )}
 
