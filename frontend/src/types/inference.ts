@@ -325,6 +325,8 @@ export interface ModelSeries {
 export interface ModelEpochSeriesResponse {
   models: string[]
   series: ModelSeries
+  // Epochs whose inferences / AI tokens are estimated from daily buckets.
+  estimated_epochs?: number[]
 }
 
 export interface ModelEpochTokenUsageItem {

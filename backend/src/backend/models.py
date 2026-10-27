@@ -341,6 +341,9 @@ class ModelSeries(BaseModel):
 class ModelEpochSeriesResponse(BaseModel):
     models: List[str]
     series: ModelSeries
+    # Epochs whose inferences / ai_tokens are estimated from daily buckets
+    # until gonka.gg serves them hourly.
+    estimated_epochs: List[int] = []
 
 class ModelEpochTokenUsageItem(BaseModel):
     epoch: int

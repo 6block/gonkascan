@@ -636,11 +636,26 @@ class CacheDB:
 
             await db.execute("""
                 CREATE TABLE IF NOT EXISTS model_epoch_usage_status (
-                    epoch_id   INTEGER PRIMARY KEY,
-                    is_final   INTEGER NOT NULL,
-                    synced_at  TEXT NOT NULL
+                    epoch_id     INTEGER PRIMARY KEY,
+                    is_final     INTEGER NOT NULL,
+                    synced_at    TEXT NOT NULL,
+                    granularity  TEXT NOT NULL DEFAULT 'hour'
                 );
             """)
+
+            # Backfill: the status table first shipped without granularity.
+            # Every row written then came from hourly buckets, hence the default.
+            try:
+                async with db.execute("PRAGMA table_info(model_epoch_usage_status)") as cur:
+                    cols = {r[1] for r in await cur.fetchall()}
+                if "granularity" not in cols:
+                    await db.execute(
+                        "ALTER TABLE model_epoch_usage_status "
+                        "ADD COLUMN granularity TEXT NOT NULL DEFAULT 'hour'"
+                    )
+                    logger.info("DB migration: added model_epoch_usage_status.granularity")
+            except Exception as e:
+                logger.warning(f"DB migration for model_epoch_usage_status.granularity failed: {e}")
 
             await db.commit()
             logger.info(f"Database initialized at {self.db_path}")
@@ -2598,11 +2613,20 @@ class CacheDB:
             ) as cursor:
                 return {row[0] for row in await cursor.fetchall()}
 
+    async def get_usage_granularities(self) -> Dict[int, str]:
+        """Bucket size each synced epoch was computed from ("hour" or "day")."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute(
+                "SELECT epoch_id, granularity FROM model_epoch_usage_status"
+            ) as cursor:
+                return {row[0]: row[1] for row in await cursor.fetchall()}
+
     async def replace_model_epoch_usage(
         self,
         epoch_id: int,
         usage: Dict[str, Dict[str, int]],
         is_final: bool,
+        granularity: str = "hour",
     ):
         """Replace one epoch's per-model totals atomically."""
         async with aiosqlite.connect(self.db_path) as db:
@@ -2627,10 +2651,11 @@ class CacheDB:
             )
             await db.execute(
                 """
-                INSERT OR REPLACE INTO model_epoch_usage_status (epoch_id, is_final, synced_at)
-                VALUES (?, ?, ?)
+                INSERT OR REPLACE INTO model_epoch_usage_status (
+                    epoch_id, is_final, synced_at, granularity
+                ) VALUES (?, ?, ?, ?)
                 """,
-                (epoch_id, 1 if is_final else 0, datetime.utcnow().isoformat()),
+                (epoch_id, 1 if is_final else 0, datetime.utcnow().isoformat(), granularity),
             )
             await db.commit()
 

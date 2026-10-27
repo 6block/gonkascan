@@ -29,12 +29,16 @@ from backend.gonka_gg_client import GonkaGGClient
 from backend.database import CacheDB
 from backend.dex import WGNK_PAIR_LABEL, WGNK_POOL_URL
 from backend.model_usage import (
+    BUCKET_DAY,
+    BUCKET_HOUR,
+    BUCKET_SPANS,
     EXACT_RANGE_MIN_AGE,
     HOURLY_DATA_START,
-    TRAILING_REQUEST_SPAN,
     MAX_HOURLY_WINDOW,
+    TRAILING_DAILY_REQUEST_SPAN,
+    TRAILING_REQUEST_SPAN,
     EpochSpan,
-    aggregate_hourly_into_epochs,
+    aggregate_into_epochs,
     covered_epoch_ids,
     floor_hour,
     is_final,
@@ -3634,6 +3638,11 @@ class InferenceService:
             series["inferences"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=row["inferences"]))
             series["ai_tokens"][model_id].append(EpochSeriesPoint(epoch_id=epoch_id, value=row["ai_tokens"]))
 
+        estimated_epochs = sorted(
+            epoch_id for epoch_id, granularity in (await self.cache_db.get_usage_granularities()).items()
+            if granularity == BUCKET_DAY and epoch_id not in chain_stat_epochs
+        )
+
         return ModelEpochSeriesResponse(
             models=sorted(models_set),
             series={
@@ -3641,7 +3650,8 @@ class InferenceService:
                 "hosts": dict(series["hosts"]),
                 "inferences": dict(series["inferences"]),
                 "ai_tokens": dict(series["ai_tokens"]),
-            }
+            },
+            estimated_epochs=estimated_epochs,
         )
     
     async def get_model_token_usage(self, model: str) -> ModelEpochTokenUsageResponse:
@@ -4468,11 +4478,13 @@ class InferenceService:
         pending: List[EpochSpan],
         window_from: datetime,
         window_to: datetime,
+        bucket: str = BUCKET_HOUR,
     ) -> Optional[set]:
-        """Fetch one hourly window and persist every pending epoch it fully covers.
+        """Fetch one window and persist every pending epoch it fully covers.
 
-        Returns the covered epoch ids, or None when the request failed or the
-        upstream answered with something other than hourly buckets.
+        Daily results are written as non-final estimates so a later hourly
+        window replaces them. Returns the covered epoch ids, or None when the
+        request failed or the upstream answered with another bucket size.
         """
         result = await self.gonka_gg_client.get_timeseries(
             window_from.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -4484,26 +4496,29 @@ class InferenceService:
             return None
 
         payload = result["data"].get("data", result["data"])
-        window = response_window(payload)
+        window = response_window(payload, expected_bucket=bucket)
         if window is None:
             logger.warning(
-                f"Model usage sync got a non-hourly response for "
-                f"{window_from.isoformat()}..{window_to.isoformat()} (bucket={payload.get('bucket')})"
+                f"Model usage sync expected {bucket} buckets for "
+                f"{window_from.isoformat()}..{window_to.isoformat()}, got {payload.get('bucket')}"
             )
             return None
 
+        bucket_span = BUCKET_SPANS[bucket]
+        is_hourly = bucket == BUCKET_HOUR
         now = datetime.now(timezone.utc)
-        covered = set(covered_epoch_ids(pending, window[0], window[1], now))
-        usage = aggregate_hourly_into_epochs(payload.get("series") or [], pending, now)
+        covered = set(covered_epoch_ids(pending, window[0], window[1], now, bucket_span=bucket_span))
+        usage = aggregate_into_epochs(payload.get("series") or [], pending, now, bucket_span=bucket_span)
         for span in pending:
             if span.epoch_id in covered:
                 await self.cache_db.replace_model_epoch_usage(
                     span.epoch_id,
                     usage.get(span.epoch_id, {}),
-                    is_final=is_final(span, now),
+                    is_final=is_hourly and is_final(span, now),
+                    granularity=bucket,
                 )
         if covered:
-            logger.info(f"Synced model usage for epochs {sorted(covered)}")
+            logger.info(f"Synced model usage ({bucket}) for epochs {sorted(covered)}")
         return covered
 
     async def sync_model_epoch_usage(
@@ -4511,18 +4526,20 @@ class InferenceService:
         max_backfill_requests: int = 40,
         request_delay: float = 10.0,
     ) -> None:
-        """Fold gonka.gg hourly per-model traffic into model_epoch_usage.
+        """Fold gonka.gg per-model traffic into model_epoch_usage.
 
         The upstream rewrites recent ranges into fixed presets (see
-        EXACT_RANGE_MIN_AGE), so this runs in two passes rather than one
+        EXACT_RANGE_MIN_AGE), so this runs in three passes rather than one
         oldest-first walk, which would stall at the first epoch the upstream
         cannot serve hourly and starve the running epoch behind it:
 
-        1. The trailing 7 days, every run. Keeps the running epoch current and
-           finalises recent ones as they settle.
-        2. Exact 7-day windows for older pending epochs. Epochs started 7-31
-           days ago have no hourly source today; they are skipped and picked up
-           once they age past EXACT_RANGE_MIN_AGE.
+        1. The trailing 7 days (hourly), every run. Keeps the running epoch
+           current and finalises recent ones as they settle.
+        2. Exact 7-day hourly windows for pending epochs older than 31 days.
+           This also replaces daily estimates once their epochs age into it.
+        3. The trailing 30 days (daily), for epochs started 7-31 days ago,
+           which have no hourly source yet. Written as non-final estimates and
+           never over hourly data.
 
         request_delay keeps the first backfill under gonka.gg's ~10 req/min
         soft cap alongside the other pollers.
@@ -4564,10 +4581,33 @@ class InferenceService:
                 break
             pending = [span for span in pending if span.epoch_id not in covered]
 
-        if pending:
+        await self._estimate_usage_from_daily(pending, request_delay)
+
+    async def _estimate_usage_from_daily(self, pending: List[EpochSpan], request_delay: float) -> None:
+        """Fill epochs in the 7-31 day band from daily buckets until hourly data arrives."""
+        exact_cutoff = datetime.now(timezone.utc) - EXACT_RANGE_MIN_AGE
+        hourly_epochs = {
+            epoch_id for epoch_id, granularity in (await self.cache_db.get_usage_granularities()).items()
+            if granularity == BUCKET_HOUR
+        }
+        # Anything already computed from hourly buckets is more accurate than a
+        # daily estimate, even if it is not final yet; leave it alone.
+        band = [
+            span for span in pending
+            if span.start > exact_cutoff and span.epoch_id not in hourly_epochs
+        ]
+        if not band:
+            return
+
+        await asyncio.sleep(request_delay)
+        now = datetime.now(timezone.utc)
+        await self._sync_usage_window(band, now - TRAILING_DAILY_REQUEST_SPAN, now, bucket=BUCKET_DAY)
+
+        left = [span.epoch_id for span in pending if span.epoch_id not in hourly_epochs]
+        if left:
             logger.info(
-                f"Model usage sync left {len(pending)} epochs pending "
-                f"(oldest {pending[0].epoch_id}); they are retried on later runs"
+                f"Model usage: {len(left)} epochs not yet on hourly data "
+                f"(oldest {min(left)}); daily estimates are refined on later runs"
             )
 
     async def _model_stats_for_epoch(self, epoch_id: int, chain_stats: List[Dict[str, Any]]) -> List[ModelStats]:

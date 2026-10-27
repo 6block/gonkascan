@@ -16,6 +16,30 @@ import ErrorScreen from './common/ErrorScreen'
 const USAGE_SOURCE_NOTE =
   'On-chain through epoch 206; from epoch 254 via gonka.gg DevShard data, folded from hourly buckets (approximate at epoch boundaries). Epochs 207–253 have no source.'
 
+// Contiguous runs, so "408–431" reads better than a long comma list.
+function formatEpochRanges(epochs: number[]): string {
+  const sorted = [...epochs].sort((a, b) => a - b)
+  const ranges: string[] = []
+  let start = sorted[0]
+  let prev = sorted[0]
+  for (const epoch of sorted.slice(1)) {
+    if (epoch === prev + 1) {
+      prev = epoch
+      continue
+    }
+    ranges.push(start === prev ? `${start}` : `${start}–${prev}`)
+    start = epoch
+    prev = epoch
+  }
+  ranges.push(start === prev ? `${start}` : `${start}–${prev}`)
+  return ranges.join(', ')
+}
+
+function usageSourceNote(estimatedEpochs: number[]): string {
+  if (!estimatedEpochs.length) return USAGE_SOURCE_NOTE
+  return `${USAGE_SOURCE_NOTE} Epochs ${formatEpochRanges(estimatedEpochs)} are estimated from daily buckets until hourly data is available.`
+}
+
 export function Models() {
   const [selectedEpochId, setSelectedEpochId] = useState<number | null>(null)
   const [currentEpochId, setCurrentEpochId] = useState<number | null>(null)
@@ -119,6 +143,10 @@ export function Models() {
 
   const sortedModels = [...data.models].sort((a, b) => b.total_weight - a.total_weight)
   const statsMap = new Map(data.stats.map(s => [s.model, s]))
+  const estimatedEpochs = metricsData?.estimated_epochs ?? []
+  const isEstimated = estimatedEpochs.includes(data.epoch_id)
+  const approx = isEstimated ? '≈ ' : ''
+  const usageNote = usageSourceNote(estimatedEpochs)
   
   const totalWeightData = metricsData? buildEpochRows(metricsData.series.total_weight): []
   const hostsData = metricsData? buildEpochRows(metricsData.series.hosts): []
@@ -163,6 +191,11 @@ export function Models() {
         <div className="mb-4">
           <h2 className="section-title">Available Models</h2>
           <p className="section-subtitle mt-1">Click on a model to view detailed information</p>
+          {isEstimated && (
+            <p className="mt-1.5 text-xs text-amber-300/80">
+              ≈ Inferences and AI tokens for this epoch are estimated from daily buckets and will be refined once hourly data is available.
+            </p>
+          )}
         </div>
 
         {/* Mobile: stacked cards */}
@@ -187,11 +220,11 @@ export function Models() {
                   </div>
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">Inferences</div>
-                    <div className="text-slate-200 tabular-nums text-sm">{stats ? stats.inferences.toLocaleString() : '—'}</div>
+                    <div className="text-slate-200 tabular-nums text-sm">{stats ? `${approx}${stats.inferences.toLocaleString()}` : '—'}</div>
                   </div>
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-0.5">AI tokens</div>
-                    <div className="text-slate-200 tabular-nums text-sm">{stats ? parseInt(stats.ai_tokens).toLocaleString() : '—'}</div>
+                    <div className="text-slate-200 tabular-nums text-sm">{stats ? `${approx}${parseInt(stats.ai_tokens).toLocaleString()}` : '—'}</div>
                   </div>
                 </div>
               </button>
@@ -230,10 +263,10 @@ export function Models() {
                       {model.participant_count}
                     </td>
                     <td className="px-4 py-3.5 text-sm text-slate-300 text-right whitespace-nowrap tabular-nums">
-                      {stats ? stats.inferences.toLocaleString() : '—'}
+                      {stats ? `${approx}${stats.inferences.toLocaleString()}` : '—'}
                     </td>
                     <td className="px-4 py-3.5 text-sm text-slate-300 text-right whitespace-nowrap tabular-nums">
-                      {stats ? parseInt(stats.ai_tokens).toLocaleString() : '—'}
+                      {stats ? `${approx}${parseInt(stats.ai_tokens).toLocaleString()}` : '—'}
                     </td>
                   </tr>
                 )
@@ -253,8 +286,8 @@ export function Models() {
         <div className="flex flex-col gap-6 md:gap-8">
           <EpochAreaChart title="Total Weight" data={totalWeightData} />
           <EpochAreaChart title="Hosts" data={hostsData} />
-          <EpochAreaChart title="Inferences" subtitle={USAGE_SOURCE_NOTE} data={inferencesData} />
-          <EpochAreaChart title="AI Tokens" subtitle={USAGE_SOURCE_NOTE} data={aiTokensData} />
+          <EpochAreaChart title="Inferences" subtitle={usageNote} data={inferencesData} />
+          <EpochAreaChart title="AI Tokens" subtitle={usageNote} data={aiTokensData} />
         </div>
       )}
 

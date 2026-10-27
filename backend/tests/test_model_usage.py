@@ -10,7 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from backend.model_usage import (  # noqa: E402
     EpochSpan,
-    aggregate_hourly_into_epochs,
+    BUCKET_DAY,
+    DAY_SPAN,
+    aggregate_into_epochs,
     covered_epoch_ids,
     floor_hour,
     is_final,
@@ -58,7 +60,7 @@ def test_floor_hour_drops_minutes_and_seconds():
 def test_hour_fully_inside_one_epoch_counts_in_full():
     spans = [EpochSpan(epoch_id=10, start=hour(0), end=hour(10))]
 
-    usage = aggregate_hourly_into_epochs([point(2)], spans, now=hour(20))
+    usage = aggregate_into_epochs([point(2)], spans, now=hour(20))
 
     assert usage == {10: {"m1": usage_of(100, 900, 100)}}
 
@@ -71,7 +73,7 @@ def test_hour_straddling_a_boundary_is_split_by_overlap():
         EpochSpan(epoch_id=11, start=boundary, end=hour(10)),
     ]
 
-    usage = aggregate_hourly_into_epochs([point(5, requests=400, prompt=3600, completion=400)], spans, now=hour(20))
+    usage = aggregate_into_epochs([point(5, requests=400, prompt=3600, completion=400)], spans, now=hour(20))
 
     assert usage[10]["m1"] == usage_of(100, 900, 100)
     assert usage[11]["m1"] == usage_of(300, 2700, 300)
@@ -84,7 +86,7 @@ def test_split_never_loses_or_invents_traffic():
         EpochSpan(epoch_id=11, start=boundary, end=hour(10)),
     ]
 
-    usage = aggregate_hourly_into_epochs([point(5, requests=7, prompt=10, completion=3)], spans, now=hour(20))
+    usage = aggregate_into_epochs([point(5, requests=7, prompt=10, completion=3)], spans, now=hour(20))
 
     assert usage[10]["m1"]["inferences"] + usage[11]["m1"]["inferences"] == 7
     assert usage[10]["m1"]["ai_tokens"] + usage[11]["m1"]["ai_tokens"] == 13
@@ -96,7 +98,7 @@ def test_split_never_loses_or_invents_traffic():
 def test_open_epoch_runs_until_now():
     spans = [EpochSpan(epoch_id=12, start=hour(0), end=None)]
 
-    usage = aggregate_hourly_into_epochs([point(3), point(30)], spans, now=hour(10))
+    usage = aggregate_into_epochs([point(3), point(30)], spans, now=hour(10))
 
     # hour 30 is in the future relative to `now`, so it is not attributed.
     assert usage == {12: {"m1": usage_of(100, 900, 100)}}
@@ -105,7 +107,7 @@ def test_open_epoch_runs_until_now():
 def test_models_are_kept_separate():
     spans = [EpochSpan(epoch_id=10, start=hour(0), end=hour(10))]
 
-    usage = aggregate_hourly_into_epochs(
+    usage = aggregate_into_epochs(
         [point(1, model="a", requests=1, prompt=1, completion=0), point(1, model="b", requests=2, prompt=2, completion=0)],
         spans,
         now=hour(20),
@@ -117,7 +119,7 @@ def test_models_are_kept_separate():
 def test_points_outside_every_epoch_are_ignored():
     spans = [EpochSpan(epoch_id=10, start=hour(5), end=hour(10))]
 
-    usage = aggregate_hourly_into_epochs([point(1), point(12)], spans, now=hour(20))
+    usage = aggregate_into_epochs([point(1), point(12)], spans, now=hour(20))
 
     assert usage == {}
 
@@ -126,7 +128,7 @@ def test_malformed_points_are_skipped_not_raised():
     spans = [EpochSpan(epoch_id=10, start=hour(0), end=hour(10))]
     bad = [{"ts": "not-a-time", "model": "m1"}, {"model": "m1"}, point(2)]
 
-    usage = aggregate_hourly_into_epochs(bad, spans, now=hour(20))
+    usage = aggregate_into_epochs(bad, spans, now=hour(20))
 
     assert usage == {10: {"m1": usage_of(100, 900, 100)}}
 
@@ -157,26 +159,33 @@ class FakeGonkaGG:
     def __init__(self):
         self.calls = []
 
-    async def get_timeseries(self, time_from, time_to, breakdown="model"):
-        self.calls.append((time_from, time_to))
+    def _response(self, time_from, time_to, bucket):
+        step = DAY_SPAN if bucket == BUCKET_DAY else timedelta(hours=1)
+        per_bucket = int(step / timedelta(hours=1))
         start = parse_iso_utc(time_from)
         end = parse_iso_utc(time_to)
-        series = []
         cursor = floor_hour(start)
+        if bucket == BUCKET_DAY:
+            cursor = cursor.replace(hour=0)
+        series = []
         while cursor <= end:
             series.append({
                 "ts": cursor.strftime("%Y-%m-%d %H:%M:%S"),
                 "model": "m1",
-                "requests": 10,
-                "prompt": 100,
-                "completion": 10,
+                "requests": 10 * per_bucket,
+                "prompt": 100 * per_bucket,
+                "completion": 10 * per_bucket,
             })
-            cursor += timedelta(hours=1)
+            cursor += step
         return {
             "is_success": True,
             "error_message": None,
-            "data": {"data": {"bucket": "hour", "from": time_from, "to": time_to, "series": series}},
+            "data": {"data": {"bucket": bucket, "from": time_from, "to": time_to, "series": series}},
         }
+
+    async def get_timeseries(self, time_from, time_to, breakdown="model"):
+        self.calls.append((time_from, time_to))
+        return self._response(time_from, time_to, "hour")
 
 
 async def _insert_with_dummies(db_path, table, values):
@@ -261,20 +270,17 @@ class SnappingGonkaGG(FakeGonkaGG):
     """
 
     async def get_timeseries(self, time_from, time_to, breakdown="model"):
+        self.calls.append((time_from, time_to))
         now = datetime.now(timezone.utc)
+        iso_now = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         start = parse_iso_utc(time_from)
         if start >= now - timedelta(days=7):
-            iso_now = now.strftime("%Y-%m-%dT%H:%M:%SZ")
             iso_week = (now - timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
-            return await super().get_timeseries(iso_week, iso_now, breakdown)
+            return self._response(iso_week, iso_now, "hour")
         if start >= now - timedelta(days=30):
-            self.calls.append((time_from, time_to))
-            return {
-                "is_success": True,
-                "error_message": None,
-                "data": {"data": {"bucket": "day", "from": time_from, "to": time_to, "series": []}},
-            }
-        return await super().get_timeseries(time_from, time_to, breakdown)
+            iso_month = (now - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            return self._response(iso_month, iso_now, BUCKET_DAY)
+        return self._response(time_from, time_to, "hour")
 
 
 def test_sync_keeps_the_running_epoch_fresh_despite_an_unservable_gap(tmp_path):
@@ -306,15 +312,121 @@ def test_sync_keeps_the_running_epoch_fresh_despite_an_unservable_gap(tmp_path):
 
         await service.sync_model_epoch_usage(request_delay=0)
 
-        synced = {row["epoch_id"] for row in await cache_db.get_all_model_epoch_usage()}
-        assert {500, 700, 701} <= synced
-        assert 600 not in synced  # no hourly source yet; must not be guessed
+        usage = {row["epoch_id"]: row for row in await cache_db.get_all_model_epoch_usage()}
+        assert {500, 600, 700, 701} <= set(usage)
+        # 600 has no hourly source yet, so it is estimated from daily buckets:
+        # present, but never final, so hourly data can replace it later.
+        assert usage[600]["inferences"] == 240
         assert await cache_db.get_final_usage_epochs() == {500, 700}
-        # One trailing-week request plus one exact backfill window; the gap
-        # epoch is skipped without being requested.
-        assert len(fake.calls) == 2
+        granularity = await cache_db.get_usage_granularities()
+        assert granularity[600] == "day"
+        assert granularity[500] == granularity[700] == "hour"
+        # Trailing week, one exact backfill window, one trailing-month request.
+        assert len(fake.calls) == 3
 
     asyncio.run(scenario())
+
+
+def test_daily_estimate_never_replaces_hourly_data(tmp_path):
+    import asyncio
+
+    from backend.database import CacheDB
+    from backend.service import InferenceService
+
+    async def scenario():
+        db_path = str(tmp_path / "cache.db")
+        cache_db = CacheDB(db_path)
+        await cache_db.initialize()
+
+        now = floor_hour(datetime.now(timezone.utc))
+        await _seed_epochs(db_path, [
+            (600, now - timedelta(days=15)),
+            (601, now - timedelta(days=14)),
+            (700, now - timedelta(hours=12)),
+        ])
+        # 600 was written hourly by an earlier run but not finalised yet.
+        hourly = {"m1": {"inferences": 999, "prompt_tokens": 1, "completion_tokens": 1, "ai_tokens": 2}}
+        await cache_db.replace_model_epoch_usage(600, hourly, is_final=False, granularity="hour")
+
+        service = InferenceService(client=None, cache_db=cache_db, gonka_gg_client=SnappingGonkaGG())
+        await service.sync_model_epoch_usage(request_delay=0)
+
+        usage = {row["epoch_id"]: row for row in await cache_db.get_all_model_epoch_usage()}
+        assert usage[600]["inferences"] == 999
+        assert (await cache_db.get_usage_granularities())[600] == "hour"
+
+    asyncio.run(scenario())
+
+
+def test_hourly_backfill_replaces_an_earlier_daily_estimate(tmp_path):
+    import asyncio
+
+    from backend.database import CacheDB
+    from backend.service import InferenceService
+
+    async def scenario():
+        db_path = str(tmp_path / "cache.db")
+        cache_db = CacheDB(db_path)
+        await cache_db.initialize()
+
+        now = floor_hour(datetime.now(timezone.utc))
+        await _seed_epochs(db_path, [
+            (500, now - timedelta(days=40)),
+            (501, now - timedelta(days=39)),
+            (700, now - timedelta(hours=12)),
+        ])
+        # 500 was estimated daily back when it was inside the 7-30 day band.
+        daily = {"m1": {"inferences": 1, "prompt_tokens": 1, "completion_tokens": 0, "ai_tokens": 1}}
+        await cache_db.replace_model_epoch_usage(500, daily, is_final=False, granularity="day")
+
+        service = InferenceService(client=None, cache_db=cache_db, gonka_gg_client=SnappingGonkaGG())
+        await service.sync_model_epoch_usage(request_delay=0)
+
+        usage = {row["epoch_id"]: row for row in await cache_db.get_all_model_epoch_usage()}
+        assert usage[500]["inferences"] == 240
+        assert (await cache_db.get_usage_granularities())[500] == "hour"
+        assert 500 in await cache_db.get_final_usage_epochs()
+
+    asyncio.run(scenario())
+
+
+def test_daily_bucket_is_split_across_epochs_by_overlap():
+    # One day of traffic, epoch boundary at 06:00: a quarter of it goes to the
+    # first epoch, assuming traffic is spread evenly through the day.
+    boundary = hour(6)
+    spans = [
+        EpochSpan(epoch_id=10, start=hour(-24), end=boundary),
+        EpochSpan(epoch_id=11, start=boundary, end=hour(48)),
+    ]
+
+    usage = aggregate_into_epochs(
+        [point(0, requests=400, prompt=3600, completion=400)], spans, now=hour(99), bucket_span=DAY_SPAN
+    )
+
+    assert usage[10]["m1"] == usage_of(100, 900, 100)
+    assert usage[11]["m1"] == usage_of(300, 2700, 300)
+
+
+def test_covered_epoch_ids_drops_the_partial_first_bucket():
+    # A trailing-30-day daily window starts mid-day, so its first bucket holds
+    # less than a full day; an epoch starting that day must not be counted.
+    spans = [
+        EpochSpan(epoch_id=10, start=hour(2), end=hour(30)),   # inside the partial first day
+        EpochSpan(epoch_id=11, start=hour(30), end=hour(52)),  # fully inside whole days
+    ]
+
+    covered = covered_epoch_ids(
+        spans, window_from=hour(1), window_to=hour(24 * 10), now=hour(24 * 10), bucket_span=DAY_SPAN
+    )
+
+    assert covered == [11]
+
+
+def test_response_window_accepts_the_bucket_it_was_asked_for():
+    daily = {"bucket": "day", "from": "2026-09-27T06:29:20Z", "to": "2026-10-27T06:30:20Z", "series": []}
+
+    assert response_window(daily, expected_bucket=BUCKET_DAY) is not None
+    assert response_window(daily) is None  # hourly is the default expectation
 
 
 def test_is_final_waits_for_the_margin_after_an_epoch_ends():
